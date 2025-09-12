@@ -63,3 +63,78 @@ pids
 # Claude/Cursor configs (may contain sensitive data)
 .claude/
 .cursor/
+
+# Temporary and cache files
+.tmp/
+temp/
+*.tmp
+*.temp
+.cache/
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets.yaml
+config.secret.*
+
+# IDE and editor files
+.vscode/
+*.swp
+*.swo
+*~
+.#*
+\#*#
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Archive files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Large media files (add specific extensions as needed)
+*.mov
+*.mp4
+*.avi
+*.mkv
+
+# Generated documentation
+docs/generated/
+*.pdf
+*.docx
+
+# Test coverage reports
+coverage/
+*.lcov
+
+# Node modules (if you add any web tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python cache (if you add any Python tools)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# AdMob and analytics keys
+admob_app_id.txt
+google-services.plist
+GoogleService-Info.plist
+
+# Backup files
+*.backup
+*.bak
+*~.nib
+
+# .ignore folder (in case it's recreated)
+.ignore/
