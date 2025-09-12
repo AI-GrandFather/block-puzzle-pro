@@ -154,7 +154,7 @@ Integrate AdMob rewarded video system, implement learn-by-playing tutorial, and 
 
 ## Epic 1: Foundation & Core Gameplay Infrastructure
 
-**Epic Goal:** Establish the fundamental game architecture and deliver a fully playable block puzzle experience with core mechanics. This epic creates the foundation for all subsequent features while ensuring players can immediately understand and enjoy the basic gameplay loop of placing blocks and clearing lines.
+**Epic Goal:** Establish the fundamental game architecture and deliver a fully playable block puzzle experience with core mechanics and complete scoring system. This epic creates the foundation for all subsequent features while ensuring players can immediately understand and enjoy the basic gameplay loop of placing blocks and clearing lines.
 
 ### Story 1.1: Project Setup and Basic SpriteKit Integration
 As a developer,
@@ -168,7 +168,20 @@ so that I have a solid foundation for game development.
 4. Project compiles and runs successfully on both iPhone and iPad simulators
 5. Git repository initialized with proper .gitignore for iOS development
 
-### Story 1.2: Game Grid and Visual Foundation
+### Story 1.2: AdMob SDK Integration and Configuration
+As a developer,
+I want to integrate Google AdMob SDK with proper configuration,
+so that I can serve rewarded video ads to players when they choose.
+
+#### Acceptance Criteria
+1. AdMob SDK (2025 version) integrated with proper iOS permissions and configuration
+2. Test ad units configured for development and testing phases
+3. Production ad units ready for App Store deployment
+4. Ad loading happens in background without blocking gameplay
+5. Error handling for network failures and ad unavailability
+6. Compliance with iOS 18.6.2 App Tracking Transparency requirements
+
+### Story 1.3: Game Grid and Visual Foundation
 As a player,
 I want to see a clean 10x10 game grid,
 so that I understand the playing field immediately.
@@ -180,7 +193,7 @@ so that I understand the playing field immediately.
 4. Grid positioning allows space for score display at top and block tray at bottom
 5. Grid cells provide visual feedback for potential block placement areas
 
-### Story 1.3: Basic Block Creation and Display
+### Story 1.4: Basic Block Creation and Display
 As a player,
 I want to see the three starting block types (L-shape, 1x1, 1x2) in the bottom tray,
 so that I can begin placing blocks on the grid.
@@ -192,7 +205,7 @@ so that I can begin placing blocks on the grid.
 4. Bottom tray layout provides adequate spacing for comfortable touch interaction
 5. Blocks automatically regenerate in tray after placement (infinite supply)
 
-### Story 1.4: Drag-and-Drop Block Placement
+### Story 1.5: Drag-and-Drop Block Placement
 As a player,
 I want to drag blocks from the tray and place them on the grid,
 so that I can start playing the core puzzle game.
@@ -205,7 +218,7 @@ so that I can start playing the core puzzle game.
 5. Successfully placed blocks snap to grid positions with satisfying animation
 6. Placed blocks become part of the grid and cannot be moved
 
-### Story 1.5: Line and Column Clearing Mechanics
+### Story 1.6: Line and Column Clearing Mechanics
 As a player,
 I want complete rows and columns to clear automatically,
 so that I can make space for more blocks and feel progression.
@@ -218,7 +231,7 @@ so that I can make space for more blocks and feel progression.
 5. Cleared spaces become immediately available for new block placement
 6. No partial clears - only complete lines/columns trigger clearing
 
-### Story 1.6: Basic Scoring System
+### Story 1.7: Basic Scoring System
 As a player,
 I want to see my score increase when I clear lines and place blocks,
 so that I can track my progress and feel achievement.
@@ -231,22 +244,59 @@ so that I can track my progress and feel achievement.
 5. Score persists throughout game session and updates in real-time
 6. Score resets to zero when starting a new game
 
-### Story 1.7: Game Over Detection and Basic Restart
+### Story 1.8: Line Clear Bonus Scoring
 As a player,
-I want the game to detect when no more moves are possible and allow me to restart,
-so that I can play multiple rounds.
+I want to receive bonus points for clearing multiple lines simultaneously,
+so that I'm rewarded for strategic planning and optimal block placement.
+
+#### Acceptance Criteria
+1. Single line/column clear provides base bonus (e.g., 100 points)
+2. Double simultaneous clears provide escalated bonus (e.g., 300 points total)
+3. Triple simultaneous clears provide major bonus (e.g., 600 points total)
+4. Scoring formula rewards simultaneous clears exponentially, not linearly
+5. Combo scoring displays briefly during clearing animation
+6. Score calculation is transparent and feels fair to players
+
+### Story 1.9: Block Placement Scoring Refinement
+As a player,
+I want to earn points based on block size and placement difficulty,
+so that strategic placement feels rewarded beyond just line clearing.
+
+#### Acceptance Criteria
+1. Different block types award points based on complexity (1x1 = 1pt, L-shape = 3pts, etc.)
+2. Placement in constrained spaces provides small bonus multiplier
+3. Consecutive placements without clearing provide incremental bonus
+4. Scoring feedback appears briefly at placement location
+5. Total session points continuously update in real-time
+6. Point values feel balanced - placement valuable but clearing more rewarding
+
+### Story 1.10: Game Over Detection
+As a player,
+I want the game to detect when no more moves are possible,
+so that I know when my current session has ended.
 
 #### Acceptance Criteria
 1. Game automatically detects when no available blocks can fit on remaining grid space
-2. Game over state displays final score clearly
-3. Simple restart button allows immediate new game without app restart
-4. Game over detection accounts for all three block types in bottom tray
-5. Grid clears completely on restart, score resets to zero
-6. New set of three blocks appears in tray after restart
+2. Game over detection accounts for all three block types in bottom tray
+3. Game over state displays final score clearly
+4. Game over detection is accurate and doesn't trigger false positives
+5. Game over state provides clear visual indication of session end
 
-## Epic 2: Progressive Block System & Scoring
+### Story 1.11: Basic Restart Functionality
+As a player,
+I want to restart the game after game over,
+so that I can play multiple rounds.
 
-**Epic Goal:** Implement the core retention mechanic through score-based block progression and comprehensive scoring systems. This epic transforms the basic puzzle into an engaging progression experience where players unlock new challenges and feel continuous advancement through their gameplay achievements.
+#### Acceptance Criteria
+1. Simple restart button appears on game over screen
+2. Restart clears grid completely and resets score to zero
+3. New set of three blocks appears in tray after restart
+4. Restart functionality works immediately without app restart
+5. All game state properly resets for fresh session
+
+## Epic 2: Progressive Block System
+
+**Epic Goal:** Implement the core retention mechanic through score-based block progression and milestone systems. This epic transforms the basic puzzle into an engaging progression experience where players unlock new challenges and feel continuous advancement through their gameplay achievements.
 
 ### Story 2.1: Score Persistence and Session Tracking
 As a player,
@@ -276,7 +326,7 @@ so that I experience meaningful progression and new strategic options.
 5. Clear visual indication shows which blocks are unlocked vs locked
 6. Achievement milestone (500 points) displays as accomplished in player progress
 
-### Story 2.3: T-Shape Block Unlock at 1000 Points
+### Story 2.2: T-Shape Block Unlock at 1000 Points
 As a player,
 I want to unlock the T-shaped block at 1000 points,
 so that I have even more strategic placement options and feel significant progression.
@@ -289,33 +339,7 @@ so that I have even more strategic placement options and feel significant progre
 5. Visual progression indicator shows completed milestones (500, 1000 points)
 6. Block variety increases strategic depth without overwhelming casual players
 
-### Story 2.4: Enhanced Scoring with Line Clear Bonuses
-As a player,
-I want to receive bonus points for clearing multiple lines simultaneously,
-so that I'm rewarded for strategic planning and optimal block placement.
-
-#### Acceptance Criteria
-1. Single line/column clear provides base bonus (e.g., 100 points)
-2. Double simultaneous clears provide escalated bonus (e.g., 300 points total)
-3. Triple simultaneous clears provide major bonus (e.g., 600 points total)
-4. Scoring formula rewards simultaneous clears exponentially, not linearly
-5. Combo scoring displays briefly during clearing animation
-6. Score calculation is transparent and feels fair to players
-
-### Story 2.5: Block Placement Scoring Refinement
-As a player,
-I want to earn points based on block size and placement difficulty,
-so that strategic placement feels rewarded beyond just line clearing.
-
-#### Acceptance Criteria
-1. Different block types award points based on complexity (1x1 = 1pt, L-shape = 3pts, etc.)
-2. Placement in constrained spaces provides small bonus multiplier
-3. Consecutive placements without clearing provide incremental bonus
-4. Scoring feedback appears briefly at placement location
-5. Total session points continuously update in real-time
-6. Point values feel balanced - placement valuable but clearing more rewarding
-
-### Story 2.6: Progress Milestone Indicators
+### Story 2.3: Progress Milestone Indicators
 As a player,
 I want to see my progress toward the next block unlock,
 so that I feel motivated to continue playing and reach the next milestone.
@@ -328,7 +352,7 @@ so that I feel motivated to continue playing and reach the next milestone.
 5. Progress indicator doesn't clutter main gameplay interface
 6. Clear communication of current status and next goal
 
-## Epic 3: Timer Modes & Enhanced Gameplay
+## Epic 3: Timer Modes
 
 **Epic Goal:** Introduce customizable timer challenges that provide gameplay variety while maintaining the core puzzle experience. This epic adds the strategic time-pressure element that differentiates casual quick sessions from longer engagement periods, directly addressing the project's goal of flexible session lengths.
 
@@ -358,46 +382,23 @@ so that I can match my gameplay to my available time and mood.
 5. Interface design maintains consistent visual style with main game
 6. Option to return to endless mode clearly available from timer selection
 
-### Story 3.3: 3-Minute Quick Challenge Mode
+### Story 3.3: Timer Challenge Modes (3/5/7 minutes)
 As a player,
-I want to play focused 3-minute challenges during short breaks,
-so that I can have satisfying gaming sessions that fit into brief time windows.
+I want to play timed challenges in 3, 5, or 7-minute durations,
+so that I can match my gameplay to my available time and desired intensity level.
 
 #### Acceptance Criteria
-1. 3-minute timer displays prominently during gameplay with clear countdown
-2. Timer warns player with visual/haptic feedback at 30-second and 10-second marks
-3. Game continues until timer expires, then shows final score achievement
-4. Scoring optimized for 3-minute sessions - achievable milestones within time limit
-5. Final score comparison shows performance vs previous 3-minute attempts
-6. Smooth transition back to mode selection or restart options
+1. All three timer durations (3, 5, 7 minutes) implemented with consistent gameplay mechanics
+2. Timer displays prominently during gameplay with clear countdown for all modes
+3. Time warnings provided at appropriate intervals (30-second and 10-second marks)
+4. Game continues until timer expires, then shows final score achievement
+5. Scoring calibration optimized for each duration - achievable milestones within time limits
+6. Visual timer design adapts appropriately for different durations
+7. All unlocked block types available in timer modes
+8. Smooth transition back to mode selection or restart options
+9. Performance tracking and high score comparison specific to each timer duration
 
-### Story 3.4: 5-Minute Balanced Challenge Mode
-As a player,
-I want to play 5-minute timer challenges for balanced gameplay sessions,
-so that I have enough time for strategy while maintaining urgency.
-
-#### Acceptance Criteria
-1. 5-minute timer provides optimal balance between strategy and time pressure
-2. Scoring calibration allows for meaningful progression within 5-minute window
-3. Timer interface remains unobtrusive during play while providing clear time awareness
-4. Performance tracking specifically for 5-minute mode with dedicated high scores
-5. Time warnings at appropriate intervals (1 minute, 30 seconds, 10 seconds)
-6. Celebration animation for personal best scores within 5-minute challenges
-
-### Story 3.5: 7-Minute Extended Challenge Mode
-As a player,
-I want to play longer 7-minute timer challenges when I have more time,
-so that I can develop deeper strategies while still having session boundaries.
-
-#### Acceptance Criteria
-1. 7-minute timer allows for more complex strategic development
-2. Extended time enables use of all unlocked block types (including T-shapes)
-3. Scoring system rewards deeper strategic play possible with longer timeframe
-4. Visual timer design adapts to longer duration with appropriate progress indication
-5. High score tracking separate for 7-minute mode vs shorter challenges
-6. Achievement recognition for reaching higher scores within extended timeframe
-
-### Story 3.6: Timer Mode Score Integration and Comparison
+### Story 3.4: Timer Mode Score Integration and Comparison
 As a player,
 I want to see how my timer mode scores compare to my endless mode achievements,
 so that I can understand my performance across different gameplay styles.
@@ -412,22 +413,9 @@ so that I can understand my performance across different gameplay styles.
 
 ## Epic 4: Monetization & Polish
 
-**Epic Goal:** Implement player-controlled monetization through AdMob integration and add the learn-by-playing tutorial system that drives retention. This epic transforms the game into a launch-ready product that respects player choice while generating sustainable revenue through rewarded video ads.
+**Epic Goal:** Implement player-controlled monetization and add the learn-by-playing tutorial system that drives retention. This epic transforms the game into a launch-ready product that respects player choice while generating sustainable revenue through rewarded video ads.
 
-### Story 4.1: AdMob SDK Integration and Configuration
-As a developer,
-I want to integrate Google AdMob SDK with proper configuration,
-so that I can serve rewarded video ads to players when they choose.
-
-#### Acceptance Criteria
-1. AdMob SDK (2025 version) integrated with proper iOS permissions and configuration
-2. Test ad units configured for development and testing phases
-3. Production ad units ready for App Store deployment
-4. Ad loading happens in background without blocking gameplay
-5. Error handling for network failures and ad unavailability
-6. Compliance with iOS 18.6.2 App Tracking Transparency requirements
-
-### Story 4.2: Continue Gameplay Rewarded Video Option
+### Story 4.1: Continue Gameplay Rewarded Video Option
 As a player,
 I want the option to watch a rewarded video to continue playing after game over,
 so that I can extend promising games without feeling forced to watch ads.
@@ -440,7 +428,7 @@ so that I can extend promising games without feeling forced to watch ads.
 5. Continue option limited to once per game session to prevent abuse
 6. Clear visual indication that continue option requires watching an ad
 
-### Story 4.3: Optional Power-up Rewarded Video Ads
+### Story 4.2: Optional Power-up Rewarded Video Ads
 As a player,
 I want the option to watch ads for helpful power-ups during gameplay,
 so that I can get assistance when stuck while choosing when to engage with ads.
@@ -453,7 +441,7 @@ so that I can get assistance when stuck while choosing when to engage with ads.
 5. Frequency limiting prevents overuse - maximum 2 power-ups per game session
 6. Power-up button disappears when not available (cooldown or limit reached)
 
-### Story 4.4: Learn-by-Playing Tutorial System
+### Story 4.3: Learn-by-Playing Tutorial System
 As a new player,
 I want to learn the game mechanics through gentle guidance during my first play,
 so that I can start enjoying the game immediately without interrupting slideshows.
@@ -466,7 +454,7 @@ so that I can start enjoying the game immediately without interrupting slideshow
 5. Tutorial completes within first 90 seconds of gameplay, then becomes invisible
 6. Skip tutorial option available for returning players or impatient users
 
-### Story 4.5: Ad Performance Optimization and Analytics
+### Story 4.4: Ad Performance Optimization and Analytics
 As a developer,
 I want to track ad performance and optimize for completion rates,
 so that I can achieve the target 85% completion rates and $9-17 eCPM revenue.
@@ -479,19 +467,44 @@ so that I can achieve the target 85% completion rates and $9-17 eCPM revenue.
 5. Performance dashboards for monitoring key monetization metrics
 6. Optimization recommendations based on usage patterns and completion data
 
-### Story 4.6: Final Polish and App Store Readiness
-As a potential App Store user,
-I want the game to feel polished and professional,
-so that I'm confident in downloading and potentially spending money within the app.
+### Story 4.5: Performance Optimization
+As a player,
+I want the game to run smoothly and responsively on my device,
+so that I have a premium gaming experience without technical issues.
 
 #### Acceptance Criteria
 1. All animations smooth and satisfying with appropriate haptic feedback
-2. App icon, screenshots, and store listing materials professionally designed
-3. App Store metadata optimized for puzzle game category discovery
-4. Privacy policy and terms of service implemented for ad compliance
-5. Beta testing completed with feedback incorporated for user experience
-6. Performance testing on range of iOS devices ensures 60fps minimum
-7. Final QA testing covers all user flows, edge cases, and monetization paths
+2. Performance testing on range of iOS devices ensures 60fps minimum
+3. Memory management optimized to prevent crashes during extended play sessions
+4. App launch time consistently under 2 seconds on iOS 17+ devices
+5. Battery usage optimization for extended gameplay sessions
+6. Stress testing with rapid user interactions and edge cases
+
+### Story 4.6: UI/UX Polish
+As a player,
+I want the game interface to feel polished and intuitive,
+so that I can focus on gameplay without interface friction.
+
+#### Acceptance Criteria
+1. Visual consistency across all screens and game states
+2. Intuitive touch interactions with appropriate feedback
+3. Accessibility compliance with VoiceOver and high contrast support
+4. Visual polish for celebrations, transitions, and micro-interactions
+5. User experience testing with focus groups for feedback incorporation
+6. Interface scaling properly across all iOS device sizes
+
+### Story 4.7: App Store Preparation
+As a potential App Store user,
+I want to discover and confidently download a professional game,
+so that I'm willing to engage with the monetization features.
+
+#### Acceptance Criteria
+1. App icon, screenshots, and store listing materials professionally designed
+2. App Store metadata optimized for puzzle game category discovery
+3. Privacy policy and terms of service implemented for ad compliance
+4. Beta testing completed through TestFlight with feedback incorporated
+5. Final QA testing covers all user flows, edge cases, and monetization paths
+6. App Store review guidelines compliance verification
 
 ## Checklist Results Report
 
