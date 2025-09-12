@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<archive type="com.apple.InterfaceBuilder3.SpriteKit.Archive" version="8.00">
+    <data>
+        <int key="IBDocument.SystemTarget">iphoneos</int>
+        <string key="IBDocument.SystemVersion">22A380</string>
+        <string key="IBDocument.InterfaceBuilderVersion">15150</string>
+        <string key="IBDocument.AppKitVersion">2299</string>
+        <string key="IBDocument.HIToolboxVersion">728</string>
+        <object class="NSMutableDictionary" key="IBDocument.PluginVersions">
+            <string key="NS.key.0">com.apple.InterfaceBuilder.IBSpriteKitPlugin</string>
+            <string key="NS.object.0">15150</string>
+        </object>
+        <array key="IBDocument.IntegratedClassDependencies">
+            <string>SKScene</string>
+        </array>
+        <array key="IBDocument.PluginDependencies">
+            <string>com.apple.InterfaceBuilder.IBSpriteKitPlugin</string>
+        </array>
+        <object class="NSMutableDictionary" key="IBDocument.Metadata">
+            <string key="NS.key.0">PluginDependencyRecalculationVersion</string>
+            <integer value="1" key="NS.object.0"/>
+        </object>
+        <object class="SKScene" key="IBDocument.Objects">
+            <string key="name">GameScene</string>
+            <string key="scaleMode">3</string>
+            <nil key="backgroundColor"/>
+            <double key="width">375</double>
+            <double key="height">812</double>
+            <reference key="userData"/>
+        </object>
+    </data>
+</archive>
