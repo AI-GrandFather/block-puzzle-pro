@@ -63,6 +63,12 @@ Our solution implements a "Progressive Engagement Architecture" targeting casual
 
 **NFR8:** The application shall support portrait orientation only with fixed vertical layout optimized for one-handed gameplay
 
+**NFR9:** The system shall achieve 99.9% data backup success rate with automatic local persistence and recovery capability within 30 seconds of data corruption detection
+
+**NFR10:** The application shall support seamless data migration between app versions with <2 second migration completion for datasets up to 10MB, maintaining backward compatibility for user progression data
+
+**NFR11:** The system shall implement CloudKit sync conflict resolution with automatic merge for score data and manual resolution prompts for conflicting user preferences, completing sync operations within 5 seconds on stable network connections
+
 ## User Interface Design Goals
 
 ### Overall UX Vision
@@ -123,6 +129,14 @@ Single iOS project repository using Swift Package Manager for dependency managem
 - Solo development approach requiring self-sufficient technology choices
 - 6-8 week timeline necessitating rapid iteration capabilities
 - Portrait-only orientation for consistent mobile puzzle experience
+
+**Data Persistence & Schema Evolution Strategy:**
+- SwiftData VersionedSchema implementation with SchemaMigrationPlan for controlled schema evolution
+- Lightweight migration support for: adding entities/attributes, renaming properties, changing relationship types
+- Complex migration handling for data model restructuring with custom migration logic and data integrity validation
+- Local backup export generating JSON snapshots with schema version metadata for cross-device restoration
+- CloudKit integration with conflict resolution prioritizing device-local changes and user confirmation for significant conflicts
+- Schema evolution testing strategy including migration path validation from each released version
 
 ## Epic List
 
@@ -239,13 +253,15 @@ As a player,
 I want my scores to be saved locally on my device,
 so that I can track my best performances across multiple play sessions.
 
-#### Acceptance Criteria
-1. SwiftData integration stores high scores locally with automatic persistence
-2. High score display shows personal best prominently on main screen
-3. Current session score maintains visibility during gameplay
-4. Score data persists across app launches and device restarts
-5. Optional CloudKit sync enables score sharing across user's devices
-6. Score corruption protection ensures data integrity
+#### Acceptance Criteria  
+1. SwiftData integration with VersionedSchema V1 stores high scores locally with automatic persistence
+2. Schema migration plan supports future model evolution with lightweight migration for common changes
+3. High score display shows personal best prominently with real-time updates during gameplay
+4. Score data persists across app launches with <2 second restoration time on app startup
+5. CloudKit sync enables cross-device score sharing with conflict resolution for concurrent updates
+6. Local backup export creates JSON files with schema version metadata for manual restoration scenarios
+7. Data integrity validation runs automatically with corruption detection and recovery mechanisms
+8. Migration testing covers upgrade paths from initial release through all subsequent versions
 
 ### Story 2.2: 2x1 Block Unlock at 500 Points
 As a player,
