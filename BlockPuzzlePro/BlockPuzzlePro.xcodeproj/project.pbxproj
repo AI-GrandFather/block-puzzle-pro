@@ -12,6 +12,10 @@
 		A50001FB2C8A1234000123AB /* Actions.sks in Resources */ = {isa = PBXBuildFile; fileRef = A50001FA2C8A1234000123AB /* Actions.sks */; };
 		A50001FD2C8A1234000123AB /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50001FC2C8A1234000123AB /* GameScene.swift */; };
 		A50001FF2C8A1234000123AB /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50001FE2C8A1234000123AB /* GameViewController.swift */; };
+		A50002082C8A1234000123AB /* AdMobConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50002072C8A1234000123AB /* AdMobConfig.swift */; };
+		A50002092C8A1234000123AB /* AdManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50002082C8A1234000123AB /* AdManager.swift */; };
+		A5000210C8A1234000123AB /* ATTManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5000209C8A1234000123AB /* ATTManager.swift */; };
+		A5000211C8A1234000123AB /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A500020AC8A1234000123AB /* Info.plist */; };
 		A50002022C8A1234000123AB /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A50002002C8A1234000123AB /* Main.storyboard */; };
 		A50002042C8A1235000123AB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A50002032C8A1235000123AB /* Assets.xcassets */; };
 		A50002072C8A1235000123AB /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A50002052C8A1235000123AB /* LaunchScreen.storyboard */; };

@@ -20,6 +20,11 @@ struct BlockPuzzleProApp: App {
     init() {
         logger.info("BlockPuzzlePro app initializing")
         setupAppLifecycleObservers()
+        
+        // Initialize AdMob SDK
+        Task {
+            await AdManager.shared.initializeAdMob()
+        }
     }
     
     private func setupAppLifecycleObservers() {
