@@ -12,6 +12,9 @@ class GameViewController: UIViewController {
         logger.info("GameViewController loading")
         
         if let view = self.view as! SKView? {
+            // Configure ProMotion support for 120 FPS on supported devices
+            configureProMotionSupport(for: view)
+            
             // Load the SKScene from 'GameScene.sks'
             if let scene = SKScene(fileNamed: "GameScene") {
                 // Set the scale mode to scale to fit the window
@@ -70,6 +73,48 @@ class GameViewController: UIViewController {
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         logger.info("GameViewController did disappear")
+    }
+    
+    // MARK: - ProMotion Display Support
+    
+    private func configureProMotionSupport(for view: SKView) {
+        // Detect ProMotion display capability
+        if #available(iOS 15.0, *) {
+            let maxRefreshRate = UIScreen.main.maximumFramesPerSecond
+            logger.info("Display max refresh rate: \(maxRefreshRate) FPS")
+            
+            if maxRefreshRate >= 120 {
+                // Enable ProMotion for 120 FPS on supported devices
+                view.preferredFramesPerSecond = 120
+                logger.info("ProMotion enabled - targeting 120 FPS")
+            } else if maxRefreshRate >= 60 {
+                // Standard 60 FPS for regular displays
+                view.preferredFramesPerSecond = 60
+                logger.info("Standard refresh rate - targeting 60 FPS")
+            } else {
+                // Fallback for older devices
+                view.preferredFramesPerSecond = 60
+                logger.info("Fallback refresh rate - targeting 60 FPS")
+            }
+        } else {
+            // iOS 14 and earlier - use 60 FPS
+            view.preferredFramesPerSecond = 60
+            logger.info("iOS 14 or earlier - targeting 60 FPS")
+        }
+    }
+    
+    private func getCurrentFrameRate() -> Int {
+        if #available(iOS 15.0, *) {
+            return UIScreen.main.maximumFramesPerSecond
+        }
+        return 60
+    }
+    
+    private func isProMotionSupported() -> Bool {
+        if #available(iOS 15.0, *) {
+            return UIScreen.main.maximumFramesPerSecond >= 120
+        }
+        return false
     }
     
     // MARK: - Game State Management

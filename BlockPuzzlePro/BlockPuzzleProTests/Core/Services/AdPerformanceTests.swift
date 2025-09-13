@@ -13,8 +13,10 @@ final class AdPerformanceTests: XCTestCase {
     private var mockGameViewController: MockGameViewController!
     
     // Performance measurement properties
-    private let targetFrameTime: TimeInterval = 1.0 / 60.0 // 60 FPS = 16.67ms per frame
-    private let maxAcceptableFrameTime: TimeInterval = 1.0 / 55.0 // Allow up to 55 FPS (18.18ms)
+    private let targetFrameTime60: TimeInterval = 1.0 / 60.0 // 60 FPS = 16.67ms per frame
+    private let targetFrameTime120: TimeInterval = 1.0 / 120.0 // 120 FPS = 8.33ms per frame
+    private let maxAcceptableFrameTime60: TimeInterval = 1.0 / 55.0 // Allow up to 55 FPS (18.18ms)
+    private let maxAcceptableFrameTime120: TimeInterval = 1.0 / 110.0 // Allow up to 110 FPS (9.09ms)
     
     // MARK: - Lifecycle
     
@@ -52,9 +54,9 @@ final class AdPerformanceTests: XCTestCase {
         let loadEndTime = CFAbsoluteTimeGetCurrent()
         let totalLoadTime = loadEndTime - loadStartTime
         
-        // Then - Main thread should not be blocked
-        XCTAssertLessThan(mainThreadBlocked, maxAcceptableFrameTime, 
-                         "Ad loading should not block main thread longer than \(maxAcceptableFrameTime * 1000)ms")
+        // Then - Main thread should not be blocked (use 60 FPS as baseline)
+        XCTAssertLessThan(mainThreadBlocked, maxAcceptableFrameTime60, 
+                         "Ad loading should not block main thread longer than \(maxAcceptableFrameTime60 * 1000)ms")
         
         // Verify ad was actually loaded
         let isAdReady = await adManager.isRewardedAdReady()
@@ -63,7 +65,8 @@ final class AdPerformanceTests: XCTestCase {
         print("📊 Ad Loading Performance:")
         print("   Total Load Time: \(String(format: "%.2f", totalLoadTime * 1000))ms")
         print("   Main Thread Blocked: \(String(format: "%.2f", mainThreadBlocked * 1000))ms")
-        print("   Target Frame Time: \(String(format: "%.2f", targetFrameTime * 1000))ms")
+        print("   Target 60 FPS Frame Time: \(String(format: "%.2f", targetFrameTime60 * 1000))ms")
+        print("   Target 120 FPS Frame Time: \(String(format: "%.2f", targetFrameTime120 * 1000))ms")
     }
     
     func testAdInitialization_CompletesWithinReasonableTime() async {
@@ -274,6 +277,117 @@ final class AdPerformanceTests: XCTestCase {
         print("   Error Count: \(errorCount)/50")
         print("   Success Rate: \(String(format: "%.1f", Double(successCount) / 50.0 * 100))%")
     }
+    
+    // MARK: - ProMotion 120 FPS Tests
+    
+    func testProMotionSupport_DetectsDisplayCapabilities() {
+        // Given - System with display capabilities
+        
+        // When - Checking ProMotion support
+        let maxRefreshRate = UIScreen.main.maximumFramesPerSecond
+        let isProMotionSupported = maxRefreshRate >= 120
+        
+        // Then - Should detect display capabilities correctly
+        print("📊 Display Capabilities:")
+        print("   Max Refresh Rate: \(maxRefreshRate) FPS")
+        print("   ProMotion Supported: \(isProMotionSupported ? "YES" : "NO")")
+        
+        if isProMotionSupported {
+            print("   🎯 ProMotion Display Detected - Testing 120 FPS Performance")
+        } else {
+            print("   📱 Standard Display - Testing 60 FPS Performance")
+        }
+        
+        // Test should pass regardless of device capabilities
+        XCTAssertTrue(maxRefreshRate >= 60, "Device should support at least 60 FPS")
+    }
+    
+    func testProMotionPerformance_MaintainsHighFrameRate() async {
+        // Given - ProMotion capable device (skip if not supported)
+        let maxRefreshRate = UIScreen.main.maximumFramesPerSecond
+        guard maxRefreshRate >= 120 else {
+            print("📱 Skipping ProMotion test - Device doesn't support 120 FPS")
+            return
+        }
+        
+        // Initialize system for ProMotion testing
+        await adManager.initializeAdMob()
+        await adManager.preloadRewardedAd()
+        
+        // When - Performing ad operations at 120 FPS target
+        let proMotionStartTime = CFAbsoluteTimeGetCurrent()
+        let mainThreadBlocked = await measureMainThreadBlockingProMotion {
+            // Simulate intensive operations at 120 FPS
+            for _ in 1...10 {
+                await self.adManager.preloadRewardedAd()
+                await self.gameAdIntegration.handleGameOver()
+                try? await Task.sleep(for: .milliseconds(8)) // ~120 FPS timing
+            }
+        }
+        let proMotionEndTime = CFAbsoluteTimeGetCurrent()
+        let totalTime = proMotionEndTime - proMotionStartTime
+        
+        // Then - Should maintain ProMotion performance
+        XCTAssertLessThan(mainThreadBlocked, maxAcceptableFrameTime120,
+                         "Ad operations should not block main thread longer than 120 FPS frame time")
+        XCTAssertLessThan(totalTime, 5.0, "ProMotion operations should complete within reasonable time")
+        
+        print("📊 ProMotion 120 FPS Performance:")
+        print("   Total Operation Time: \(String(format: "%.2f", totalTime * 1000))ms")
+        print("   Max Main Thread Block: \(String(format: "%.2f", mainThreadBlocked * 1000))ms")
+        print("   120 FPS Frame Budget: \(String(format: "%.2f", targetFrameTime120 * 1000))ms")
+        print("   Performance: \(mainThreadBlocked < maxAcceptableFrameTime120 ? "✅ PASS" : "❌ FAIL")")
+    }
+    
+    func testAdOperations_AdaptToFrameRate() async {
+        // Given - System with any display capability
+        let maxRefreshRate = UIScreen.main.maximumFramesPerSecond
+        await adManager.initializeAdMob()
+        
+        // When - Measuring frame rate adaptation
+        let adaptationStartTime = CFAbsoluteTimeGetCurrent()
+        
+        // Test multiple operation cycles at device's max frame rate
+        let targetFrameTime = 1.0 / Double(maxRefreshRate)
+        var frameTimeViolations = 0
+        
+        for cycle in 1...20 {
+            let cycleStart = CFAbsoluteTimeGetCurrent()
+            
+            // Perform ad operation
+            if cycle % 5 == 0 {
+                await adManager.preloadRewardedAd()
+            } else {
+                await gameAdIntegration.handleGameOver()
+            }
+            
+            let cycleEnd = CFAbsoluteTimeGetCurrent()
+            let cycleTime = cycleEnd - cycleStart
+            
+            // Check if operation exceeded frame budget
+            if cycleTime > targetFrameTime {
+                frameTimeViolations += 1
+            }
+            
+            // Brief pause to simulate frame timing
+            try? await Task.sleep(for: .nanoseconds(UInt64(targetFrameTime * 0.1 * 1_000_000_000)))
+        }
+        
+        let adaptationEndTime = CFAbsoluteTimeGetCurrent()
+        let totalAdaptationTime = adaptationEndTime - adaptationStartTime
+        
+        // Then - Should adapt well to any frame rate
+        let violationRate = Double(frameTimeViolations) / 20.0
+        XCTAssertLessThan(violationRate, 0.3, "Less than 30% of operations should exceed frame budget")
+        XCTAssertLessThan(totalAdaptationTime, 10.0, "Frame rate adaptation test should complete quickly")
+        
+        print("📊 Frame Rate Adaptation Performance:")
+        print("   Display Max FPS: \(maxRefreshRate)")
+        print("   Target Frame Time: \(String(format: "%.2f", targetFrameTime * 1000))ms")
+        print("   Frame Budget Violations: \(frameTimeViolations)/20 (\(String(format: "%.1f", violationRate * 100))%)")
+        print("   Total Test Time: \(String(format: "%.2f", totalAdaptationTime * 1000))ms")
+        print("   Adaptation Quality: \(violationRate < 0.3 ? "✅ EXCELLENT" : "⚠️ NEEDS OPTIMIZATION")")
+    }
 }
 
 // MARK: - Performance Measurement Helpers
@@ -299,6 +413,41 @@ extension AdPerformanceTests {
                 maxBlockTime = max(maxBlockTime, operationTime)
                 
                 try? await Task.sleep(for: .milliseconds(1))
+            }
+            
+            let monitorEnd = CFAbsoluteTimeGetCurrent()
+            return monitorEnd - monitorStart
+        }
+        
+        // Perform the actual operation
+        await operation()
+        
+        // Wait for monitoring to complete
+        _ = await monitorTask.value
+        
+        return maxBlockTime
+    }
+    
+    /// Measures main thread blocking specifically for ProMotion displays (120 FPS)
+    private func measureMainThreadBlockingProMotion(operation: @escaping () async -> Void) async -> TimeInterval {
+        let startTime = CFAbsoluteTimeGetCurrent()
+        var maxBlockTime: TimeInterval = 0
+        
+        // Start monitoring main thread at 120 FPS intervals
+        let monitorTask = Task { @MainActor in
+            let monitorStart = CFAbsoluteTimeGetCurrent()
+            
+            // Perform high-frequency operations to detect ProMotion blocking
+            for _ in 0...240 { // 2 seconds at 120 FPS
+                let operationStart = CFAbsoluteTimeGetCurrent()
+                // Simulate ProMotion frame work (more intensive than 60 FPS)
+                _ = (1...2000).reduce(0, +)
+                let operationEnd = CFAbsoluteTimeGetCurrent()
+                let operationTime = operationEnd - operationStart
+                maxBlockTime = max(maxBlockTime, operationTime)
+                
+                // 120 FPS timing
+                try? await Task.sleep(for: .nanoseconds(8_333_333)) // 8.33ms = 120 FPS
             }
             
             let monitorEnd = CFAbsoluteTimeGetCurrent()
