@@ -174,7 +174,9 @@ class BlockFactory: ObservableObject {
         
         let blockType = startingBlockTypes[index]
         let color = blockColors[blockType] ?? .blue
-        availableBlocks[index] = BlockPattern(type: blockType, color: color)
+        var updatedBlocks = availableBlocks
+        updatedBlocks[index] = BlockPattern(type: blockType, color: color)
+        availableBlocks = updatedBlocks
     }
     
     /// Regenerate all blocks (for testing or reset scenarios)

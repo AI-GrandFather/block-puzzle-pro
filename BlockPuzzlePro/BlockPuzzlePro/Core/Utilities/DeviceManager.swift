@@ -193,6 +193,14 @@ final class DeviceManager: ObservableObject, @unchecked Sendable {
         }
     }
     
+    /// Ideal drag update interval aligned with the device refresh rate
+    @MainActor
+    func idealDragUpdateInterval() -> TimeInterval {
+        let refreshRate = Double(UIScreen.main.maximumFramesPerSecond)
+        let resolvedRate = refreshRate > 0 ? refreshRate : 60.0
+        return 1.0 / resolvedRate
+    }
+
     /// Get optimal grid cell size for game board
     func getOptimalGridCellSize() -> CGFloat {
         let availableWidth = screenSize.width - (getOptimalTraySpacing() * 2)

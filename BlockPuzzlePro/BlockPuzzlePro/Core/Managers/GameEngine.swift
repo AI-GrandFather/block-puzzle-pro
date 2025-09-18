@@ -50,7 +50,10 @@ class GameEngine: ObservableObject {
             logger.warning("Attempted to set cell at invalid position: \(String(describing: position))")
             return
         }
-        gameGrid[position.row][position.column] = cell
+        objectWillChange.send()
+        var row = gameGrid[position.row]
+        row[position.column] = cell
+        gameGrid[position.row] = row
     }
     
     /// Check if a position is empty and can be filled

@@ -2,126 +2,6 @@ import SwiftUI
 import Foundation
 import CoreGraphics
 
-// MARK: - Placement Result (Temporary)
-
-/// Result of a block placement attempt
-enum PlacementResult {
-    case valid(positions: [GridPosition])
-    case invalid(reason: String)
-}
-
-// MARK: - Simple Placement Engine (Temporary)
-
-/// Simplified placement engine for immediate functionality
-@MainActor
-class PlacementEngine: ObservableObject {
-    private weak var gameEngine: GameEngine?
-    @Published private(set) var isCurrentPreviewValid: Bool = false
-    @Published private(set) var previewPositions: [GridPosition] = []
-    
-    init(gameEngine: GameEngine) {
-        self.gameEngine = gameEngine
-    }
-    
-    func updatePreview(
-        blockPattern: BlockPattern,
-        blockOrigin: CGPoint,
-        gridFrame: CGRect,
-        cellSize: CGFloat,
-        gridSpacing: CGFloat
-    ) {
-        guard let gameEngine = gameEngine else { return }
-
-        // Clear existing preview
-        gameEngine.clearPreviews()
-        previewPositions.removeAll()
-
-        // Convert screen position to grid position
-        // The drag position represents the top-left corner of the dragged block
-        let gridOriginX = gridFrame.minX + gridSpacing
-        let gridOriginY = gridFrame.minY + gridSpacing
-
-        // Adjust for the fact that blockOrigin is the drag position, not necessarily grid-aligned
-        let adjustedX = blockOrigin.x - gridOriginX
-        let adjustedY = blockOrigin.y - gridOriginY
-
-        // Check if we're over the grid area
-        guard adjustedX >= 0, adjustedY >= 0,
-              adjustedX < gridFrame.width - 2 * gridSpacing,
-              adjustedY < gridFrame.height - 2 * gridSpacing else {
-            isCurrentPreviewValid = false
-            return
-        }
-
-        // Calculate grid position based on cell boundaries
-        let effectiveCellSpan = cellSize + gridSpacing
-        let gridX = Int(adjustedX / effectiveCellSpan)
-        let gridY = Int(adjustedY / effectiveCellSpan)
-
-        // Validate grid bounds
-        guard gridX >= 0,
-              gridY >= 0,
-              gridX < GameEngine.gridSize,
-              gridY < GameEngine.gridSize,
-              let gridPosition = GridPosition(row: gridY, column: gridX) else {
-            isCurrentPreviewValid = false
-            return
-        }
-
-        // Calculate target positions for all cells in the block pattern
-        var targetPositions: [GridPosition] = []
-        for cellPosition in blockPattern.occupiedPositions {
-            let targetRow = gridPosition.row + Int(cellPosition.y)
-            let targetCol = gridPosition.column + Int(cellPosition.x)
-
-            // Check bounds before creating GridPosition
-            guard targetRow >= 0, targetRow < GameEngine.gridSize,
-                  targetCol >= 0, targetCol < GameEngine.gridSize,
-                  let targetGridPos = GridPosition(row: targetRow, column: targetCol) else {
-                isCurrentPreviewValid = false
-                return
-            }
-
-            targetPositions.append(targetGridPos)
-        }
-
-        // Validate all target positions can be placed
-        for position in targetPositions {
-            guard gameEngine.canPlaceAt(position: position) else {
-                isCurrentPreviewValid = false
-                return
-            }
-        }
-
-        previewPositions = targetPositions
-        isCurrentPreviewValid = true
-        gameEngine.setPreview(at: targetPositions, color: blockPattern.color)
-    }
-    
-    func clearPreview() {
-        guard let gameEngine = gameEngine else { return }
-        gameEngine.clearPreviews()
-        previewPositions.removeAll()
-        isCurrentPreviewValid = false
-    }
-    
-    func commitPlacement(blockPattern: BlockPattern) -> Bool {
-        guard let gameEngine = gameEngine,
-              isCurrentPreviewValid,
-              !previewPositions.isEmpty else {
-            clearPreview()  // Clear preview even if we can't place
-            return false
-        }
-
-        let success = gameEngine.placeBlocks(at: previewPositions, color: blockPattern.color)
-        clearPreview()  // Always clear preview after attempting placement
-        if success {
-            let _ = gameEngine.processCompletedLines()
-        }
-        return success
-    }
-}
-
 // MARK: - Drag Drop Game View
 
 /// Main game view with integrated drag and drop functionality
@@ -222,10 +102,14 @@ struct DragDropGameView: View {
                     // Floating drag preview overlay
                     if let draggedPattern = dragController.draggedBlockPattern {
                         let rootOrigin = geometry.frame(in: .global).origin
+
+                        let previewOriginGlobal = (placementEngine.isCurrentPreviewValid ? snappedPreviewOrigin() : nil) ?? dragController.currentDragPosition
+
                         let localDragPosition = CGPoint(
-                            x: dragController.currentDragPosition.x - rootOrigin.x,
-                            y: dragController.currentDragPosition.y - rootOrigin.y
+                            x: previewOriginGlobal.x - rootOrigin.x,
+                            y: previewOriginGlobal.y - rootOrigin.y
                         )
+
                         FloatingBlockPreview(
                             blockPattern: draggedPattern,
                             cellSize: gridCellSize,
@@ -345,13 +229,17 @@ struct DragDropGameView: View {
     
     private func setupGameView(screenSize: CGSize) {
         self.screenSize = screenSize
-        
+
+        // Clear any existing state first
+        placementEngine.clearPreview()
+        dragController.reset()
+
         // Setup drag controller callbacks
         setupDragCallbacks()
-        
+
         // Start new game
         gameEngine.startNewGame()
-        
+
         // Mark as ready respecting Reduce Motion accessibility setting
         if UIAccessibility.isReduceMotionEnabled {
             isGameReady = true
@@ -393,11 +281,14 @@ struct DragDropGameView: View {
     
     private func startNewGame() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        // Clear all state immediately before animation
+        placementEngine.clearPreview()
+        dragController.reset()
+
         withAnimation(.easeInOut(duration: 0.3)) {
             gameEngine.startNewGame()
             blockFactory.regenerateAllBlocks()
-            placementEngine.clearPreview()
-            dragController.reset()
         }
     }
     
@@ -449,6 +340,30 @@ struct DragDropGameView: View {
 
         // Clear preview regardless
         placementEngine.clearPreview()
+    }
+    
+    private func snappedPreviewOrigin() -> CGPoint? {
+        guard placementEngine.isCurrentPreviewValid, !placementEngine.previewPositions.isEmpty, gridFrame != .zero else {
+            return nil
+        }
+
+        guard let minRow = placementEngine.previewPositions.map({ $0.row }).min(),
+              let minCol = placementEngine.previewPositions.map({ $0.column }).min(),
+              let topLeft = GridPosition(row: minRow, column: minCol) else {
+            return nil
+        }
+
+        let centre = placementEngine.gridToScreenPosition(
+            gridPosition: topLeft,
+            gridFrame: gridFrame,
+            cellSize: gridCellSize,
+            gridSpacing: gridSpacing
+        )
+
+        return CGPoint(
+            x: centre.x - (gridCellSize / 2),
+            y: centre.y - (gridCellSize / 2)
+        )
     }
     
     private func handleInvalidPlacement(blockIndex: Int, blockPattern: BlockPattern, position: CGPoint) {

@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import UIKit
 
 // MARK: - Drag State
 
@@ -58,17 +59,12 @@ class DragController: ObservableObject {
     
     // MARK: - Performance Optimization
     
-    /// Timer for throttling drag updates to maintain 60fps
-    private var updateTimer: Timer?
-    
-    /// Minimum time interval between drag updates (16.67ms for 60fps)
-    private let minUpdateInterval: TimeInterval = 1.0 / 60.0
+    /// Minimum time interval between drag updates (defaults to current display refresh rate)
+    private let minUpdateInterval: TimeInterval
     
     /// Last update timestamp
     private var lastUpdateTime: TimeInterval = 0
     
-    /// Pending drag update position
-    private var pendingUpdatePosition: CGPoint?
     
     // MARK: - Callbacks
     
@@ -94,6 +90,13 @@ class DragController: ObservableObject {
 
     init(deviceManager: DeviceManager? = nil) {
         self.deviceManager = deviceManager
+        if let interval = deviceManager?.idealDragUpdateInterval() {
+            self.minUpdateInterval = interval
+        } else {
+            let refreshRate = Double(UIScreen.main.maximumFramesPerSecond)
+            let resolvedRate = refreshRate > 0 ? refreshRate : 60.0
+            self.minUpdateInterval = 1.0 / resolvedRate
+        }
     }
 
     convenience init() {
@@ -120,7 +123,7 @@ class DragController: ObservableObject {
         )
 
         // Device-optimized visual feedback for drag start
-        withAnimation(.easeOut(duration: 0.2)) {
+        withAnimation(.easeOut(duration: 0.12)) {
             dragScale = 1.1
             shadowOffset = CGSize(width: 3, height: 6)
         }
@@ -133,97 +136,48 @@ class DragController: ObservableObject {
         onDragBegan?(blockIndex, blockPattern, position)
     }
     
-    /// Update drag position with performance throttling
+    /// Update drag position with immediate preview updates
     func updateDrag(to position: CGPoint) {
         guard case let .dragging(blockIndex, blockPattern, startPosition, touchOffset) = dragState else { return }
 
-        let currentTime = CACurrentMediaTime()
-
-        // Store position for potential delayed update
-        pendingUpdatePosition = position
-
-        // Check if enough time has passed for smooth 60fps updates
-        if currentTime - lastUpdateTime >= minUpdateInterval {
-            performDragUpdate(
-                to: position,
-                blockIndex: blockIndex,
-                blockPattern: blockPattern,
-                startPosition: startPosition,
-                touchOffset: touchOffset
-            )
-            lastUpdateTime = currentTime
-        } else if updateTimer == nil {
-            // Schedule delayed update for pending position
-            scheduleDelayedUpdate(
-                blockIndex: blockIndex,
-                blockPattern: blockPattern,
-                startPosition: startPosition,
-                touchOffset: touchOffset
-            )
-        }
-    }
-
-    /// Perform the actual drag update
-    private func performDragUpdate(
-        to position: CGPoint,
-        blockIndex: Int,
-        blockPattern: BlockPattern,
-        startPosition: CGPoint,
-        touchOffset: CGSize
-    ) {
-        // The currentDragPosition should represent the top-left corner of the block content
-        // accounting for where the user actually touched relative to the block
+        // Update position immediately for smooth preview
         currentDragPosition = CGPoint(
             x: position.x - touchOffset.width,
             y: position.y - touchOffset.height
         )
-
         dragOffset = CGSize(
             width: position.x - startPosition.x,
             height: position.y - startPosition.y
         )
 
+        // Call onDragChanged immediately for real-time preview
+        onDragChanged?(blockIndex, blockPattern, position)
+
+        // Throttle only visual effects like rotation for performance
+        let currentTime = CACurrentMediaTime()
+        if currentTime - lastUpdateTime >= minUpdateInterval {
+            updateVisualEffects()
+            lastUpdateTime = currentTime
+        }
+    }
+
+    /// Update visual effects with throttling for performance
+    private func updateVisualEffects() {
         // Subtle rotation effect based on drag velocity (optimized calculation)
-        let normalizedOffset = dragOffset.width / 100.0 // Normalize for consistent rotation
+        let normalizedOffset = dragOffset.width / 100.0
         let rotation = sin(normalizedOffset) * 2.0
 
         // Use lightweight animation for better performance
-        withAnimation(.linear(duration: 0.05)) {
+        withAnimation(.linear(duration: 0.03)) {
             dragRotation = rotation
         }
-
-        onDragChanged?(blockIndex, blockPattern, position)
     }
+
     
-    /// Schedule a delayed update to ensure smoothness
-    private func scheduleDelayedUpdate(
-        blockIndex: Int,
-        blockPattern: BlockPattern,
-        startPosition: CGPoint,
-        touchOffset: CGSize
-    ) {
-        updateTimer?.invalidate()
-        updateTimer = Timer.scheduledTimer(withTimeInterval: minUpdateInterval, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                guard let self = self,
-                      let position = self.pendingUpdatePosition else { return }
-
-                self.performDragUpdate(
-                    to: position,
-                    blockIndex: blockIndex,
-                    blockPattern: blockPattern,
-                    startPosition: startPosition,
-                    touchOffset: touchOffset
-                )
-                self.updateTimer = nil
-                self.pendingUpdatePosition = nil
-            }
-        }
-    }
 
     /// End drag operation
     func endDrag(at position: CGPoint) {
-        guard case let .dragging(blockIndex, blockPattern, _, touchOffset) = dragState else { return }
+        guard case let .dragging(blockIndex, blockPattern, startPosition, touchOffset) = dragState else { return }
 
         dragState = .dropping(
             blockIndex: blockIndex,
@@ -232,8 +186,17 @@ class DragController: ObservableObject {
             touchOffset: touchOffset
         )
 
+        currentDragPosition = CGPoint(
+            x: position.x - touchOffset.width,
+            y: position.y - touchOffset.height
+        )
+        dragOffset = CGSize(
+            width: position.x - startPosition.x,
+            height: position.y - startPosition.y
+        )
+
         // Reset visual effects
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+        withAnimation(.spring(response: 0.18, dampingFraction: 0.75)) {
             dragScale = 1.0
             dragRotation = 0.0
             shadowOffset = .zero
@@ -345,10 +308,6 @@ class DragController: ObservableObject {
     
     /// Reset all drag state
     func reset() {
-        // Clean up timers
-        updateTimer?.invalidate()
-        updateTimer = nil
-
         // Reset state
         dragState = .idle
         isDragging = false
@@ -364,7 +323,6 @@ class DragController: ObservableObject {
 
         // Reset performance tracking
         lastUpdateTime = 0
-        pendingUpdatePosition = nil
     }
     
     // MARK: - Cleanup
