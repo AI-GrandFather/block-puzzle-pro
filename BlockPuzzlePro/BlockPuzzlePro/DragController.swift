@@ -1,7 +1,7 @@
 import SwiftUI
 import Combine
 import UIKit
-import os.signpost
+import os.log
 
 // MARK: - Drag State
 
@@ -93,13 +93,12 @@ class DragController: ObservableObject {
 
     // MARK: - Instrumentation and Debug Logging
 
-    private let logger = OSLog(subsystem: "com.blockpuzzlepro.dragcontroller", category: "DragOperations")
-    private let signpostLog = OSSignpostLog(subsystem: "com.blockpuzzlepro.dragcontroller", category: "Performance")
+    private let logger = Logger(subsystem: "com.example.BlockPuzzlePro", category: "DragController")
+    private let signpostLog = OSLog(subsystem: "com.example.BlockPuzzlePro", category: "DragPerformance")
 
     /// State transition logging
     private func logStateTransition(from: DragState, to: DragState) {
-        os_log(.debug, log: logger, "State transition: %{public}@ -> %{public}@",
-               String(describing: from), String(describing: to))
+        logger.debug("State transition: \(String(describing: from)) -> \(String(describing: to))")
     }
     
     
@@ -141,8 +140,7 @@ class DragController: ObservableObject {
             self.minUpdateInterval = self.isProMotionDisplay ? (1.0 / 60.0) : (1.0 / resolvedRate)
         }
 
-        os_log(.info, log: logger, "DragController initialized: ProMotion=%{public}@, refreshRate=%{public}f, updateInterval=%{public}f",
-               String(isProMotionDisplay), refreshRate, minUpdateInterval)
+        logger.info("DragController initialized: ProMotion=\(isProMotionDisplay), refreshRate=\(refreshRate), updateInterval=\(minUpdateInterval)")
     }
 
     convenience init() {
@@ -157,7 +155,7 @@ class DragController: ObservableObject {
 
         // Strict state validation - only allow starting from idle
         guard case .idle = dragState, !isDragging else {
-            os_log(.error, log: logger, "Attempted to start drag in invalid state: %{public}@", String(describing: dragState))
+            logger.error("Attempted to start drag in invalid state: \(String(describing: dragState))")
             return
         }
 
@@ -202,7 +200,6 @@ class DragController: ObservableObject {
         isDragging = true
 
         // Optimized animation for ProMotion displays
-        let animationDuration = isProMotionDisplay ? 0.08 : 0.12
         let springResponse = isProMotionDisplay ? 0.15 : 0.2
 
         withAnimation(.interactiveSpring(response: springResponse, dampingFraction: 0.8)) {
@@ -217,7 +214,7 @@ class DragController: ObservableObject {
     /// Update drag position with immediate preview updates optimized for 120Hz
     func updateDrag(to position: CGPoint) {
         guard case let .dragging(blockIndex, blockPattern, startPosition, touchOffset) = dragState else {
-            os_log(.debug, log: logger, "updateDrag called in non-dragging state: %{public}@", String(describing: dragState))
+            logger.debug("updateDrag called in non-dragging state: \(String(describing: dragState))")
             return
         }
 
@@ -265,7 +262,7 @@ class DragController: ObservableObject {
     /// End drag operation with proper state transitions and optimized snapping
     func endDrag(at position: CGPoint) {
         guard case let .dragging(blockIndex, blockPattern, startPosition, touchOffset) = dragState else {
-            os_log(.debug, log: logger, "endDrag called in non-dragging state: %{public}@", String(describing: dragState))
+            logger.debug("endDrag called in non-dragging state: \(String(describing: dragState))")
             return
         }
 
@@ -352,7 +349,7 @@ class DragController: ObservableObject {
     /// Cancel drag operation (return to original position) with proper state management
     func cancelDrag() {
         guard case let .dragging(blockIndex, blockPattern, startPosition, _) = dragState else {
-            os_log(.debug, log: logger, "cancelDrag called in non-dragging state: %{public}@", String(describing: dragState))
+            logger.debug("cancelDrag called in non-dragging state: \(String(describing: dragState))")
             return
         }
 
