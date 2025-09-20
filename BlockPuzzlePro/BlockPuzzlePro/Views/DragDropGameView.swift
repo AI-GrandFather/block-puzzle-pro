@@ -320,6 +320,8 @@ struct DragDropGameView: View {
         placementEngine.updatePreview(
             blockPattern: blockPattern,
             blockOrigin: blockOrigin,
+            touchPoint: dragController.currentTouchLocation,
+            touchOffset: dragController.dragTouchOffset,
             gridFrame: gridFrame,
             cellSize: gridCellSize,
             gridSpacing: gridSpacing

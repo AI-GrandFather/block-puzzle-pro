@@ -34,6 +34,9 @@ class DragController: ObservableObject {
     /// Current drag position in global coordinates
     @Published var currentDragPosition: CGPoint = .zero
 
+    /// Current touch point in global coordinates
+    @Published var currentTouchLocation: CGPoint = .zero
+
     /// Scale factor for dragged block during drag
     @Published var dragScale: CGFloat = 1.0
 
@@ -122,6 +125,8 @@ class DragController: ObservableObject {
             y: position.y - touchOffset.height
         )
 
+        currentTouchLocation = position
+
         // Device-optimized visual feedback for drag start
         withAnimation(.easeOut(duration: 0.12)) {
             dragScale = 1.1
@@ -149,6 +154,7 @@ class DragController: ObservableObject {
             width: position.x - startPosition.x,
             height: position.y - startPosition.y
         )
+        currentTouchLocation = position
 
         // Call onDragChanged immediately for real-time preview
         onDragChanged?(blockIndex, blockPattern, position)
@@ -194,6 +200,7 @@ class DragController: ObservableObject {
             width: position.x - startPosition.x,
             height: position.y - startPosition.y
         )
+        currentTouchLocation = position
 
         // Reset visual effects
         withAnimation(.spring(response: 0.18, dampingFraction: 0.75)) {
@@ -313,6 +320,7 @@ class DragController: ObservableObject {
         isDragging = false
         dragOffset = .zero
         currentDragPosition = .zero
+        currentTouchLocation = .zero
         dragScale = 1.0
         dragRotation = 0.0
         shadowOffset = .zero

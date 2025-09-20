@@ -18,6 +18,21 @@ enum PlacementError: Equatable {
     case noValidPosition
 }
 
+extension PlacementError: CustomStringConvertible {
+    var description: String {
+        switch self {
+        case .outOfBounds:
+            return "outOfBounds"
+        case .collision:
+            return "collision"
+        case .invalidPattern:
+            return "invalidPattern"
+        case .noValidPosition:
+            return "noValidPosition"
+        }
+    }
+}
+
 // MARK: - Placement Engine
 
 /// Manages block placement validation and collision detection
@@ -168,6 +183,8 @@ final class PlacementEngine: ObservableObject {
         updatePreview(
             blockPattern: blockPattern,
             blockOrigin: origin,
+            touchPoint: screenPosition,
+            touchOffset: .zero,
             gridFrame: gridFrame,
             cellSize: cellSize,
             gridSpacing: gridSpacing
@@ -178,6 +195,8 @@ final class PlacementEngine: ObservableObject {
     func updatePreview(
         blockPattern: BlockPattern,
         blockOrigin: CGPoint,
+        touchPoint: CGPoint,
+        touchOffset: CGSize,
         gridFrame: CGRect,
         cellSize: CGFloat,
         gridSpacing: CGFloat
@@ -191,10 +210,13 @@ final class PlacementEngine: ObservableObject {
         guard let baseGridPosition = projectedBaseGridPosition(
             for: blockPattern,
             blockOrigin: blockOrigin,
+            touchPoint: touchPoint,
+            touchOffset: touchOffset,
             gridFrame: gridFrame,
             cellSize: cellSize,
             gridSpacing: gridSpacing
         ) else {
+            logger.debug("Preview rejected: origin=\(blockOrigin), touch=\(touchPoint), frame=\(gridFrame)")
             lastBaseGridPosition = nil
             return
         }
@@ -208,7 +230,7 @@ final class PlacementEngine: ObservableObject {
             gameEngine.setPreview(at: positions, color: blockPattern.color)
         case .invalid(let reason):
             isCurrentPreviewValid = false
-            logger.debug("Preview invalid: \(reason)")
+            logger.debug("Placement invalid: reason=\(reason) origin=\(blockOrigin) base=\(baseGridPosition)")
         }
     }
 
@@ -253,6 +275,8 @@ final class PlacementEngine: ObservableObject {
     private func projectedBaseGridPosition(
         for blockPattern: BlockPattern,
         blockOrigin: CGPoint,
+        touchPoint: CGPoint,
+        touchOffset: CGSize,
         gridFrame: CGRect,
         cellSize: CGFloat,
         gridSpacing: CGFloat
@@ -261,14 +285,16 @@ final class PlacementEngine: ObservableObject {
         let originX = gridFrame.minX + gridSpacing
         let originY = gridFrame.minY + gridSpacing
 
-        let relativeX = blockOrigin.x - originX
-        let relativeY = blockOrigin.y - originY
+        let candidateOriginX = touchPoint.x - touchOffset.width
+        let candidateOriginY = touchPoint.y - touchOffset.height
 
-        guard relativeX >= 0, relativeY >= 0 else { return nil }
+        let blockOriginX = candidateOriginX.isFinite ? candidateOriginX : blockOrigin.x
+        let blockOriginY = candidateOriginY.isFinite ? candidateOriginY : blockOrigin.y
 
-        let tolerance: CGFloat = 0.0001
-        let adjustedX = max(relativeX - tolerance, 0)
-        let adjustedY = max(relativeY - tolerance, 0)
+        let adjustedX = blockOriginX - originX + (cellSpan / 2)
+        let adjustedY = blockOriginY - originY + (cellSpan / 2)
+
+        guard adjustedX >= 0, adjustedY >= 0 else { return nil }
 
         let column = Int(floor(adjustedX / cellSpan))
         let row = Int(floor(adjustedY / cellSpan))
@@ -280,7 +306,10 @@ final class PlacementEngine: ObservableObject {
         let maxRow = row + patternHeight - 1
         let maxColumn = column + patternWidth - 1
 
-        guard maxRow < gridSize, maxColumn < gridSize else { return nil }
+        guard maxRow < gridSize, maxColumn < gridSize else {
+            logger.debug("Projected origin out of bounds: origin=\(CGPoint(x: blockOriginX, y: blockOriginY)) row=\(row) col=\(column) maxRow=\(maxRow) maxCol=\(maxColumn)")
+            return nil
+        }
 
         return GridPosition(row: row, column: column)
     }
