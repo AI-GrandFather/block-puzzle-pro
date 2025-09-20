@@ -258,23 +258,31 @@ struct DragDropGameView: View {
         // Drag began callback
         dragController.onDragBegan = { blockIndex, blockPattern, position in
             handleDragBegan(blockIndex: blockIndex, blockPattern: blockPattern, position: position)
+            print("🎯 onDragBegan blockIndex=\(blockIndex) position=\(position) pattern=\(blockPattern.type)")
         }
         
         // Drag changed callback
-        dragController.onDragChanged = { _, blockPattern, _ in
+        dragController.onDragChanged = { blockIndex, blockPattern, position in
             // Update placement preview using the controller's computed origin
+            print("🔄 onDragChanged blockIndex=\(blockIndex) reportedPosition=\(position) currentDragPosition=\(self.dragController.currentDragPosition)")
             self.updatePlacementPreview(blockPattern: blockPattern, blockOrigin: self.dragController.currentDragPosition)
         }
 
         // Drag ended callback
         dragController.onDragEnded = { blockIndex, blockPattern, position in
-            // Don't update preview here - use the existing preview from drag changed
-            // Just commit the current preview state
-            if self.placementEngine.commitPlacement(blockPattern: blockPattern) {
+            print("🛑 onDragEnded blockIndex=\(blockIndex) position=\(position) state=\(self.dragController.dragState)")
+            // Commit placement and handle result
+            let placementSuccess = self.placementEngine.commitPlacement(blockPattern: blockPattern)
+
+            if placementSuccess {
                 self.handleValidPlacement(blockIndex: blockIndex, blockPattern: blockPattern, position: position)
             } else {
                 self.handleInvalidPlacement(blockIndex: blockIndex, blockPattern: blockPattern, position: position)
             }
+
+            // CRITICAL: Ensure drag controller completes its state machine
+            // The drag controller's endDrag() should handle state transitions automatically,
+            // but we need to ensure it gets called properly
         }
         
         // Removed onValidDrop and onInvalidDrop assignments
@@ -327,12 +335,15 @@ struct DragDropGameView: View {
             cellSize: gridCellSize,
             gridSpacing: gridSpacing
         )
+        print("🧮 updatePlacementPreview blockIndex=\(dragController.currentBlockIndex ?? -1) origin=\(blockOrigin) touch=\(dragController.currentTouchLocation) touchOffset=\(dragController.dragTouchOffset) gridFrame=\(gridFrame)")
         
         // Removed the following line as per instructions:
         // dragController.setDropValidity(placementEngine.isCurrentPreviewValid)
     }
     
     private func handleValidPlacement(blockIndex: Int, blockPattern: BlockPattern, position: CGPoint) {
+        print("✅ PLACEMENT SUCCESS: Block \(blockIndex) placed successfully")
+
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         UIAccessibility.post(notification: .announcement, argument: "Placed block successfully")
 
@@ -343,6 +354,15 @@ struct DragDropGameView: View {
 
         // Clear preview (drag controller handles its own cleanup)
         placementEngine.clearPreview()
+
+        // CRITICAL: Force reset drag controller if gesture doesn't complete properly
+        // This prevents the controller from getting stuck in dragging state
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if self.dragController.dragState != .idle {
+                print("🚨 FORCE RESET: Drag controller stuck in \(self.dragController.dragState) state after placement")
+                self.dragController.reset()
+            }
+        }
     }
     
     private func snappedPreviewOrigin() -> CGPoint? {

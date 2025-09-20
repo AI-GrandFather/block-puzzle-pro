@@ -207,7 +207,19 @@ final class PlacementEngine: ObservableObject {
         previewPositions.removeAll()
         isCurrentPreviewValid = false
 
-        guard let baseGridPosition = projectedBaseGridPosition(
+        logger.debug("updatePreview origin=(x:\(blockOrigin.x, privacy: .public), y:\(blockOrigin.y, privacy: .public)) touch=(x:\(touchPoint.x, privacy: .public), y:\(touchPoint.y, privacy: .public)) offset=(dx:\(touchOffset.width, privacy: .public), dy:\(touchOffset.height, privacy: .public)) grid=(x:\(gridFrame.origin.x, privacy: .public), y:\(gridFrame.origin.y, privacy: .public), w:\(gridFrame.size.width, privacy: .public), h:\(gridFrame.size.height, privacy: .public))")
+
+        let anchorBasedPosition = fallbackGridPosition(
+            for: blockPattern,
+            touchPoint: touchPoint,
+            touchOffset: touchOffset,
+            gridFrame: gridFrame,
+            cellSize: cellSize,
+            gridSpacing: gridSpacing,
+            blockCellSpacing: 0
+        )
+
+        let projectedPosition = projectedBaseGridPosition(
             for: blockPattern,
             blockOrigin: blockOrigin,
             touchPoint: touchPoint,
@@ -215,7 +227,9 @@ final class PlacementEngine: ObservableObject {
             gridFrame: gridFrame,
             cellSize: cellSize,
             gridSpacing: gridSpacing
-        ) else {
+        )
+
+        guard let baseGridPosition = anchorBasedPosition ?? projectedPosition else {
             logger.debug("Preview rejected: origin=(\(blockOrigin.x), \(blockOrigin.y)), touch=(\(touchPoint.x), \(touchPoint.y)), frame=(\(gridFrame.origin.x), \(gridFrame.origin.y), \(gridFrame.size.width), \(gridFrame.size.height))")
             lastBaseGridPosition = nil
             return
@@ -228,6 +242,7 @@ final class PlacementEngine: ObservableObject {
             previewPositions = positions
             isCurrentPreviewValid = true
             gameEngine.setPreview(at: positions, color: blockPattern.color)
+            logger.debug("Preview valid: base=\(baseGridPosition) positions=\(positions)")
         case .invalid(let reason):
             isCurrentPreviewValid = false
             logger.debug("Placement invalid: reason=\(reason) origin=(\(blockOrigin.x), \(blockOrigin.y)) base=\(baseGridPosition)")
@@ -324,6 +339,127 @@ final class PlacementEngine: ObservableObject {
         }
 
         return GridPosition(row: row, column: column)
+    }
+
+    /// Infer a grid position using the finger location when the projected origin falls outside the board
+    private func fallbackGridPosition(
+        for blockPattern: BlockPattern,
+        touchPoint: CGPoint,
+        touchOffset: CGSize,
+        gridFrame: CGRect,
+        cellSize: CGFloat,
+        gridSpacing: CGFloat,
+        blockCellSpacing: CGFloat
+    ) -> GridPosition? {
+        guard let anchorCell = anchorCellIndex(
+                for: blockPattern,
+                touchOffset: touchOffset,
+                cellSize: cellSize,
+                cellSpacing: blockCellSpacing
+            ),
+            let fingerGridPosition = screenToGridPosition(
+                screenPosition: touchPoint,
+                gridFrame: gridFrame,
+                cellSize: cellSize,
+                gridSpacing: gridSpacing
+            ) else {
+            return nil
+        }
+
+        let patternHeight = Int(ceil(blockPattern.size.height))
+        let patternWidth = Int(ceil(blockPattern.size.width))
+
+        let minRow = 0
+        let minColumn = 0
+        let maxRow = max(0, gridSize - patternHeight)
+        let maxColumn = max(0, gridSize - patternWidth)
+
+        let candidateRow = fingerGridPosition.row - anchorCell.row
+        let candidateColumn = fingerGridPosition.column - anchorCell.column
+
+        let clampedRow = min(max(candidateRow, minRow), maxRow)
+        let clampedColumn = min(max(candidateColumn, minColumn), maxColumn)
+
+        logger.debug("anchorCell=(r:\(anchorCell.row, privacy: .public), c:\(anchorCell.column, privacy: .public)) fingerGrid=(r:\(fingerGridPosition.row, privacy: .public), c:\(fingerGridPosition.column, privacy: .public)) unclamped=(r:\(candidateRow, privacy: .public), c:\(candidateColumn, privacy: .public)) clamped=(r:\(clampedRow, privacy: .public), c:\(clampedColumn, privacy: .public)) patternSize=(w:\(patternWidth, privacy: .public), h:\(patternHeight, privacy: .public))")
+
+        guard let candidateBase = GridPosition(row: clampedRow, column: clampedColumn) else {
+            return nil
+        }
+
+        switch validatePlacement(blockPattern: blockPattern, at: candidateBase) {
+        case .valid:
+            logger.debug("Fallback placement: anchor=(\(anchorCell.row),\(anchorCell.column)) finger=(\(fingerGridPosition.row),\(fingerGridPosition.column)) base=\(candidateBase)")
+            return candidateBase
+        case .invalid(let reason):
+            if reason == .outOfBounds,
+               let bestFit = findBestPlacement(for: blockPattern, near: candidateBase, maxDistance: 2) {
+                logger.debug("Fallback adjusted via bestFit: anchor=(\(anchorCell.row),\(anchorCell.column)) finger=(\(fingerGridPosition.row),\(fingerGridPosition.column)) base=\(bestFit)")
+                return bestFit
+            }
+            return nil
+        }
+    }
+
+    /// Determine which cell inside the block the user is holding
+    private func anchorCellIndex(
+        for blockPattern: BlockPattern,
+        touchOffset: CGSize,
+        cellSize: CGFloat,
+        cellSpacing: CGFloat
+    ) -> (row: Int, column: Int)? {
+        let rows = max(0, Int(ceil(blockPattern.size.height)))
+        let columns = max(0, Int(ceil(blockPattern.size.width)))
+
+        guard rows > 0, columns > 0 else { return nil }
+
+        let cellSpan = cellSize + cellSpacing
+        guard cellSpan > 0 else { return nil }
+
+        let halfCell = cellSize / 2.0
+
+        func clampedIndex(_ value: Int, upperBound: Int) -> Int {
+            if value < 0 { return 0 }
+            return value >= upperBound ? upperBound - 1 : value
+        }
+
+        let approximateColumn = Int(round((touchOffset.width - halfCell) / cellSpan))
+        let approximateRow = Int(round((touchOffset.height - halfCell) / cellSpan))
+
+        let resolvedColumn = clampedIndex(approximateColumn, upperBound: columns)
+        let resolvedRow = clampedIndex(approximateRow, upperBound: rows)
+
+        if blockPattern.cells[safe: resolvedRow]?[safe: resolvedColumn] == true {
+            return (resolvedRow, resolvedColumn)
+        }
+
+        // Fall back to the nearest occupied cell centre
+        let localX = max(0, touchOffset.width)
+        let localY = max(0, touchOffset.height)
+        var nearest: (row: Int, column: Int)?
+        var bestDistance = CGFloat.greatestFiniteMagnitude
+
+        for position in blockPattern.occupiedPositions {
+            let centre = CGPoint(
+                x: (position.x * cellSpan) + halfCell,
+                y: (position.y * cellSpan) + halfCell
+            )
+
+            let distance = hypot(localX - centre.x, localY - centre.y)
+            if distance < bestDistance {
+                bestDistance = distance
+                nearest = (row: Int(position.y), column: Int(position.x))
+            }
+        }
+
+        if let nearest {
+            return nearest
+        }
+
+        if let fallback = blockPattern.occupiedPositions.first {
+            return (row: Int(fallback.y), column: Int(fallback.x))
+        }
+
+        return nil
     }
 
 
@@ -503,5 +639,21 @@ final class PlacementEngine: ObservableObject {
         let boundingBoxArea = (maxRow - minRow + 1) * (maxCol - minCol + 1)
         let unusedCells = boundingBoxArea - positions.count
         return unusedCells
+    }
+}
+
+// MARK: - Safe Lookups
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        guard index >= 0 && index < count else { return nil }
+        return self[index]
+    }
+}
+
+private extension Array where Element == Bool {
+    subscript(safe index: Int) -> Bool? {
+        guard index >= 0 && index < count else { return nil }
+        return self[index]
     }
 }

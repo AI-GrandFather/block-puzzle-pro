@@ -88,11 +88,12 @@ struct DraggableBlockView: View {
                 // Long press not needed for drag, handled by drag gesture
             }
             .gesture(
-                // Optimized drag gesture with better state management
-                DragGesture(minimumDistance: 2, coordinateSpace: .global) // Small minimum distance to prevent accidental drags
+                // Use global coordinate space so drag math lines up with grid projections
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { value in
-                        // Ensure drag begins exactly once per gesture
-                        if !didSendDragBegan {
+                        // CRITICAL: Check if ANY drag is already active to prevent multiple simultaneous drags
+                        if !didSendDragBegan && dragController.dragState == .idle {
+                            print("🎮 Block \(blockIndex): Starting drag, controller state: \(dragController.dragState)")
                             didSendDragBegan = true
                             dragGestureID = UUID() // New gesture ID
 
@@ -103,25 +104,39 @@ struct DraggableBlockView: View {
                                     height: value.startLocation.y - blockFrame.minY
                                 )
                             } else {
-                                // Fallback when frame is not available
                                 touchOffset = .zero
                             }
 
-                            // Start drag through controller - this handles state transitions
+                            print("🧭 Block \(blockIndex): startLocation=\(value.startLocation) blockFrame.origin=\(blockFrame.origin) touchOffset=\(touchOffset)")
+
+                            // Start drag through controller - use coordinates directly from named space
                             dragController.startDrag(
                                 blockIndex: blockIndex,
                                 blockPattern: blockPattern,
                                 at: value.startLocation,
                                 touchOffset: touchOffset
                             )
+
+                        } else if !didSendDragBegan {
+                            print("🚫 Block \(blockIndex): Cannot start drag, controller state: \(dragController.dragState)")
                         }
 
-                        // Always update drag position for smooth tracking
-                        dragController.updateDrag(to: value.location)
+                        // Only update drag if this is the actively dragged block
+                        if dragController.isBlockDragged(blockIndex) {
+                            dragController.updateDrag(to: value.location)
+                            print("📍 Block \(blockIndex): updateDrag location=\(value.location) currentDragPosition=\(dragController.currentDragPosition) touch=\(dragController.currentTouchLocation)")
+                        }
                     }
                     .onEnded { value in
-                        // End drag through controller
-                        dragController.endDrag(at: value.location)
+                        print("🏁 Block \(blockIndex): Gesture ended, isBlockDragged: \(dragController.isBlockDragged(blockIndex))")
+
+                        // Only end drag if this is the actively dragged block
+                        if dragController.isBlockDragged(blockIndex) {
+                            print("📍 Block \(blockIndex): Calling endDrag")
+                            dragController.endDrag(at: value.location)
+                        } else {
+                            print("⏭️ Block \(blockIndex): Skipping endDrag - not actively dragged")
+                        }
 
                         // Reset gesture state
                         didSendDragBegan = false
@@ -196,9 +211,10 @@ struct DraggableBlockView: View {
         let colorDescription = blockPattern.color.accessibilityDescription
         let sizeDescription = "\(blockPattern.cellCount) cell\(blockPattern.cellCount > 1 ? "s" : "")"
         let dragState = isDragged ? "being dragged" : "available"
-        
+
         return "\(colorDescription) \(typeDescription), \(sizeDescription), \(dragState)"
     }
+
 }
 
 // MARK: - Floating Drag Preview
@@ -290,6 +306,7 @@ struct DraggableBlockTrayView: View {
             .background(trayBackground)
             .cornerRadius(12)
             .shadow(color: shadowColor, radius: 4, x: 0, y: 2)
+            .coordinateSpace(name: "TraySpace") // Named coordinate space for reliable drag gestures
         }
         .onAppear {
             setupDragCallbacks()
@@ -332,20 +349,20 @@ struct DraggableBlockTrayView: View {
                                 lineWidth: isDragged ? 2 : 1
                             )
                     )
-                
-                // Draggable block (invisible when being dragged)
-                if !isDragged {
-                    DraggableBlockView(
-                        blockPattern: blockPattern,
-                        blockIndex: index,
-                        cellSize: cellSize,
-                        dragController: dragController
-                    )
-                }
+
+                // Draggable block (kept in hierarchy so gesture can finish reliably)
+                DraggableBlockView(
+                    blockPattern: blockPattern,
+                    blockIndex: index,
+                    cellSize: cellSize,
+                    dragController: dragController
+                )
+                .opacity(isDragged ? 0.0001 : 1.0)
+                .allowsHitTesting(!isDragged || dragController.draggedBlockIndex == index)
             }
             .frame(width: blockSize.width, height: blockSize.height)
             .contentShape(Rectangle())
-            
+
             // Block type indicator
             Text(blockTypeIndicator(for: blockPattern.type))
                 .font(.caption2)
@@ -406,7 +423,7 @@ struct DraggableBlockTrayView: View {
         case .lShape: return "L"
         }
     }
-    
+
     private func setupDragCallbacks() {
         dragController.onDragBegan = { (blockIndex: Int, blockPattern: BlockPattern, position: CGPoint) in
             onBlockDragged(blockIndex, blockPattern)
