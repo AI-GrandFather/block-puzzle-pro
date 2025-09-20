@@ -268,7 +268,8 @@ struct DragDropGameView: View {
 
         // Drag ended callback
         dragController.onDragEnded = { blockIndex, blockPattern, position in
-            self.updatePlacementPreview(blockPattern: blockPattern, blockOrigin: self.dragController.currentDragPosition)
+            // Don't update preview here - use the existing preview from drag changed
+            // Just commit the current preview state
             if self.placementEngine.commitPlacement(blockPattern: blockPattern) {
                 self.handleValidPlacement(blockIndex: blockIndex, blockPattern: blockPattern, position: position)
             } else {
@@ -371,7 +372,14 @@ struct DragDropGameView: View {
     private func handleInvalidPlacement(blockIndex: Int, blockPattern: BlockPattern, position: CGPoint) {
         UINotificationFeedbackGenerator().notificationOccurred(.error)
         UIAccessibility.post(notification: .announcement, argument: "Invalid placement")
+
+        // Ensure all preview and drag state is completely cleared
         placementEngine.clearPreview()
+
+        // Force drag controller to idle state if needed
+        if dragController.isDragging {
+            dragController.cancelDrag()
+        }
     }
     
     // MARK: - Accessibility

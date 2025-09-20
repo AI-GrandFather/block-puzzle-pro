@@ -216,7 +216,7 @@ final class PlacementEngine: ObservableObject {
             cellSize: cellSize,
             gridSpacing: gridSpacing
         ) else {
-            logger.debug("Preview rejected: origin=\(blockOrigin), touch=\(touchPoint), frame=\(gridFrame)")
+            logger.debug("Preview rejected: origin=\(String(describing: blockOrigin)), touch=\(String(describing: touchPoint)), frame=\(String(describing: gridFrame))")
             lastBaseGridPosition = nil
             return
         }
@@ -230,7 +230,7 @@ final class PlacementEngine: ObservableObject {
             gameEngine.setPreview(at: positions, color: blockPattern.color)
         case .invalid(let reason):
             isCurrentPreviewValid = false
-            logger.debug("Placement invalid: reason=\(reason) origin=\(blockOrigin) base=\(baseGridPosition)")
+            logger.debug("Placement invalid: reason=\(reason) origin=\(String(describing: blockOrigin)) base=\(String(describing: baseGridPosition))")
         }
     }
 
@@ -254,18 +254,30 @@ final class PlacementEngine: ObservableObject {
             return false
         }
 
+        // Double-check that all preview positions are still available
+        // This prevents race conditions between preview validation and commit
+        for position in previewPositions {
+            if !gameEngine.canPlaceAt(position: position) {
+                logger.warning("Cannot commit placement: position \(position) is no longer available")
+                clearPreview()
+                return false
+            }
+        }
+
         let success = gameEngine.placeBlocks(at: previewPositions, color: blockPattern.color)
 
         if success {
             logger.info("Successfully placed \(blockPattern.type.displayName) at \(self.previewPositions.count) positions")
-            clearPreview()
             let completedLines = gameEngine.processCompletedLines()
             if completedLines > 0 {
                 logger.info("Cleared \(completedLines) completed lines")
             }
         } else {
-            logger.error("Failed to place block")
+            logger.error("Failed to place block at positions: \(previewPositions) - this should not happen after validation")
         }
+
+        // Always clear preview regardless of success/failure to prevent stuck green outlines
+        clearPreview()
 
         return success
     }
@@ -307,7 +319,7 @@ final class PlacementEngine: ObservableObject {
         let maxColumn = column + patternWidth - 1
 
         guard maxRow < gridSize, maxColumn < gridSize else {
-            logger.debug("Projected origin out of bounds: origin=\(CGPoint(x: blockOriginX, y: blockOriginY)) row=\(row) col=\(column) maxRow=\(maxRow) maxCol=\(maxColumn)")
+            logger.debug("Projected origin out of bounds: origin=\(String(describing: CGPoint(x: blockOriginX, y: blockOriginY))) row=\(row) col=\(column) maxRow=\(maxRow) maxCol=\(maxColumn)")
             return nil
         }
 
