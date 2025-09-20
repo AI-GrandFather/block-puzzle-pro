@@ -155,7 +155,7 @@ enum BlockColor: String, CaseIterable {
 // MARK: - Grid Position
 
 /// Represents a position in the 10x10 grid
-struct GridPosition: Equatable, Hashable {
+struct GridPosition: Equatable, Hashable, CustomStringConvertible {
     let row: Int
     let column: Int
     
@@ -177,5 +177,10 @@ struct GridPosition: Equatable, Hashable {
     init(unsafeRow row: Int, unsafeColumn column: Int) {
         self.row = row
         self.column = column
+    }
+
+    /// CustomStringConvertible conformance
+    var description: String {
+        return "(\(row), \(column))"
     }
 }

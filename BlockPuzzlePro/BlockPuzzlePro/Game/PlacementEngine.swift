@@ -273,7 +273,7 @@ final class PlacementEngine: ObservableObject {
                 logger.info("Cleared \(completedLines) completed lines")
             }
         } else {
-            logger.error("Failed to place block at positions: \(previewPositions) - this should not happen after validation")
+            logger.error("Failed to place block at positions: \(self.previewPositions) - this should not happen after validation")
         }
 
         // Always clear preview regardless of success/failure to prevent stuck green outlines
