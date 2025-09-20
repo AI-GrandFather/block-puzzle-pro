@@ -341,7 +341,7 @@ struct DragDropGameView: View {
         // Regenerate the placed block (infinite supply design)
         blockFactory.regenerateBlock(at: blockIndex)
 
-        // Clear preview regardless
+        // Clear preview (drag controller handles its own cleanup)
         placementEngine.clearPreview()
     }
     
@@ -373,13 +373,8 @@ struct DragDropGameView: View {
         UINotificationFeedbackGenerator().notificationOccurred(.error)
         UIAccessibility.post(notification: .announcement, argument: "Invalid placement")
 
-        // Ensure all preview and drag state is completely cleared
+        // Clear preview (drag controller handles its own cleanup)
         placementEngine.clearPreview()
-
-        // Force drag controller to idle state if needed
-        if dragController.isDragging {
-            dragController.cancelDrag()
-        }
     }
     
     // MARK: - Accessibility

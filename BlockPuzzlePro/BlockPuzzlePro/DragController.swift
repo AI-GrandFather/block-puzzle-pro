@@ -290,6 +290,11 @@ class DragController: ObservableObject {
         // Call drag ended callback immediately
         onDragEnded?(blockIndex, blockPattern, position)
 
+        // Clear dragged pattern immediately to hide floating preview
+        // This prevents the green outline from persisting while animations complete
+        draggedBlockPattern = nil
+        currentBlockIndex = nil
+
         // Start settling animation optimized for 120Hz
         performSettlingAnimation { [weak self] in
             self?.transitionToSnappedOrIdle()
@@ -370,6 +375,10 @@ class DragController: ObservableObject {
 
         onInvalidDrop?(blockIndex, blockPattern, startPosition)
 
+        // Clear dragged pattern immediately to hide floating preview
+        draggedBlockPattern = nil
+        currentBlockIndex = nil
+
         // Transition to idle after animation
         let animationDuration = springResponse * 1.5
         DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self] in
@@ -377,11 +386,9 @@ class DragController: ObservableObject {
             self?.dragState = .idle
             self?.logStateTransition(from: oldState, to: .idle)
 
-            // Clear state atomically
+            // Clear remaining state atomically
             self?.isDragging = false
             self?.dragTouchOffset = .zero
-            self?.draggedBlockPattern = nil
-            self?.currentBlockIndex = nil
             self?.draggedIndices.removeAll()
         }
     }
