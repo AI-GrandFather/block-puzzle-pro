@@ -131,7 +131,7 @@ class GameEngine: ObservableObject {
             setCell(at: position, to: .occupied(color: color))
         }
         
-        logger.info("Placed \(positions.count) blocks with color \(String(describing: color))")
+        logger.info("Placed \(positions.count) blocks with color \(color.rawValue)")
         return true
     }
     

@@ -216,7 +216,7 @@ final class PlacementEngine: ObservableObject {
             cellSize: cellSize,
             gridSpacing: gridSpacing
         ) else {
-            logger.debug("Preview rejected: origin=\(String(describing: blockOrigin)), touch=\(String(describing: touchPoint)), frame=\(String(describing: gridFrame))")
+            logger.debug("Preview rejected: origin=(\(blockOrigin.x), \(blockOrigin.y)), touch=(\(touchPoint.x), \(touchPoint.y)), frame=(\(gridFrame.origin.x), \(gridFrame.origin.y), \(gridFrame.size.width), \(gridFrame.size.height))")
             lastBaseGridPosition = nil
             return
         }
@@ -230,7 +230,7 @@ final class PlacementEngine: ObservableObject {
             gameEngine.setPreview(at: positions, color: blockPattern.color)
         case .invalid(let reason):
             isCurrentPreviewValid = false
-            logger.debug("Placement invalid: reason=\(reason) origin=\(String(describing: blockOrigin)) base=\(String(describing: baseGridPosition))")
+            logger.debug("Placement invalid: reason=\(reason) origin=(\(blockOrigin.x), \(blockOrigin.y)) base=\(baseGridPosition)")
         }
     }
 
@@ -319,7 +319,7 @@ final class PlacementEngine: ObservableObject {
         let maxColumn = column + patternWidth - 1
 
         guard maxRow < gridSize, maxColumn < gridSize else {
-            logger.debug("Projected origin out of bounds: origin=\(String(describing: CGPoint(x: blockOriginX, y: blockOriginY))) row=\(row) col=\(column) maxRow=\(maxRow) maxCol=\(maxColumn)")
+            logger.debug("Projected origin out of bounds: origin=(\(blockOriginX), \(blockOriginY)) row=\(row) col=\(column) maxRow=\(maxRow) maxCol=\(maxColumn)")
             return nil
         }
 
