@@ -16,10 +16,11 @@ struct DraggableBlockView: View {
     // Removed: @Environment(\.deviceManager) private var deviceManager
     
     // MARK: - State
-    
+
     @State private var isPressed: Bool = false
     @State private var didSendDragBegan: Bool = false
     @State private var blockFrame: CGRect = .zero
+    @State private var dragGestureID: UUID = UUID() // Unique ID for each gesture to prevent conflicts
     
     // MARK: - Computed Properties
     
@@ -74,9 +75,9 @@ struct DraggableBlockView: View {
             )
             .offset(dragOffset)
             .zIndex(isDragged ? 1000 : 0) // Bring to front when dragging
-            .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.7, blendDuration: 0), value: isPressed)
-            .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.8, blendDuration: 0), value: dragScale)
-            .animation(.linear(duration: 0.05), value: dragRotation)
+            .animation(.interactiveSpring(response: 0.15, dampingFraction: 0.8, blendDuration: 0), value: isPressed)
+            .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.85, blendDuration: 0), value: dragScale)
+            .animation(.linear(duration: 0.016), value: dragRotation) // ~1 frame at 60Hz
             .onLongPressGesture(minimumDuration: 0.2) { isPressing in
                 // Handle press feedback with device-optimized animation
                 let animationDuration: Double = 0.15
@@ -87,36 +88,47 @@ struct DraggableBlockView: View {
                 // Long press not needed for drag, handled by drag gesture
             }
             .gesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                // Optimized drag gesture with better state management
+                DragGesture(minimumDistance: 2, coordinateSpace: .global) // Small minimum distance to prevent accidental drags
                     .onChanged { value in
+                        // Ensure drag begins exactly once per gesture
                         if !didSendDragBegan {
                             didSendDragBegan = true
+                            dragGestureID = UUID() // New gesture ID
+
                             let touchOffset: CGSize
-                            if blockFrame.isEmpty {
-                                touchOffset = .zero
-                            } else {
+                            if blockFrame != .zero {
                                 touchOffset = CGSize(
                                     width: value.startLocation.x - blockFrame.minX,
                                     height: value.startLocation.y - blockFrame.minY
                                 )
+                            } else {
+                                // Fallback when frame is not available
+                                touchOffset = .zero
                             }
+
+                            // Start drag through controller - this handles state transitions
                             dragController.startDrag(
                                 blockIndex: blockIndex,
                                 blockPattern: blockPattern,
                                 at: value.startLocation,
                                 touchOffset: touchOffset
                             )
-                            dragController.onDragBegan?(blockIndex, blockPattern, value.startLocation)
                         }
 
+                        // Always update drag position for smooth tracking
                         dragController.updateDrag(to: value.location)
-                        dragController.onDragChanged?(blockIndex, blockPattern, value.location)
                     }
                     .onEnded { value in
+                        // End drag through controller
                         dragController.endDrag(at: value.location)
-                        dragController.onDragEnded?(blockIndex, blockPattern, value.location)
+
+                        // Reset gesture state
                         didSendDragBegan = false
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        dragGestureID = UUID()
+
+                        // Reset visual state
+                        withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.8)) {
                             isPressed = false
                         }
                     }

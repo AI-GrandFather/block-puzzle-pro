@@ -347,13 +347,125 @@ final class DragDropTests: XCTestCase {
         XCTAssertEqual(cell?.color, blockPattern.color)
     }
     
+    // MARK: - Critical Bug Fix Tests
+
+    func testFirstDragAlwaysWorks() {
+        // Given: Fresh controller and block pattern
+        let blockPattern = BlockPattern(type: .single, color: .blue)
+        let startPosition = CGPoint(x: 100, y: 100)
+
+        // When: Starting the very first drag
+        dragController.startDrag(
+            blockIndex: 0,
+            blockPattern: blockPattern,
+            at: startPosition,
+            touchOffset: .zero
+        )
+
+        // Then: Drag should be active immediately
+        XCTAssertTrue(dragController.isDragging, "First drag should always work")
+        XCTAssertEqual(dragController.draggedBlockIndex, 0)
+        XCTAssertEqual(dragController.currentDragPosition, startPosition)
+    }
+
+    func testSequentialDragsWorkCorrectly() {
+        // Given: Block patterns for multiple drags
+        let block1 = BlockPattern(type: .single, color: .blue)
+        let block2 = BlockPattern(type: .lShape, color: .green)
+        let startPos1 = CGPoint(x: 100, y: 100)
+        let endPos1 = CGPoint(x: 200, y: 200)
+        let startPos2 = CGPoint(x: 150, y: 150)
+
+        // When: Performing first drag sequence
+        dragController.startDrag(blockIndex: 0, blockPattern: block1, at: startPos1, touchOffset: .zero)
+        XCTAssertTrue(dragController.isDragging, "First drag should work")
+
+        dragController.endDrag(at: endPos1)
+
+        // Wait for state transitions to complete
+        let expectation = XCTestExpectation(description: "First drag completes")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 1.0)
+
+        // Then: Should be idle before second drag
+        XCTAssertFalse(dragController.isDragging, "Should be idle after first drag")
+
+        // When: Starting second drag
+        dragController.startDrag(blockIndex: 1, blockPattern: block2, at: startPos2, touchOffset: .zero)
+
+        // Then: Second drag should work without issues
+        XCTAssertTrue(dragController.isDragging, "Second drag should work correctly")
+        XCTAssertEqual(dragController.draggedBlockIndex, 1)
+    }
+
+    func testNoPieceDisappearance() {
+        // Given: Multiple block patterns
+        let blocks = [
+            BlockPattern(type: .single, color: .blue),
+            BlockPattern(type: .lShape, color: .green),
+            BlockPattern(type: .horizontal, color: .red)
+        ]
+
+        // When: Dragging each block in sequence
+        for (index, block) in blocks.enumerated() {
+            let startPos = CGPoint(x: 100 + Double(index * 50), y: 100)
+            let endPos = CGPoint(x: 200 + Double(index * 50), y: 200)
+
+            dragController.startDrag(blockIndex: index, blockPattern: block, at: startPos, touchOffset: .zero)
+            XCTAssertNotNil(dragController.draggedBlockPattern, "Block should not disappear during drag")
+            XCTAssertEqual(dragController.draggedBlockPattern?.type, block.type)
+
+            dragController.endDrag(at: endPos)
+
+            // Wait for completion
+            let expectation = XCTestExpectation(description: "Drag \(index) completes")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                expectation.fulfill()
+            }
+            wait(for: [expectation], timeout: 0.5)
+        }
+    }
+
+    func testDeterministicStateMachine() {
+        // Given: Block pattern and positions
+        let blockPattern = BlockPattern(type: .single, color: .blue)
+        let startPos = CGPoint(x: 100, y: 100)
+        let updatePos = CGPoint(x: 150, y: 150)
+        let endPos = CGPoint(x: 200, y: 200)
+
+        // When: Going through complete drag cycle
+        XCTAssertEqual(dragController.dragState, .idle, "Should start idle")
+
+        dragController.startDrag(blockIndex: 0, blockPattern: blockPattern, at: startPos, touchOffset: .zero)
+        // Should transition through picking -> dragging states
+
+        dragController.updateDrag(to: updatePos)
+        XCTAssertTrue(dragController.isDragging, "Should be dragging during updates")
+
+        dragController.endDrag(at: endPos)
+        // Should transition through settling -> snapped -> idle states
+
+        // Wait for all transitions to complete
+        let expectation = XCTestExpectation(description: "State transitions complete")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 1.0)
+
+        // Then: Should end up in idle state
+        XCTAssertEqual(dragController.dragState, .idle, "Should end in idle state")
+        XCTAssertFalse(dragController.isDragging, "Should not be dragging")
+    }
+
     // MARK: - Performance Tests
-    
+
     func testDragUpdatePerformance() {
         // Given: Active drag
         let blockPattern = BlockPattern(type: .lShape, color: .green)
         dragController.startDrag(blockIndex: 0, blockPattern: blockPattern, at: .zero, touchOffset: .zero)
-        
+
         // When: Measuring update performance
         measure {
             for i in 0..<100 {
