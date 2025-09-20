@@ -140,7 +140,7 @@ class DragController: ObservableObject {
             self.minUpdateInterval = self.isProMotionDisplay ? (1.0 / 60.0) : (1.0 / resolvedRate)
         }
 
-        logger.info("DragController initialized: ProMotion=\(isProMotionDisplay), refreshRate=\(refreshRate), updateInterval=\(minUpdateInterval)")
+        logger.info("DragController initialized: ProMotion=\(self.isProMotionDisplay), refreshRate=\(refreshRate), updateInterval=\(self.minUpdateInterval)")
     }
 
     convenience init() {
@@ -155,7 +155,7 @@ class DragController: ObservableObject {
 
         // Strict state validation - only allow starting from idle
         guard case .idle = dragState, !isDragging else {
-            logger.error("Attempted to start drag in invalid state: \(String(describing: dragState))")
+            logger.error("Attempted to start drag in invalid state: \(String(describing: self.dragState))")
             return
         }
 
@@ -214,7 +214,7 @@ class DragController: ObservableObject {
     /// Update drag position with immediate preview updates optimized for 120Hz
     func updateDrag(to position: CGPoint) {
         guard case let .dragging(blockIndex, blockPattern, startPosition, touchOffset) = dragState else {
-            logger.debug("updateDrag called in non-dragging state: \(String(describing: dragState))")
+            logger.debug("updateDrag called in non-dragging state: \(String(describing: self.dragState))")
             return
         }
 
@@ -262,7 +262,7 @@ class DragController: ObservableObject {
     /// End drag operation with proper state transitions and optimized snapping
     func endDrag(at position: CGPoint) {
         guard case let .dragging(blockIndex, blockPattern, startPosition, touchOffset) = dragState else {
-            logger.debug("endDrag called in non-dragging state: \(String(describing: dragState))")
+            logger.debug("endDrag called in non-dragging state: \(String(describing: self.dragState))")
             return
         }
 
@@ -349,7 +349,7 @@ class DragController: ObservableObject {
     /// Cancel drag operation (return to original position) with proper state management
     func cancelDrag() {
         guard case let .dragging(blockIndex, blockPattern, startPosition, _) = dragState else {
-            logger.debug("cancelDrag called in non-dragging state: \(String(describing: dragState))")
+            logger.debug("cancelDrag called in non-dragging state: \(String(describing: self.dragState))")
             return
         }
 
