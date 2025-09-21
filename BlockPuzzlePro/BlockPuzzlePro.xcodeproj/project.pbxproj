@@ -7,21 +7,57 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8F27CB432E75E170004E6A4C /* GameEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB342E75E170004E6A4C /* GameEngine.swift */; };
+		8F9999F12E75E999004E6A4C /* PlacementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9999F02E75E999004E6A4C /* PlacementEngine.swift */; };
+		8F27CB442E75E170004E6A4C /* GameAdIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB3D2E75E170004E6A4C /* GameAdIntegration.swift */; };
+		8F27CB452E75E170004E6A4C /* AdManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB392E75E170004E6A4C /* AdManager.swift */; };
+		8F27CB462E75E170004E6A4C /* VisualConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB402E75E170004E6A4C /* VisualConstants.swift */; };
+		8F27CB472E75E170004E6A4C /* AdTestViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB3B2E75E170004E6A4C /* AdTestViewController.swift */; };
+		8F27CB482E75E170004E6A4C /* GridCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB372E75E170004E6A4C /* GridCell.swift */; };
+		8F27CB492E75E170004E6A4C /* ATTManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB3C2E75E170004E6A4C /* ATTManager.swift */; };
+		8F27CB4A2E75E170004E6A4C /* AdMobConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB3A2E75E170004E6A4C /* AdMobConfig.swift */; };
+		8F27CB4B2E75E170004E6A4C /* DeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB3F2E75E170004E6A4C /* DeviceManager.swift */; };
+		8F27CB4C2E75E170004E6A4C /* BlockType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB362E75E170004E6A4C /* BlockType.swift */; };
+		8F27CB542E75E17F004E6A4C /* DraggableBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB502E75E17F004E6A4C /* DraggableBlockView.swift */; };
+		8F27CB552E75E17F004E6A4C /* GridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB522E75E17F004E6A4C /* GridView.swift */; };
+		8F27CB562E75E17F004E6A4C /* BlockTrayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB4D2E75E17F004E6A4C /* BlockTrayView.swift */; };
+		8F27CB572E75E17F004E6A4C /* DragDropGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB4F2E75E17F004E6A4C /* DragDropGameView.swift */; };
+		8F27CB582E75E17F004E6A4C /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB512E75E17F004E6A4C /* GameView.swift */; };
+		8F27CB592E75E17F004E6A4C /* BlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB4E2E75E17F004E6A4C /* BlockView.swift */; };
+		8F27CB5D2E769512004E6A4C /* DragController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB5C2E769512004E6A4C /* DragController.swift */; };
 		A50001F72C8A1234000123AB /* BlockPuzzleProApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50001F62C8A1234000123AB /* BlockPuzzleProApp.swift */; };
 		A50001F92C8A1234000123AB /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = A50001F82C8A1234000123AB /* GameScene.sks */; };
 		A50001FB2C8A1234000123AB /* Actions.sks in Resources */ = {isa = PBXBuildFile; fileRef = A50001FA2C8A1234000123AB /* Actions.sks */; };
 		A50001FD2C8A1234000123AB /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50001FC2C8A1234000123AB /* GameScene.swift */; };
 		A50001FF2C8A1234000123AB /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50001FE2C8A1234000123AB /* GameViewController.swift */; };
-		A50002082C8A1234000123AB /* AdMobConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50002072C8A1234000123AB /* AdMobConfig.swift */; };
-		A50002092C8A1234000123AB /* AdManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50002082C8A1234000123AB /* AdManager.swift */; };
-		A5000210C8A1234000123AB /* ATTManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5000209C8A1234000123AB /* ATTManager.swift */; };
-		A5000211C8A1234000123AB /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A500020AC8A1234000123AB /* Info.plist */; };
 		A50002022C8A1234000123AB /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A50002002C8A1234000123AB /* Main.storyboard */; };
 		A50002042C8A1235000123AB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A50002032C8A1235000123AB /* Assets.xcassets */; };
 		A50002072C8A1235000123AB /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A50002052C8A1235000123AB /* LaunchScreen.storyboard */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		8F27CB342E75E170004E6A4C /* GameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngine.swift; sourceTree = "<group>"; };
+		8F9999F02E75E999004E6A4C /* PlacementEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementEngine.swift; sourceTree = "<group>"; };
+		8F27CB362E75E170004E6A4C /* BlockType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockType.swift; sourceTree = "<group>"; };
+		8F27CB372E75E170004E6A4C /* GridCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridCell.swift; sourceTree = "<group>"; };
+		8F27CB392E75E170004E6A4C /* AdManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdManager.swift; sourceTree = "<group>"; };
+		8F27CB3A2E75E170004E6A4C /* AdMobConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdMobConfig.swift; sourceTree = "<group>"; };
+		8F27CB3B2E75E170004E6A4C /* AdTestViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdTestViewController.swift; sourceTree = "<group>"; };
+		8F27CB3C2E75E170004E6A4C /* ATTManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ATTManager.swift; sourceTree = "<group>"; };
+		8F27CB3D2E75E170004E6A4C /* GameAdIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameAdIntegration.swift; sourceTree = "<group>"; };
+		8F27CB3F2E75E170004E6A4C /* DeviceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceManager.swift; sourceTree = "<group>"; };
+		8F27CB402E75E170004E6A4C /* VisualConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualConstants.swift; sourceTree = "<group>"; };
+		8F27CB4D2E75E17F004E6A4C /* BlockTrayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockTrayView.swift; sourceTree = "<group>"; };
+		8F27CB4E2E75E17F004E6A4C /* BlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockView.swift; sourceTree = "<group>"; };
+		8F27CB4F2E75E17F004E6A4C /* DragDropGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropGameView.swift; sourceTree = "<group>"; };
+		8F27CB502E75E17F004E6A4C /* DraggableBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DraggableBlockView.swift; sourceTree = "<group>"; };
+		8F27CB512E75E17F004E6A4C /* GameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameView.swift; sourceTree = "<group>"; };
+		8F27CB522E75E17F004E6A4C /* GridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridView.swift; sourceTree = "<group>"; };
+		8F27CB5C2E769512004E6A4C /* DragController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragController.swift; sourceTree = "<group>"; };
+		8FE754852E7AD76A0067A8D3 /* GameEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngineTests.swift; sourceTree = "<group>"; };
+		8FE754862E7AE26F0067A8D3 /* DragController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragController.swift; sourceTree = "<group>"; };
+		8FE754872E7AE4FD0067A8D3 /* DragController 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DragController 2.swift"; sourceTree = "<group>"; };
+		8FE754882E7AE5C20067A8D3 /* DragController 3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DragController 3.swift"; sourceTree = "<group>"; };
 		A50001F32C8A1234000123AB /* BlockPuzzlePro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BlockPuzzlePro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A50001F62C8A1234000123AB /* BlockPuzzleProApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockPuzzleProApp.swift; sourceTree = "<group>"; };
 		A50001F82C8A1234000123AB /* GameScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = GameScene.sks; sourceTree = "<group>"; };
@@ -44,11 +80,85 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		8F27CB352E75E170004E6A4C /* Managers */ = {
+			isa = PBXGroup;
+			children = (
+				8F27CB342E75E170004E6A4C /* GameEngine.swift */,
+			);
+			path = Managers;
+			sourceTree = "<group>";
+		};
+		8F27CB382E75E170004E6A4C /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				8F27CB362E75E170004E6A4C /* BlockType.swift */,
+				8F27CB372E75E170004E6A4C /* GridCell.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		8F27CB3E2E75E170004E6A4C /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				8F27CB392E75E170004E6A4C /* AdManager.swift */,
+				8F27CB3A2E75E170004E6A4C /* AdMobConfig.swift */,
+				8F27CB3B2E75E170004E6A4C /* AdTestViewController.swift */,
+				8F27CB3C2E75E170004E6A4C /* ATTManager.swift */,
+				8F27CB3D2E75E170004E6A4C /* GameAdIntegration.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		8F27CB412E75E170004E6A4C /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				8F27CB3F2E75E170004E6A4C /* DeviceManager.swift */,
+				8F27CB402E75E170004E6A4C /* VisualConstants.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		8F27CB422E75E170004E6A4C /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				8F27CB352E75E170004E6A4C /* Managers */,
+				8F27CB382E75E170004E6A4C /* Models */,
+				8F27CB3E2E75E170004E6A4C /* Services */,
+				8F27CB412E75E170004E6A4C /* Utilities */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		8F27CB532E75E17F004E6A4C /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				8F27CB4D2E75E17F004E6A4C /* BlockTrayView.swift */,
+				8F27CB4E2E75E17F004E6A4C /* BlockView.swift */,
+				8F27CB4F2E75E17F004E6A4C /* DragDropGameView.swift */,
+				8F27CB502E75E17F004E6A4C /* DraggableBlockView.swift */,
+				8F27CB512E75E17F004E6A4C /* GameView.swift */,
+				8F27CB522E75E17F004E6A4C /* GridView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		8F9999F22E75E999004E6A4C /* Game */ = {
+			isa = PBXGroup;
+			children = (
+				8F9999F02E75E999004E6A4C /* PlacementEngine.swift */,
+			);
+			path = Game;
+			sourceTree = "<group>";
+		};
 		A50001EA2C8A1234000123AB = {
 			isa = PBXGroup;
 			children = (
 				A50001F52C8A1234000123AB /* BlockPuzzlePro */,
 				A50001F42C8A1234000123AB /* Products */,
+				8FE754852E7AD76A0067A8D3 /* GameEngineTests.swift */,
+				8FE754862E7AE26F0067A8D3 /* DragController.swift */,
+				8FE754872E7AE4FD0067A8D3 /* DragController 2.swift */,
+				8FE754882E7AE5C20067A8D3 /* DragController 3.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -63,6 +173,10 @@
 		A50001F52C8A1234000123AB /* BlockPuzzlePro */ = {
 			isa = PBXGroup;
 			children = (
+				8F27CB5C2E769512004E6A4C /* DragController.swift */,
+				8F27CB532E75E17F004E6A4C /* Views */,
+				8F27CB422E75E170004E6A4C /* Core */,
+				8F9999F22E75E999004E6A4C /* Game */,
 				A50001F62C8A1234000123AB /* BlockPuzzleProApp.swift */,
 				A50001F82C8A1234000123AB /* GameScene.sks */,
 				A50001FA2C8A1234000123AB /* Actions.sks */,
@@ -103,7 +217,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1540;
-				LastUpgradeCheck = 1540;
+				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					A50001F22C8A1234000123AB = {
 						CreatedOnToolsVersion = 15.4;
@@ -149,8 +263,26 @@
 			buildActionMask = 2147483647;
 			files = (
 				A50001FD2C8A1234000123AB /* GameScene.swift in Sources */,
+				8F27CB5D2E769512004E6A4C /* DragController.swift in Sources */,
 				A50001FF2C8A1234000123AB /* GameViewController.swift in Sources */,
 				A50001F72C8A1234000123AB /* BlockPuzzleProApp.swift in Sources */,
+				8F27CB432E75E170004E6A4C /* GameEngine.swift in Sources */,
+				8F9999F12E75E999004E6A4C /* PlacementEngine.swift in Sources */,
+				8F27CB442E75E170004E6A4C /* GameAdIntegration.swift in Sources */,
+				8F27CB452E75E170004E6A4C /* AdManager.swift in Sources */,
+				8F27CB462E75E170004E6A4C /* VisualConstants.swift in Sources */,
+				8F27CB472E75E170004E6A4C /* AdTestViewController.swift in Sources */,
+				8F27CB482E75E170004E6A4C /* GridCell.swift in Sources */,
+				8F27CB492E75E170004E6A4C /* ATTManager.swift in Sources */,
+				8F27CB4A2E75E170004E6A4C /* AdMobConfig.swift in Sources */,
+				8F27CB542E75E17F004E6A4C /* DraggableBlockView.swift in Sources */,
+				8F27CB552E75E17F004E6A4C /* GridView.swift in Sources */,
+				8F27CB562E75E17F004E6A4C /* BlockTrayView.swift in Sources */,
+				8F27CB572E75E17F004E6A4C /* DragDropGameView.swift in Sources */,
+				8F27CB582E75E17F004E6A4C /* GameView.swift in Sources */,
+				8F27CB592E75E17F004E6A4C /* BlockView.swift in Sources */,
+				8F27CB4B2E75E170004E6A4C /* DeviceManager.swift in Sources */,
+				8F27CB4C2E75E170004E6A4C /* BlockType.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -211,6 +343,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 7A8ZCGXJ9A;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -234,6 +367,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
@@ -275,6 +409,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 7A8ZCGXJ9A;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -291,6 +426,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_VERSION = 6.0;
 				VALIDATE_PRODUCT = YES;

@@ -21,7 +21,7 @@ struct AdMobConfig {
     }
     
     private static let testAppID = "ca-app-pub-3940256099942544~1458002511"
-    private static let productionAppID = "REPLACE_WITH_ADMOB_APP_ID_FROM_GOOGLE_ADMOB_CONSOLE" // Set this when Apple Developer account is ready and AdMob account is created
+    private static let productionAppID = "ca-app-pub-9658051267955550~6177451298" // Production AdMob App ID
     
     // MARK: - Rewarded Ad Unit IDs
     

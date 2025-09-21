@@ -43,7 +43,7 @@ class DragController: ObservableObject {
     private let deviceManager: DeviceManager?
 
     /// Current drag state with deterministic transitions
-    @Published private(set) var dragState: DragState = .idle
+    @Published var dragState: DragState = .idle
 
     /// Current drag offset from original position
     @Published var dragOffset: CGSize = .zero
@@ -90,6 +90,14 @@ class DragController: ObservableObject {
 
     /// Whether we're running on ProMotion display
     private let isProMotionDisplay: Bool
+
+    // MARK: - Safety Mechanisms
+
+    /// Timer to auto-reset stuck drags
+    private var dragTimeoutTimer: Timer?
+
+    /// Maximum time a drag can be active before auto-reset (10 seconds)
+    private let maxDragDuration: TimeInterval = 10.0
 
     // MARK: - Instrumentation and Debug Logging
 
@@ -152,22 +160,23 @@ class DragController: ObservableObject {
     /// Start a drag operation with deterministic state transitions
     func startDrag(blockIndex: Int, blockPattern: BlockPattern, at position: CGPoint, touchOffset: CGSize) {
         let oldState = dragState
+        logger.debug("🚀 startDrag called for block \(blockIndex), current state: \(String(describing: self.dragState)), isDragging: \(self.isDragging)")
 
         // Strict state validation - only allow starting from idle
         guard case .idle = dragState, !isDragging else {
-            logger.error("Attempted to start drag in invalid state: \(String(describing: self.dragState))")
+            logger.error("❌ Attempted to start drag in invalid state: \(String(describing: self.dragState)), isDragging: \(self.isDragging)")
             return
         }
 
         // Begin signpost for performance tracking
         os_signpost(.begin, log: signpostLog, name: "DragSequence", "blockIndex=%d", blockIndex)
 
-        // Transition to picking state first
-        dragState = .picking(blockIndex: blockIndex, blockPattern: blockPattern, startPosition: position, touchOffset: touchOffset)
+        // Transition directly to dragging state (no async delay)
+        dragState = .dragging(blockIndex: blockIndex, blockPattern: blockPattern, startPosition: position, touchOffset: touchOffset)
         logStateTransition(from: oldState, to: dragState)
 
         // Set up drag state atomically
-        isDragging = false // Will be set to true when actually dragging starts
+        isDragging = true // Set immediately to prevent race conditions
         dragTouchOffset = touchOffset
         draggedBlockPattern = blockPattern
         currentBlockIndex = blockIndex
@@ -179,29 +188,8 @@ class DragController: ObservableObject {
         )
         currentTouchLocation = position
 
-        // Immediate transition to dragging state
-        DispatchQueue.main.async { [weak self] in
-            self?.transitionToDragging()
-        }
-
-        onDragBegan?(blockIndex, blockPattern, position)
-    }
-
-    /// Internal method to transition from picking to dragging
-    private func transitionToDragging() {
-        guard case .picking(let blockIndex, let blockPattern, let startPosition, let touchOffset) = dragState else {
-            return
-        }
-
-        let oldState = dragState
-        dragState = .dragging(blockIndex: blockIndex, blockPattern: blockPattern, startPosition: startPosition, touchOffset: touchOffset)
-        logStateTransition(from: oldState, to: dragState)
-
-        isDragging = true
-
-        // Optimized animation for ProMotion displays
+        // Start visual feedback immediately
         let springResponse = isProMotionDisplay ? 0.15 : 0.2
-
         withAnimation(.interactiveSpring(response: springResponse, dampingFraction: 0.8)) {
             dragScale = 1.1
             shadowOffset = CGSize(width: 3, height: 6)
@@ -209,12 +197,31 @@ class DragController: ObservableObject {
 
         // Haptic feedback
         deviceManager?.provideHapticFeedback(style: .light)
+
+        // Start safety timeout timer
+        startDragTimeoutTimer()
+
+        onDragBegan?(blockIndex, blockPattern, position)
     }
+
     
     /// Update drag position with immediate preview updates optimized for 120Hz
     func updateDrag(to position: CGPoint) {
-        guard case let .dragging(blockIndex, blockPattern, startPosition, touchOffset) = dragState else {
-            logger.debug("updateDrag called in non-dragging state: \(String(describing: self.dragState))")
+        // Handle both dragging and picking states to prevent race conditions
+        let (blockIndex, blockPattern, startPosition, touchOffset): (Int, BlockPattern, CGPoint, CGSize)
+
+        switch dragState {
+        case .dragging(let bIdx, let bPattern, let sPos, let tOffset):
+            (blockIndex, blockPattern, startPosition, touchOffset) = (bIdx, bPattern, sPos, tOffset)
+        case .picking(let bIdx, let bPattern, let sPos, let tOffset):
+            // Immediately transition to dragging state to fix race condition
+            let oldState = dragState
+            dragState = .dragging(blockIndex: bIdx, blockPattern: bPattern, startPosition: sPos, touchOffset: tOffset)
+            logStateTransition(from: oldState, to: dragState)
+            isDragging = true
+            (blockIndex, blockPattern, startPosition, touchOffset) = (bIdx, bPattern, sPos, tOffset)
+        default:
+            logger.debug("updateDrag called in invalid state: \(String(describing: self.dragState))")
             return
         }
 
@@ -261,8 +268,22 @@ class DragController: ObservableObject {
 
     /// End drag operation with proper state transitions and optimized snapping
     func endDrag(at position: CGPoint) {
-        guard case let .dragging(blockIndex, blockPattern, startPosition, touchOffset) = dragState else {
-            logger.debug("endDrag called in non-dragging state: \(String(describing: self.dragState))")
+        logger.debug("🎯 endDrag called at position: (\(position.x), \(position.y)), current state: \(String(describing: self.dragState))")
+
+        // Handle both dragging and picking states to prevent race conditions
+        let (blockIndex, blockPattern, startPosition, touchOffset): (Int, BlockPattern, CGPoint, CGSize)
+
+        switch dragState {
+        case .dragging(let bIdx, let bPattern, let sPos, let tOffset):
+            (blockIndex, blockPattern, startPosition, touchOffset) = (bIdx, bPattern, sPos, tOffset)
+        case .picking(let bIdx, let bPattern, let sPos, let tOffset):
+            // Allow ending drag even from picking state
+            (blockIndex, blockPattern, startPosition, touchOffset) = (bIdx, bPattern, sPos, tOffset)
+        case .idle:
+            logger.debug("⚠️ endDrag called when already idle - ignoring")
+            return
+        case .settling, .snapped:
+            logger.debug("⚠️ endDrag called when in \(String(describing: self.dragState)) state - ignoring")
             return
         }
 
@@ -295,10 +316,13 @@ class DragController: ObservableObject {
         draggedBlockPattern = nil
         currentBlockIndex = nil
 
-        // Start settling animation optimized for 120Hz
-        performSettlingAnimation { [weak self] in
-            self?.transitionToSnappedOrIdle()
-        }
+        // CRITICAL FIX: Complete state transition immediately instead of waiting for animation
+        // The async animation was causing the drag controller to stay in 'settling' state
+        // which prevented new drags from starting
+        transitionToIdleImmediately()
+
+        // Start visual settling animation without blocking state transitions
+        performVisualSettlingAnimation()
     }
 
     /// Optimized settling animation for ProMotion displays (100-140ms target)
@@ -351,10 +375,57 @@ class DragController: ObservableObject {
         }
     }
 
+    /// Immediately transition to idle state to allow new drags (synchronous version)
+    private func transitionToIdleImmediately() {
+        let oldState = dragState
+        logger.debug("🔄 transitionToIdleImmediately called, current state: \(String(describing: oldState))")
+
+        // End performance signpost
+        os_signpost(.end, log: signpostLog, name: "DragSequence")
+
+        // Transition directly to idle state (no async delay)
+        dragState = .idle
+        logStateTransition(from: oldState, to: dragState)
+
+        // Clear all drag state atomically
+        isDragging = false
+        dragTouchOffset = .zero
+        draggedIndices.removeAll()
+        // Note: draggedBlockPattern and currentBlockIndex already cleared above
+
+        logger.debug("✅ State transition complete, dragState=\(String(describing: self.dragState)), isDragging=\(self.isDragging)")
+
+        // Cancel timeout timer since drag completed successfully
+        dragTimeoutTimer?.invalidate()
+        dragTimeoutTimer = nil
+    }
+
+    /// Visual settling animation without state transitions
+    private func performVisualSettlingAnimation() {
+        // Target: 100-140ms for crisp feel at 120Hz
+        let springResponse = isProMotionDisplay ? 0.12 : 0.18
+        let dampingFraction: CGFloat = 0.85 // Higher damping for crisper animation
+
+        withAnimation(.interactiveSpring(response: springResponse, dampingFraction: dampingFraction)) {
+            dragScale = 1.0
+            dragRotation = 0.0
+            shadowOffset = .zero
+            dragOffset = .zero
+        }
+    }
+
     /// Cancel drag operation (return to original position) with proper state management
     func cancelDrag() {
-        guard case let .dragging(blockIndex, blockPattern, startPosition, _) = dragState else {
-            logger.debug("cancelDrag called in non-dragging state: \(String(describing: self.dragState))")
+        // Handle both dragging and picking states to prevent race conditions
+        let (blockIndex, blockPattern, startPosition): (Int, BlockPattern, CGPoint)
+
+        switch dragState {
+        case .dragging(let bIdx, let bPattern, let sPos, _):
+            (blockIndex, blockPattern, startPosition) = (bIdx, bPattern, sPos)
+        case .picking(let bIdx, let bPattern, let sPos, _):
+            (blockIndex, blockPattern, startPosition) = (bIdx, bPattern, sPos)
+        default:
+            logger.debug("cancelDrag called in invalid state: \(String(describing: self.dragState))")
             return
         }
 
@@ -390,12 +461,23 @@ class DragController: ObservableObject {
             self?.isDragging = false
             self?.dragTouchOffset = .zero
             self?.draggedIndices.removeAll()
+
+            // Cancel timeout timer since drag completed (even if canceled)
+            self?.dragTimeoutTimer?.invalidate()
+            self?.dragTimeoutTimer = nil
         }
     }
     
     /// Handle successful drop
     func handleValidDrop(at position: CGPoint) {
-        guard case let .dragging(blockIndex, blockPattern, _, _) = dragState else { return }
+        let (blockIndex, blockPattern): (Int, BlockPattern)
+
+        switch dragState {
+        case .dragging(let bIdx, let bPattern, _, _), .picking(let bIdx, let bPattern, _, _):
+            (blockIndex, blockPattern) = (bIdx, bPattern)
+        default:
+            return
+        }
 
         // Success haptic feedback
         deviceManager?.provideNotificationFeedback(type: .success)
@@ -403,10 +485,17 @@ class DragController: ObservableObject {
         onValidDrop?(blockIndex, blockPattern, position)
         endDrag(at: position)
     }
-    
+
     /// Handle invalid drop
     func handleInvalidDrop() {
-        guard case let .dragging(blockIndex, blockPattern, startPosition, _) = dragState else { return }
+        let (blockIndex, blockPattern, startPosition): (Int, BlockPattern, CGPoint)
+
+        switch dragState {
+        case .dragging(let bIdx, let bPattern, let sPos, _), .picking(let bIdx, let bPattern, let sPos, _):
+            (blockIndex, blockPattern, startPosition) = (bIdx, bPattern, sPos)
+        default:
+            return
+        }
 
         // Error haptic feedback
         deviceManager?.provideNotificationFeedback(type: .error)
@@ -464,10 +553,43 @@ class DragController: ObservableObject {
         return draggedIndices.contains(blockIndex) && isDragging
     }
     
+    // MARK: - Safety Timeout
+
+    /// Start timeout timer to auto-reset stuck drags
+    private func startDragTimeoutTimer() {
+        // Cancel any existing timer
+        dragTimeoutTimer?.invalidate()
+
+        // Start new timer
+        dragTimeoutTimer = Timer.scheduledTimer(withTimeInterval: maxDragDuration, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleDragTimeout()
+            }
+        }
+
+        logger.debug("🕒 Drag timeout timer started (\(self.maxDragDuration)s)")
+    }
+
+    /// Handle drag timeout - auto-reset stuck drags
+    private func handleDragTimeout() {
+        logger.warning("⏰ Drag timeout triggered - force resetting stuck drag")
+        print("🚨 DRAG TIMEOUT: Force resetting drag controller after \(self.maxDragDuration)s")
+
+        // Force reset the entire drag controller
+        reset()
+
+        // Notify that drag was force-canceled
+        // Note: We don't call onDragEnded/onInvalidDrop since the gesture is stuck
+    }
+
     // MARK: - Reset
     
     /// Reset all drag state
     func reset() {
+        // Cancel any pending timeout timer
+        dragTimeoutTimer?.invalidate()
+        dragTimeoutTimer = nil
+
         // Reset state
         dragState = .idle
         isDragging = false

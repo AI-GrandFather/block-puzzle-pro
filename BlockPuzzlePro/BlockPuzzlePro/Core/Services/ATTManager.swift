@@ -34,6 +34,7 @@ enum ATTStatus {
 
 // MARK: - ATTManager
 
+@MainActor
 class ATTManager: ObservableObject {
     
     // MARK: - Properties
@@ -64,14 +65,14 @@ class ATTManager: ObservableObject {
         
         // Simulated for development - assume iOS 17+ availability
         attStatus = .notDetermined
-        logger.info("ATT Status updated: \(attStatus.description)")
+        logger.info("ATT Status updated: \(self.attStatus.description)")
     }
     
     // MARK: - Permission Request
     
     func requestTrackingPermission() async {
         guard attStatus == .notDetermined else {
-            logger.info("ATT permission already determined: \(attStatus.description)")
+            logger.info("ATT permission already determined: \(self.attStatus.description)")
             return
         }
         
@@ -82,9 +83,7 @@ class ATTManager: ObservableObject {
         
         logger.info("Requesting App Tracking Transparency permission...")
         
-        await MainActor.run {
-            hasRequestedPermission = true
-        }
+        hasRequestedPermission = true
         
         // In real implementation:
         // if #available(iOS 14.5, *) {
@@ -97,11 +96,9 @@ class ATTManager: ObservableObject {
         
         // Simulated for development - assume user grants permission
         try? await Task.sleep(for: .seconds(2))
-        await MainActor.run {
-            attStatus = .authorized // Simulate user granting permission
-            logger.info("ATT permission granted (simulated)")
-            notifyStatusChanged()
-        }
+        attStatus = .authorized // Simulate user granting permission
+        logger.info("ATT permission granted (simulated)")
+        notifyStatusChanged()
     }
     
     func requestTrackingPermissionIfNeeded() async {

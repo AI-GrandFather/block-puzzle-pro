@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<!-- AdMob Configuration -->
-	<!-- TODO: Replace with production AdMob App ID when Apple Developer account is ready -->
+	<!-- Production AdMob App ID -->
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<string>ca-app-pub-9658051267955550~6177451298</string>
 	
 	<!-- App Tracking Transparency -->
 	<key>NSUserTrackingUsageDescription</key>

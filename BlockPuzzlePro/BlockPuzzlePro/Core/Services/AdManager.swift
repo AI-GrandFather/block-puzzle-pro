@@ -5,12 +5,23 @@ import os.log
 
 // MARK: - Ad Loading States
 
-enum AdLoadingState {
+enum AdLoadingState: Equatable {
     case notLoaded
     case loading
     case loaded
     case failed(Error)
     case displaying
+    
+    static func == (lhs: AdLoadingState, rhs: AdLoadingState) -> Bool {
+        switch (lhs, rhs) {
+        case (.notLoaded, .notLoaded), (.loading, .loading), (.loaded, .loaded), (.displaying, .displaying):
+            return true
+        case (.failed, .failed):
+            return true // For simplicity, consider all failed states equal
+        default:
+            return false
+        }
+    }
 }
 
 // MARK: - Ad Errors
@@ -44,14 +55,15 @@ enum AdError: Error, LocalizedError {
 // MARK: - Ad Reward Protocol
 
 protocol AdRewardDelegate: AnyObject {
-    func adManager(_ manager: AdManager, didEarnReward amount: Int, type: String)
-    func adManager(_ manager: AdManager, didFailToShowAd error: AdError)
-    func adManager(_ manager: AdManager, didDismissAd wasCompleted: Bool)
+    nonisolated func adManager(_ manager: AdManager, didEarnReward amount: Int, type: String)
+    nonisolated func adManager(_ manager: AdManager, didFailToShowAd error: AdError)
+    nonisolated func adManager(_ manager: AdManager, didDismissAd wasCompleted: Bool)
 }
 
-// MARK: - AdManager Actor
+// MARK: - AdManager MainActor Class
 
-actor AdManager: ObservableObject {
+@MainActor
+class AdManager: ObservableObject {
     
     // MARK: - Properties
     
@@ -60,11 +72,23 @@ actor AdManager: ObservableObject {
     @Published private(set) var rewardedAdState: AdLoadingState = .notLoaded
     @Published private(set) var isInitialized = false
     
+    /// Get initialization status (exposed for external access)
+    var isAdManagerInitialized: Bool {
+        return isInitialized
+    }
+    
     private var rewardedAd: Any? // GADRewardedAd? - will be typed once SDK is available
     private var retryAttempts = 0
     private var loadingTask: Task<Void, Never>?
     
     weak var rewardDelegate: AdRewardDelegate?
+    
+    // MARK: - Delegate Management
+    
+    /// Set the reward delegate
+    func setRewardDelegate(_ delegate: AdRewardDelegate?) {
+        self.rewardDelegate = delegate
+    }
     
     // MARK: - Singleton
     
@@ -98,10 +122,8 @@ actor AdManager: ObservableObject {
         
         // Simulated initialization for development
         try? await Task.sleep(for: .seconds(1))
-        await MainActor.run {
-            isInitialized = true
-            logger.info("AdMob SDK initialized successfully (simulated)")
-        }
+        isInitialized = true
+        logger.info("AdMob SDK initialized successfully (simulated)")
         
         if AdMobConfig.shouldPreloadAds {
             await preloadRewardedAd()
@@ -121,7 +143,7 @@ actor AdManager: ObservableObject {
             return
         }
         
-        await updateAdState(.loading)
+        updateAdState(.loading)
         logger.info("Starting to preload rewarded ad...")
         
         loadingTask = Task { [weak self] in
@@ -143,7 +165,7 @@ actor AdManager: ObservableObject {
             // self.rewardedAd = ad
             
             // Simulated success
-            await updateAdState(.loaded)
+            updateAdState(.loaded)
             retryAttempts = 0
             logger.info("Rewarded ad loaded successfully")
             
@@ -157,14 +179,14 @@ actor AdManager: ObservableObject {
         retryAttempts += 1
         
         if retryAttempts < AdMobConfig.maxRetryAttempts {
-            logger.info("Retrying ad load (attempt \(retryAttempts)/\(AdMobConfig.maxRetryAttempts))")
+            logger.info("Retrying ad load (attempt \(self.retryAttempts)/\(AdMobConfig.maxRetryAttempts))")
             
             try? await Task.sleep(for: .seconds(AdMobConfig.retryDelay))
             await loadRewardedAdInternal()
         } else {
             logger.error("Max retry attempts reached for ad loading")
             let adError = mapToAdError(error)
-            await updateAdState(.failed(adError))
+            updateAdState(.failed(adError))
             retryAttempts = 0
         }
     }
@@ -194,7 +216,7 @@ actor AdManager: ObservableObject {
             return false
         }
         
-        await updateAdState(.displaying)
+        updateAdState(.displaying)
         logger.info("Showing rewarded ad...")
         
         // In real implementation:
@@ -208,7 +230,7 @@ actor AdManager: ObservableObject {
         
         // Simulate successful completion
         await handleAdReward()
-        await updateAdState(.notLoaded)
+        updateAdState(.notLoaded)
         
         // Preload next ad
         if AdMobConfig.shouldPreloadAds {
@@ -225,9 +247,7 @@ actor AdManager: ObservableObject {
         let rewardAmount = 1
         let rewardType = "continue_game"
         
-        await MainActor.run {
-            rewardDelegate?.adManager(self, didEarnReward: rewardAmount, type: rewardType)
-        }
+        rewardDelegate?.adManager(self, didEarnReward: rewardAmount, type: rewardType)
     }
     
     // MARK: - Ad Availability
@@ -243,7 +263,7 @@ actor AdManager: ObservableObject {
     
     func handleNetworkError() async {
         logger.warning("Network error detected, pausing ad loading")
-        await updateAdState(.failed(.networkUnavailable))
+        updateAdState(.failed(AdError.networkUnavailable))
     }
     
     func retryFailedAds() async {

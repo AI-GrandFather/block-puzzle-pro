@@ -5,6 +5,7 @@ import os.log
 // MARK: - Game Ad Integration
 
 /// Handles ad integration specifically for game scenarios
+@MainActor
 class GameAdIntegration: ObservableObject {
     
     // MARK: - Properties
@@ -28,7 +29,7 @@ class GameAdIntegration: ObservableObject {
     private func setupAdManager() {
         Task {
             // Set this instance as the reward delegate
-            AdManager.shared.rewardDelegate = self
+            AdManager.shared.setRewardDelegate(self)
             
             // Request ATT permission after first game (better UX)
             await requestATTIfAppropriate()
@@ -43,9 +44,7 @@ class GameAdIntegration: ObservableObject {
         // Check if rewarded ad is available for continue
         let adReady = await AdManager.shared.isRewardedAdReady()
         
-        await MainActor.run {
-            canContinueGame = adReady
-        }
+        canContinueGame = adReady
         
         if adReady {
             logger.info("Continue with ad option available")
@@ -82,21 +81,23 @@ class GameAdIntegration: ObservableObject {
     private func requestATTIfAppropriate() async {
         // Request ATT after user has played at least one game
         // This provides better context than requesting immediately on app launch
-        if ATTManager.shared.shouldRequestPermissionAfterGameplay() {
-            await MainActor.run {
-                showATTPrompt = true
-            }
+        let shouldRequest = await MainActor.run {
+            ATTManager.shared.shouldRequestPermissionAfterGameplay()
+        }
+        if shouldRequest {
+            showATTPrompt = true
         }
     }
     
     func handleATTPromptResponse() async {
         await ATTManager.shared.requestTrackingPermissionIfNeeded()
         
-        await MainActor.run {
-            showATTPrompt = false
-        }
+        showATTPrompt = false
         
-        logger.info("ATT permission handled - \(ATTManager.shared.attStatus.description)")
+        let status = await MainActor.run {
+            ATTManager.shared.attStatus.description
+        }
+        logger.info("ATT permission handled - \(status)")
     }
     
     // MARK: - Preloading Management
@@ -123,56 +124,53 @@ class GameAdIntegration: ObservableObject {
 
 extension GameAdIntegration: AdRewardDelegate {
     
-    func adManager(_ manager: AdManager, didEarnReward amount: Int, type: String) {
-        logger.info("Player earned reward: \(amount) \(type)")
-        
-        // Handle different reward types
-        switch type {
-        case "continue_game":
-            handleContinueReward()
-        case "power_up":
-            handlePowerUpReward()
-        default:
-            logger.warning("Unknown reward type: \(type)")
-        }
-    }
-    
-    func adManager(_ manager: AdManager, didFailToShowAd error: AdError) {
-        logger.error("Ad failed to show: \(error.localizedDescription)")
-        
+    nonisolated func adManager(_ manager: AdManager, didEarnReward amount: Int, type: String) {
         Task { @MainActor in
-            // Show user-friendly error message
-            showAdErrorAlert(error)
+            self.logger.info("Player earned reward: \(amount) \(type)")
+            
+            // Handle different reward types
+            switch type {
+            case "continue_game":
+                await self.handleContinueReward()
+            case "power_up":
+                await self.handlePowerUpReward()
+            default:
+                self.logger.warning("Unknown reward type: \(type)")
+            }
         }
     }
     
-    func adManager(_ manager: AdManager, didDismissAd wasCompleted: Bool) {
-        logger.info("Ad dismissed - completed: \(wasCompleted)")
-        
-        if !wasCompleted {
-            // User dismissed ad without completing - no reward
-            Task { @MainActor in
-                showAdDismissedMessage()
+    nonisolated func adManager(_ manager: AdManager, didFailToShowAd error: AdError) {
+        Task { @MainActor in
+            self.logger.error("Ad failed to show: \(error.localizedDescription)")
+            // Show user-friendly error message
+            self.showAdErrorAlert(error)
+        }
+    }
+    
+    nonisolated func adManager(_ manager: AdManager, didDismissAd wasCompleted: Bool) {
+        Task { @MainActor in
+            self.logger.info("Ad dismissed - completed: \(wasCompleted)")
+            
+            if !wasCompleted {
+                // User dismissed ad without completing - no reward
+                self.showAdDismissedMessage()
             }
         }
     }
     
     // MARK: - Reward Handling
     
-    private func handleContinueReward() {
-        Task { @MainActor in
-            // Grant player continue opportunity
-            // This will be implemented in game logic stories
-            logger.info("Granting continue gameplay reward")
-        }
+    private func handleContinueReward() async {
+        // Grant player continue opportunity
+        // This will be implemented in game logic stories
+        logger.info("Granting continue gameplay reward")
     }
     
-    private func handlePowerUpReward() {
-        Task { @MainActor in
-            // Grant power-up to player
-            // This will be implemented in future power-up stories
-            logger.info("Granting power-up reward")
-        }
+    private func handlePowerUpReward() async {
+        // Grant power-up to player
+        // This will be implemented in future power-up stories
+        logger.info("Granting power-up reward")
     }
     
     // MARK: - Error UI

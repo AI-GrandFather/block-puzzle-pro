@@ -1,6 +1,7 @@
 import SwiftUI
 import os.log
 
+
 @main
 struct BlockPuzzleProApp: App {
     private let logger = Logger(subsystem: "com.example.BlockPuzzlePro", category: "AppLifecycle")
@@ -21,10 +22,10 @@ struct BlockPuzzleProApp: App {
         logger.info("BlockPuzzlePro app initializing")
         setupAppLifecycleObservers()
         
-        // Initialize AdMob SDK
-        Task {
-            await AdManager.shared.initializeAdMob()
-        }
+        // Initialize AdMob SDK - temporarily commented out due to package resolution issues
+        // Task {
+        //     await AdManager.shared.initializeAdMob()
+        // }
     }
     
     private func setupAppLifecycleObservers() {
@@ -65,8 +66,9 @@ struct BlockPuzzleProApp: App {
 
 struct ContentView: View {
     var body: some View {
-        GameViewControllerRepresentable()
-            .ignoresSafeArea()
+        DragDropGameView()
+            .statusBarHidden()
+            .preferredColorScheme(.light)
     }
 }
 

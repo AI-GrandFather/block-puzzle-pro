@@ -39,35 +39,41 @@ class AdTestViewController: UIViewController {
     }()
     
     private lazy var loadAdButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setTitle("Load Rewarded Ad", for: .normal)
-        button.backgroundColor = .systemBlue
-        button.setTitleColor(.white, for: .normal)
-        button.layer.cornerRadius = 8
-        button.contentEdgeInsets = UIEdgeInsets(top: 12, left: 24, bottom: 12, right: 24)
+        var config = UIButton.Configuration.filled()
+        config.title = "Load Rewarded Ad"
+        config.baseBackgroundColor = .systemBlue
+        config.baseForegroundColor = .white
+        config.cornerStyle = .medium
+        config.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 24, bottom: 12, trailing: 24)
+        
+        let button = UIButton(configuration: config)
         button.addTarget(self, action: #selector(loadAdTapped), for: .touchUpInside)
         return button
     }()
     
     private lazy var showAdButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setTitle("Show Rewarded Ad", for: .normal)
-        button.backgroundColor = .systemGreen
-        button.setTitleColor(.white, for: .normal)
-        button.layer.cornerRadius = 8
-        button.contentEdgeInsets = UIEdgeInsets(top: 12, left: 24, bottom: 12, right: 24)
+        var config = UIButton.Configuration.filled()
+        config.title = "Show Rewarded Ad"
+        config.baseBackgroundColor = .systemGreen
+        config.baseForegroundColor = .white
+        config.cornerStyle = .medium
+        config.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 24, bottom: 12, trailing: 24)
+        
+        let button = UIButton(configuration: config)
         button.addTarget(self, action: #selector(showAdTapped), for: .touchUpInside)
         button.isEnabled = false
         return button
     }()
     
     private lazy var requestATTButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setTitle("Request ATT Permission", for: .normal)
-        button.backgroundColor = .systemOrange
-        button.setTitleColor(.white, for: .normal)
-        button.layer.cornerRadius = 8
-        button.contentEdgeInsets = UIEdgeInsets(top: 12, left: 24, bottom: 12, right: 24)
+        var config = UIButton.Configuration.filled()
+        config.title = "Request ATT Permission"
+        config.baseBackgroundColor = .systemOrange
+        config.baseForegroundColor = .white
+        config.cornerStyle = .medium
+        config.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 24, bottom: 12, trailing: 24)
+        
+        let button = UIButton(configuration: config)
         button.addTarget(self, action: #selector(requestATTTapped), for: .touchUpInside)
         return button
     }()
@@ -123,7 +129,7 @@ class AdTestViewController: UIViewController {
     private func setupAdManager() {
         Task {
             // Wait for AdManager to initialize
-            while !await AdManager.shared.isInitialized {
+            while !(await AdManager.shared.isAdManagerInitialized) {
                 try? await Task.sleep(for: .seconds(0.5))
             }
             
@@ -239,19 +245,25 @@ class AdTestViewController: UIViewController {
 // MARK: - AdRewardDelegate
 
 extension AdTestViewController: AdRewardDelegate {
-    func adManager(_ manager: AdManager, didEarnReward amount: Int, type: String) {
-        logger.info("User earned reward: \(amount) of type \(type)")
-        updateStatus("Reward earned: \(amount) \(type) ✅")
+    nonisolated func adManager(_ manager: AdManager, didEarnReward amount: Int, type: String) {
+        Task { @MainActor in
+            logger.info("User earned reward: \(amount) of type \(type)")
+            updateStatus("Reward earned: \(amount) \(type) ✅")
+        }
     }
     
-    func adManager(_ manager: AdManager, didFailToShowAd error: AdError) {
-        logger.error("Failed to show ad: \(error.localizedDescription)")
-        updateStatus("Ad failed: \(error.localizedDescription) ❌")
+    nonisolated func adManager(_ manager: AdManager, didFailToShowAd error: AdError) {
+        Task { @MainActor in
+            logger.error("Failed to show ad: \(error.localizedDescription)")
+            updateStatus("Ad failed: \(error.localizedDescription) ❌")
+        }
     }
     
-    func adManager(_ manager: AdManager, didDismissAd wasCompleted: Bool) {
-        logger.info("Ad dismissed - completed: \(wasCompleted)")
-        updateStatus("Ad dismissed - completed: \(wasCompleted)")
+    nonisolated func adManager(_ manager: AdManager, didDismissAd wasCompleted: Bool) {
+        Task { @MainActor in
+            logger.info("Ad dismissed - completed: \(wasCompleted)")
+            updateStatus("Ad dismissed - completed: \(wasCompleted)")
+        }
     }
 }
 
