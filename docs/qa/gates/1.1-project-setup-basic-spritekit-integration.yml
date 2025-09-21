@@ -2,9 +2,9 @@ schema: 1
 story: '1.1'
 story_title: 'Project Setup and Basic SpriteKit Integration'
 gate: PASS
-status_reason: 'Excellent foundational iOS project implementation with comprehensive architecture, proper lifecycle management, and full AC compliance.'
+status_reason: 'Excellent foundational iOS 26 project implementation with iOS 17+ minimum requirements, comprehensive architecture, proper lifecycle management, and full AC compliance.'
 reviewer: 'Quinn (Test Architect)'
-updated: '2025-01-13T00:00:00Z'
+updated: '2025-09-21T20:00:00Z'
 
 top_issues: []
 waiver: 
@@ -12,7 +12,7 @@ waiver:
 
 # Extended fields
 quality_score: 100
-expires: '2025-01-27T00:00:00Z'
+expires: '2025-10-05T20:00:00Z'
 
 evidence:
   tests_reviewed: 0  # No unit tests required for foundational setup story
@@ -47,7 +47,7 @@ recommendations:
 ac_evidence:
   ac1_xcode_project:
     validated: true
-    evidence: 'project.pbxproj shows SWIFT_VERSION=6.0, IPHONEOS_DEPLOYMENT_TARGET=18.0, proper universal device support'
+    evidence: 'project.pbxproj shows SWIFT_VERSION=6.0, IPHONEOS_DEPLOYMENT_TARGET=17.0 (min requirement), iOS 26 development target, proper universal device support'
   ac2_spritekit_portrait:
     validated: true  
     evidence: 'GameScene.swift configured with .aspectFill, GameViewController.swift enforces portrait orientation'
