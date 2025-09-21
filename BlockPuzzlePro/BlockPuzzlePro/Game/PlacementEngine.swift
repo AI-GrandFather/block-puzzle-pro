@@ -283,9 +283,9 @@ final class PlacementEngine: ObservableObject {
 
         if success {
             logger.info("Successfully placed \(blockPattern.type.displayName) at \(self.previewPositions.count) positions")
-            let completedLines = gameEngine.processCompletedLines()
-            if completedLines > 0 {
-                logger.info("Cleared \(completedLines) completed lines")
+            let lineClearResult = gameEngine.processCompletedLines()
+            if !lineClearResult.isEmpty {
+                logger.info("Line clear triggered: rows=\(lineClearResult.rows) columns=\(lineClearResult.columns)")
             }
         } else {
             logger.error("Failed to place block at positions: \(self.previewPositions) - this should not happen after validation")

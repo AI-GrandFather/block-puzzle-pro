@@ -12,6 +12,7 @@ struct GridView: View {
     
     let cellSize: CGFloat
     let gridSpacing: CGFloat
+    let highlightedPositions: Set<GridPosition>
     
     // MARK: - Initialization
     
@@ -19,12 +20,14 @@ struct GridView: View {
         gameEngine: GameEngine,
         dragController: DragController,
         cellSize: CGFloat,
-        gridSpacing: CGFloat = 1
+        gridSpacing: CGFloat = 1,
+        highlightedPositions: Set<GridPosition> = []
     ) {
         self.gameEngine = gameEngine
         self.dragController = dragController
         self.cellSize = cellSize
         self.gridSpacing = gridSpacing
+        self.highlightedPositions = highlightedPositions
     }
     
     // MARK: - Body
@@ -39,7 +42,8 @@ struct GridView: View {
                 GridCellView(
                     position: position,
                     cell: gameEngine.cell(at: position) ?? .empty,
-                    cellSize: cellSize
+                    cellSize: cellSize,
+                    isHighlighted: highlightedPositions.contains(position)
                 )
             }
         }
@@ -55,15 +59,32 @@ struct GridCellView: View {
     let position: GridPosition
     let cell: GridCell
     let cellSize: CGFloat
+    let isHighlighted: Bool
     
     var body: some View {
-        Rectangle()
-            .fill(cellColor)
-            .frame(width: cellSize, height: cellSize)
-            .overlay(
-                Rectangle()
-                    .stroke(Color(UIColor.systemGray5), lineWidth: 0.5)
-            )
+        ZStack {
+            Rectangle()
+                .fill(cellColor)
+                .frame(width: cellSize, height: cellSize)
+                .overlay(
+                    Rectangle()
+                        .stroke(Color(UIColor.systemGray5), lineWidth: 0.5)
+                )
+            
+            if isHighlighted {
+                RoundedRectangle(cornerRadius: cellSize * 0.25)
+                    .fill(Color.accentColor.opacity(0.28))
+                    .frame(width: cellSize * 0.92, height: cellSize * 0.92)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: cellSize * 0.25)
+                            .stroke(Color.accentColor.opacity(0.9), lineWidth: 3)
+                    )
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .scaleEffect(isHighlighted ? 1.05 : 1.0)
+        .opacity(isHighlighted ? 0.85 : 1.0)
+        .animation(.easeOut(duration: 0.2), value: isHighlighted)
     }
     
     private var cellColor: Color {

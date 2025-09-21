@@ -1,5 +1,5 @@
 import Testing
-@testable import YourAppModuleName
+@testable import BlockPuzzlePro
 
 @Suite("GameEngine basic behavior")
 struct GameEngineTests {
@@ -11,7 +11,7 @@ struct GameEngineTests {
         let pos = try #require(GridPosition(row: 0, column: 0))
         _ = engine.placeBlocks(at: [pos], color: .red)
         // Mutate score artificially
-        let _ = engine.processCompletedLines()
+        _ = engine.processCompletedLines()
 
         engine.startNewGame()
 
@@ -48,8 +48,9 @@ struct GameEngineTests {
         }
         let ok = engine.placeBlocks(at: positions, color: .green)
         #expect(ok == true)
-        let cleared = engine.processCompletedLines()
-        #expect(cleared >= 1)
+        let result = engine.processCompletedLines()
+        #expect(result.totalClearedLines >= 1)
+        #expect(result.rows.contains(row))
         // Row should be empty now
         for col in 0..<GameEngine.gridSize {
             let p = GridPosition(unsafeRow: row, unsafeColumn: col)

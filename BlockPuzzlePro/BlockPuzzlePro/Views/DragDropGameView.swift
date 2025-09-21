@@ -1,6 +1,7 @@
 import SwiftUI
 import Foundation
 import CoreGraphics
+import Combine
 
 // MARK: - Drag Drop Game View
 
@@ -22,6 +23,8 @@ struct DragDropGameView: View {
     @State private var screenSize: CGSize = .zero
     @State private var isGameReady: Bool = false
     @State private var gridFrame: CGRect = .zero
+    @State private var lineClearHighlights: Set<GridPosition> = []
+    @State private var lineClearAnimationToken: UUID?
 
     private let gridSpacing: CGFloat = 2
     
@@ -56,7 +59,8 @@ struct DragDropGameView: View {
                             gameEngine: gameEngine,
                             dragController: dragController,
                             cellSize: gridCellSize,
-                            gridSpacing: gridSpacing
+                            gridSpacing: gridSpacing,
+                            highlightedPositions: lineClearHighlights
                         )
                         .frame(width: boardSize, height: boardSize)
                         .background(
@@ -128,6 +132,28 @@ struct DragDropGameView: View {
             }
             .onChange(of: geometry.size) { _, newValue in
                 updateScreenSize(newValue)
+            }
+            .onReceive(gameEngine.$activeLineClears) { clears in
+                guard !clears.isEmpty else { return }
+
+                let highlights = Set(clears.flatMap { $0.positions })
+                guard !highlights.isEmpty else { return }
+
+                let token = UUID()
+                lineClearAnimationToken = token
+
+                withAnimation(.easeOut(duration: 0.18)) {
+                    lineClearHighlights = highlights
+                }
+
+                let fadeDelay: TimeInterval = 0.45
+                DispatchQueue.main.asyncAfter(deadline: .now() + fadeDelay) {
+                    guard lineClearAnimationToken == token else { return }
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        lineClearHighlights = []
+                    }
+                    gameEngine.clearActiveLineClears()
+                }
             }
         }
         .environmentObject(deviceManager)

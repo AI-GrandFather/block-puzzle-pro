@@ -2,6 +2,51 @@ import Foundation
 import Combine
 import os.log
 
+// MARK: - Line Clear Models
+
+/// Represents a single cleared line (row or column)
+struct LineClear: Identifiable, Equatable {
+    enum Kind: Equatable {
+        case row(Int)
+        case column(Int)
+    }
+
+    let kind: Kind
+    let positions: [GridPosition]
+
+    var id: String {
+        switch kind {
+        case .row(let row):
+            return "row-\(row)"
+        case .column(let column):
+            return "col-\(column)"
+        }
+    }
+}
+
+/// Summary of line clear results for a placement
+struct LineClearResult {
+    let clears: [LineClear]
+
+    var rows: [Int] {
+        clears.compactMap { if case .row(let row) = $0.kind { row } else { nil } }
+    }
+
+    var columns: [Int] {
+        clears.compactMap { if case .column(let column) = $0.kind { column } else { nil } }
+    }
+
+    var totalClearedLines: Int { clears.count }
+
+    var uniquePositions: Set<GridPosition> {
+        Set(clears.flatMap { $0.positions })
+    }
+
+    var isEmpty: Bool { clears.isEmpty }
+
+    static let empty = LineClearResult(clears: [])
+}
+
 // MARK: - Game Engine
 
 /// Core game engine managing the 10x10 grid and game state
@@ -20,6 +65,9 @@ class GameEngine: ObservableObject {
     
     /// Whether the game is currently active
     @Published private(set) var isGameActive: Bool = false
+
+    /// Recently cleared lines for animation/highlight purposes
+    @Published private(set) var activeLineClears: [LineClear] = []
     
     // MARK: - Constants
     
@@ -136,7 +184,7 @@ class GameEngine: ObservableObject {
     }
     
     /// Check for completed lines and clear them
-    func processCompletedLines() -> Int {
+    func processCompletedLines() -> LineClearResult {
         var completedRows: [Int] = []
         var completedColumns: [Int] = []
         
@@ -184,13 +232,31 @@ class GameEngine: ObservableObject {
                 setCell(at: position, to: .empty)
             }
         }
-        
-        let totalCompleted = completedRows.count + completedColumns.count
-        if totalCompleted > 0 {
+
+        var lineClears: [LineClear] = []
+
+        for row in completedRows {
+            let positions = (0..<Self.gridSize).compactMap { GridPosition(row: row, column: $0) }
+            lineClears.append(LineClear(kind: .row(row), positions: positions))
+        }
+
+        for column in completedColumns {
+            let positions = (0..<Self.gridSize).compactMap { GridPosition(row: $0, column: column) }
+            lineClears.append(LineClear(kind: .column(column), positions: positions))
+        }
+
+        activeLineClears = lineClears
+
+        if !lineClears.isEmpty {
             logger.info("Cleared \(completedRows.count) rows and \(completedColumns.count) columns")
         }
-        
-        return totalCompleted
+
+        return LineClearResult(clears: lineClears)
+    }
+
+    /// Clears the published line-clear state after animations complete
+    func clearActiveLineClears() {
+        activeLineClears = []
     }
     
     // MARK: - Debug Utilities
