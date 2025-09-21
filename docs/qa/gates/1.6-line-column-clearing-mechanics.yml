@@ -6,7 +6,7 @@ story_title: "Line and Column Clearing Mechanics"
 gate: FAIL
 status_reason: "CRITICAL DEPENDENCY FAILURE: Story 1.5 drag-and-drop system was fundamentally broken during implementation, making line clearing untestable. QA review failed to validate prerequisite dependencies."
 reviewer: "Quinn (Test Architect)"
-updated: "2025-09-21T16:30:00Z"
+updated: "2025-09-21T18:30:00Z"
 
 waiver: { active: false }
 
@@ -62,12 +62,19 @@ recommendations:
       refs: ["DragController.swift", "PlacementEngine.swift", "DraggableBlockView.swift"]
     - action: "Implement end-to-end integration testing for QA process"
       refs: ["QA review process"]
-    - action: "Add column clearing tests to validate AC2"
-      refs: ["GameEngineTests.swift"]
-    - action: "Add simultaneous row+column clear tests for AC3"
-      refs: ["GameEngineTests.swift"]
-    - action: "Add tests for immediate grid availability after clearing (AC5)"
-      refs: ["GameEngineTests.swift"]
+  qa_fixes_applied:
+    - action: "Added comprehensive column clearing tests validating AC2"
+      refs: ["GameEngineTests.swift:61-80"]
+    - action: "Added simultaneous row+column clear tests validating AC3"
+      refs: ["GameEngineTests.swift:82-119"]
+    - action: "Added tests for immediate grid availability after clearing (AC5)"
+      refs: ["GameEngineTests.swift:180-209"]
+    - action: "Added active line clears tracking tests for animation support"
+      refs: ["GameEngineTests.swift:211-237"]
+    - action: "Created comprehensive integration test suite"
+      refs: ["LineClearingTests.swift"]
+    - action: "Updated iOS deployment target to 18.0"
+      refs: ["project.pbxproj"]
   future:
     - action: "Implement particle effects system for enhanced visual feedback"
       refs: ["BlockPuzzlePro/Animation/"]

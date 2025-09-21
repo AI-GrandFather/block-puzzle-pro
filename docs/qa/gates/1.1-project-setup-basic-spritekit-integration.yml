@@ -47,7 +47,7 @@ recommendations:
 ac_evidence:
   ac1_xcode_project:
     validated: true
-    evidence: 'project.pbxproj shows SWIFT_VERSION=6.0, IPHONEOS_DEPLOYMENT_TARGET=17.0, proper universal device support'
+    evidence: 'project.pbxproj shows SWIFT_VERSION=6.0, IPHONEOS_DEPLOYMENT_TARGET=18.0, proper universal device support'
   ac2_spritekit_portrait:
     validated: true  
     evidence: 'GameScene.swift configured with .aspectFill, GameViewController.swift enforces portrait orientation'

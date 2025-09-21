@@ -6,7 +6,7 @@ story_title: "AdMob SDK Integration and Configuration"
 gate: PASS
 status_reason: "Excellent implementation with comprehensive test coverage and all critical issues resolved"
 reviewer: "Quinn (Test Architect)"
-updated: "2025-09-13T00:00:00Z"
+updated: "2025-09-21T18:00:00Z"
 
 waiver: { active: false }
 
@@ -50,6 +50,9 @@ risk_summary:
 
 recommendations:
   immediate: []  # All immediate issues resolved
+  qa_fixes_applied:
+    - action: "Updated iOS deployment target to 18.0 for future iOS compatibility"
+      refs: ["project.pbxproj"]
   future:
     - action: "Replace simulated ad operations with real GoogleMobileAds SDK calls when Apple Developer account is ready"
       refs: ["BlockPuzzlePro/Core/Services/AdManager.swift", "BlockPuzzlePro/Core/Services/AdMobConfig.swift"]
