@@ -12,6 +12,14 @@ The drag-and-drop system was ported from the SpriteKit prototype into a pure Swi
 ## Root Causes
 1. **Gesture removal mid-flight** – the tray hid (`if !isDragged`) the `DraggableBlockView` being dragged. SwiftUI removes that view, so its `DragGesture` never emits `.onEnded`, leaving the controller stuck in `.dragging`.
 2. **Placement origin alignment** – the placement engine projected the drag origin using the top-left of the block. When part of the block hovered outside the board, the projection failed. A fallback existed, but the controller never saw a stable, valid preview, so it could not settle.
+3. **Coordinate-space drift during refactors** – there were two independent copies of `DraggableBlockView` (one in the tray file, one free-standing). Each made slightly different assumptions about coordinate spaces. Consolidating logic or ensuring identical behaviour is critical.
+
+## Original Mistakes to Avoid
+- Removing the original block view from the hierarchy once dragging begins.
+- Mixing coordinate spaces (tray-local vs. global) without converting touch points before calling the drag controller.
+- Allowing the placement engine to use the projected origin even after it is known to be outside the board.
+- Relying on the drag timeout watchdog to “fix” state issues; the timeout should be a last resort.
+- Leaving duplicate view/component implementations to drift—ensure tray and standalone blocks share behaviour.
 
 ## Fix Summary
 1. **Keep the tray view alive during drag**
@@ -30,6 +38,13 @@ The drag-and-drop system was ported from the SpriteKit prototype into a pure Swi
    - Log anchor cell, finger grid, and final base selection for easier diagnostics.
 3. **Optional instrumentation**
    - Added temporary logs to confirm state transitions while testing. Remove or gate behind debug flags when shipping.
+
+## Debugging Procedure (what finally worked)
+1. Added verbose logging at each layer (gesture, drag controller, placement engine) to see a full trace of coordinates and state transitions.
+2. Verified that `DragController.dragState` always returns to `.idle` after a drop.
+3. Confirmed `PlacementEngine` produces `Preview valid` entries for every drag update once the block enters the grid.
+4. Ensured the tray continues to render the block view during drags and that `.onEnded` fires for every gesture.
+5. Ran through all block types in the simulator to check snapping, line clears, and tray refresh behaviour.
 
 ## Lessons Learned / Guard Rails
 - Never remove the original gesture target during a drag; SwiftUI treats gesture recognisers as tied to the view’s lifetime.
