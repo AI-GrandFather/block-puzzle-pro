@@ -80,11 +80,10 @@ struct GridCellView: View {
             }
         }
         .scaleEffect(isHighlighted ? 1.08 : 1.0)
-        .promotionSpring(
-            response: 0.4,
-            dampingFraction: 0.7,
-            value: isHighlighted
-        )
+        .animation(.spring(
+            response: UIScreen.main.maximumFramesPerSecond >= 120 ? 0.2 : 0.4,
+            dampingFraction: 0.7
+        ), value: isHighlighted)
     }
     
     private var cellColor: Color {

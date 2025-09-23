@@ -30,9 +30,9 @@ struct DragDropGameView: View {
     @State private var celebrationVisible: Bool = false
 
     // Performance optimization properties
-    @StateObject private var performanceAnimator = DisplayLinkAnimator()
     @State private var lastUpdateTime: TimeInterval = 0
     @State private var frameSkipCounter: Int = 0
+    @State private var isProMotionDevice: Bool = false
 
     private let gridSpacing: CGFloat = 2
     
@@ -116,8 +116,6 @@ struct DragDropGameView: View {
                 lineClearAnimationToken = token
 
                 // Start the enhanced line clear animation with ProMotion optimization
-                let isProMotionDevice = UIScreen.main.maximumFramesPerSecond >= 120
-
                 withAnimation(.spring(
                     response: isProMotionDevice ? 0.2 : 0.4,
                     dampingFraction: 0.7,
@@ -130,12 +128,12 @@ struct DragDropGameView: View {
                 let fadeDelay: TimeInterval = isProMotionDevice ? 0.6 : 0.8
                 DispatchQueue.main.asyncAfter(deadline: .now() + fadeDelay) {
                     guard lineClearAnimationToken == token else { return }
-                    withAnimation(.easeOut(duration: isProMotionDevice ? 0.3 : 0.4)) {
+                    withAnimation(.easeOut(duration: self.isProMotionDevice ? 0.3 : 0.4)) {
                         lineClearHighlights = []
                     }
 
                     // Clear the lines after animation completes
-                    let clearDelay: TimeInterval = isProMotionDevice ? 0.3 : 0.4
+                    let clearDelay: TimeInterval = self.isProMotionDevice ? 0.3 : 0.4
                     DispatchQueue.main.asyncAfter(deadline: .now() + clearDelay) {
                         guard lineClearAnimationToken == token else { return }
                         gameEngine.clearActiveLineClears()
@@ -149,9 +147,6 @@ struct DragDropGameView: View {
         .environmentObject(deviceManager)
         .onAppear {
             setupPerformanceOptimizations()
-        }
-        .onDisappear {
-            performanceAnimator.stop()
         }
         // Removed .onChange(of: dragController.isDragging) due to non-existent property
     }
@@ -338,32 +333,12 @@ struct DragDropGameView: View {
     // MARK: - Performance Optimization
 
     private func setupPerformanceOptimizations() {
-        // Enable high-performance display link for smooth animations
-        performanceAnimator.start()
-
-        // Setup performance monitoring
-        performanceAnimator.onFrame = { [weak self] deltaTime in
-            self?.handlePerformanceFrame(deltaTime: deltaTime)
-        }
+        // Detect ProMotion capability
+        isProMotionDevice = UIScreen.main.maximumFramesPerSecond >= 120
 
         print("🚀 Performance optimizations enabled")
         print("📱 Device max refresh rate: \(UIScreen.main.maximumFramesPerSecond)Hz")
-        print("⚡ ProMotion support: \(UIScreen.main.maximumFramesPerSecond >= 120 ? "YES" : "NO")")
-    }
-
-    private func handlePerformanceFrame(deltaTime: TimeInterval) {
-        // Skip performance-heavy operations on dropped frames
-        guard deltaTime < 1.0 / 90.0 else {
-            frameSkipCounter += 1
-            return
-        }
-
-        // Reset skip counter on good frames
-        frameSkipCounter = 0
-        lastUpdateTime = CACurrentMediaTime()
-
-        // Trigger any high-frequency updates here if needed
-        // (Currently all game logic is event-driven, which is optimal)
+        print("⚡ ProMotion support: \(isProMotionDevice ? "YES" : "NO")")
     }
 
     // MARK: - Game Logic
@@ -546,15 +521,14 @@ struct DragDropGameView: View {
         }
 
         celebrationMessage = message
-        let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
-        let responseMultiplier: Double = isProMotion ? 0.7 : 1.0
+        let responseMultiplier: Double = isProMotionDevice ? 0.7 : 1.0
 
         withAnimation(.spring(response: 0.35 * responseMultiplier, dampingFraction: 0.7)) {
             celebrationVisible = true
         }
 
         let token = message.id
-        let displayDuration: TimeInterval = isProMotion ? 1.2 : 1.4
+        let displayDuration: TimeInterval = isProMotionDevice ? 1.2 : 1.4
         DispatchQueue.main.asyncAfter(deadline: .now() + displayDuration) {
             guard celebrationMessage?.id == token else { return }
             withAnimation(.easeOut(duration: 0.35 * responseMultiplier)) {
