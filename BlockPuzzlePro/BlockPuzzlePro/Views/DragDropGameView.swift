@@ -62,10 +62,8 @@ struct DragDropGameView: View {
                     .ignoresSafeArea()
                 
                 if isGameReady {
-                    VStack(spacing: 24) {
-                        gameHeader
-                            .padding(.top, max(geometry.safeAreaInsets.top + 12, 40))
-                            .padding(.horizontal, 24)
+                    VStack(spacing: 20) {
+                        header(in: geometry)
 
                         // Grid container with explicit centering and size constraints
                         gridView
@@ -205,21 +203,27 @@ struct DragDropGameView: View {
         .ignoresSafeArea()
     }
     
-    private var gameHeader: some View {
+    private func header(in geometry: GeometryProxy) -> some View {
         HStack(alignment: .center, spacing: 16) {
+            HighScoreBadge(
+                highScore: gameEngine.highScore,
+                isNewHighScore: gameEngine.lastScoreEvent?.isNewHighScore ?? false
+            )
+
             Spacer(minLength: 12)
 
             ScoreView(
                 score: gameEngine.score,
-                highScore: gameEngine.highScore,
                 lastEvent: gameEngine.lastScoreEvent
             )
-            .frame(maxWidth: 280)
+            .frame(minWidth: 120)
 
             Spacer(minLength: 12)
 
             settingsButton
         }
+        .padding(.horizontal, 24)
+        .padding(.top, geometry.safeAreaInsets.top + 12)
     }
 
     private var settingsButton: some View {

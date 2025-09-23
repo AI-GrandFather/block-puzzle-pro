@@ -3,7 +3,6 @@ import SwiftUI
 /// Displays the player's current score with subtle animation on updates.
 struct ScoreView: View {
     let score: Int
-    let highScore: Int
     let lastEvent: ScoreEvent?
 
     @State private var scale: CGFloat = 1.0
@@ -11,13 +10,10 @@ struct ScoreView: View {
     @State private var deltaOffset: CGFloat = 4.0
 
     var body: some View {
-        VStack(spacing: 16) {
-            highScoreBanner
-            scorePlate
-        }
-        .onAppear {
-            scale = 1.0
-        }
+        scoreStack
+            .onAppear {
+                scale = 1.0
+            }
         .onChange(of: score) { _, _ in
             let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
             let responseMultiplier: Double = isProMotion ? 0.7 : 1.0
@@ -45,51 +41,7 @@ struct ScoreView: View {
         }
     }
 
-    private var highScoreBanner: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "crown.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(goldenGradient)
-                .shadow(color: Color.black.opacity(0.12), radius: 3, x: 0, y: 2)
-                .accessibilityHidden(true)
-
-            Text("HIGH SCORE")
-                .font(.caption2)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.primary.opacity(0.55))
-
-            Text("\(highScore)")
-                .font(.system(size: 18, weight: .heavy, design: .rounded))
-                .foregroundStyle(highScoreFill)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(Color.white.opacity(0.12))
-                        .overlay(
-                            Capsule()
-                                .stroke(highScoreStroke, lineWidth: 1)
-                        )
-                )
-                .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
-
-            Spacer(minLength: 12)
-
-            if lastEvent?.isNewHighScore == true {
-                Text("NEW!")
-                    .font(.caption.bold())
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(goldenGradient))
-                    .transition(.scale.combined(with: .opacity))
-            }
-        }
-        .padding(.horizontal, 18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var scorePlate: some View {
+    private var scoreStack: some View {
         ZStack(alignment: .topTrailing) {
             VStack(alignment: .center, spacing: 8) {
                 Text("\(score)")
@@ -129,8 +81,7 @@ struct ScoreView: View {
                     .offset(y: deltaOffset)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
         .frame(minWidth: 200)
     }
 
@@ -148,28 +99,6 @@ struct ScoreView: View {
             ],
             startPoint: .leading,
             endPoint: .trailing
-        )
-    }
-
-    private var highScoreFill: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(red: 0.60, green: 0.80, blue: 1.0),
-                Color(red: 0.46, green: 0.69, blue: 0.99)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
-    private var highScoreStroke: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(red: 0.35, green: 0.58, blue: 0.95),
-                Color(red: 0.67, green: 0.85, blue: 1.0)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
         )
     }
 
@@ -216,21 +145,61 @@ struct ScoreView: View {
         )
     }
 
-    private var goldenGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(red: 0.99, green: 0.87, blue: 0.36),
-                Color(red: 0.98, green: 0.76, blue: 0.18)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
+}
+
+struct HighScoreBadge: View {
+    let highScore: Int
+    let isNewHighScore: Bool
+
+    private let badgeGradient = LinearGradient(
+        colors: [
+            Color(red: 1.0, green: 0.76, blue: 0.38),
+            Color(red: 1.0, green: 0.53, blue: 0.24)
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "crown.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(badgeGradient)
+                .shadow(color: Color.black.opacity(0.18), radius: 4, x: 0, y: 3)
+
+            Text("\(highScore)")
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color(red: 1.0, green: 0.58, blue: 0.25))
+
+            if isNewHighScore {
+                Text("NEW")
+                    .font(.caption.bold())
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color(red: 1.0, green: 0.58, blue: 0.25))
+                    )
+            }
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.15))
+        )
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(0.3), lineWidth: 1)
         )
     }
 }
 
 #Preview("Score View") {
     VStack(spacing: 20) {
-        ScoreView(score: 1280, highScore: 2000, lastEvent: ScoreEvent(
+        HighScoreBadge(highScore: 2000, isNewHighScore: true)
+        ScoreView(score: 1280, lastEvent: ScoreEvent(
             placedCells: 5,
             linesCleared: 1,
             placementPoints: 5,

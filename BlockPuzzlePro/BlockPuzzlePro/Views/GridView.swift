@@ -47,14 +47,16 @@ struct GridView: View {
                 )
             }
         }
-        .padding(gridSpacing * 1.5)
-        .background(BoardPalette.boardBackground)
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(BoardPalette.boardBorder, lineWidth: 2)
+        .padding(gridSpacing)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(GridPalette.background)
         )
-        .shadow(color: BoardPalette.boardShadow, radius: 12, x: 0, y: 8)
-        .cornerRadius(18)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.35), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
     }
 }
 
@@ -73,7 +75,7 @@ struct GridCellView: View {
                 .frame(width: cellSize, height: cellSize)
                 .overlay(
                     Rectangle()
-                        .stroke(BoardPalette.cellStroke, lineWidth: 1)
+                        .stroke(cellBorder, lineWidth: 0.7)
                 )
             
             if isHighlighted {
@@ -94,32 +96,28 @@ struct GridCellView: View {
     private var cellColor: Color {
         switch cell {
         case .empty:
-            return BoardPalette.emptyCell
+            return Color.white.opacity(0.85)
         case .occupied(let blockColor):
             return Color(blockColor.uiColor)
         case .preview(let blockColor):
             return Color(blockColor.uiColor).opacity(0.5)
         }
     }
+    
+    private var cellBorder: Color {
+        Color(white: 1.0).opacity(0.55)
+    }
 }
 
-// MARK: - Palette
-
-private enum BoardPalette {
-    static let boardBackground = LinearGradient(
+private enum GridPalette {
+    static let background = LinearGradient(
         colors: [
-            Color(red: 0.09, green: 0.18, blue: 0.39),
-            Color(red: 0.07, green: 0.14, blue: 0.31)
+            Color(red: 0.96, green: 0.91, blue: 1.0).opacity(0.95),
+            Color(red: 0.89, green: 0.93, blue: 1.0).opacity(0.92)
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
-
-    static let boardBorder = Color(red: 0.04, green: 0.08, blue: 0.18).opacity(0.8)
-    static let boardShadow = Color.black.opacity(0.25)
-
-    static let emptyCell = Color(red: 0.11, green: 0.21, blue: 0.43)
-    static let cellStroke = Color(red: 0.06, green: 0.12, blue: 0.26)
 }
 
 // MARK: - Particle Burst Effect
