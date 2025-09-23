@@ -5,12 +5,6 @@ import os.log
 // MARK: - Line Clear Models
 
 /// Represents a single cleared line (row or column)
-struct LineFragment: Identifiable, Equatable {
-    let id = UUID()
-    let position: GridPosition
-    let color: BlockColor
-}
-
 struct LineClear: Identifiable, Equatable {
     enum Kind: Equatable {
         case row(Int)
@@ -19,7 +13,7 @@ struct LineClear: Identifiable, Equatable {
 
     let kind: Kind
     let positions: [GridPosition]
-    let fragments: [LineFragment]
+    let fragments: [Fragment]
 
     var id: String {
         switch kind {
@@ -49,7 +43,7 @@ struct LineClearResult {
         Set(clears.flatMap { $0.positions })
     }
 
-    var fragments: [LineFragment] {
+    var fragments: [LineClear.Fragment] {
         clears.flatMap { $0.fragments }
     }
 
@@ -320,11 +314,12 @@ class GameEngine: ObservableObject {
 
         // Clear completed lines
         for row in completedRows {
-            var rowFragments: [LineFragment] = []
+            var rowFragments: [LineClear.Fragment] = []
+            
             for column in 0..<Self.gridSize {
                 let position = GridPosition(unsafeRow: row, unsafeColumn: column)
                 if let cell = cell(at: position), case .occupied(let color) = cell {
-                    rowFragments.append(LineFragment(position: position, color: color))
+                    rowFragments.append(LineClear.Fragment(position: position, color: color))
                 }
                 setCell(at: position, to: .empty)
             }
@@ -333,11 +328,11 @@ class GameEngine: ObservableObject {
         }
 
         for column in completedColumns {
-            var columnFragments: [LineFragment] = []
+            var columnFragments: [LineClear.Fragment] = []
             for row in 0..<Self.gridSize {
                 let position = GridPosition(unsafeRow: row, unsafeColumn: column)
                 if let cell = cell(at: position), case .occupied(let color) = cell {
-                    columnFragments.append(LineFragment(position: position, color: color))
+                    columnFragments.append(LineClear.Fragment(position: position, color: color))
                 }
                 setCell(at: position, to: .empty)
             }
