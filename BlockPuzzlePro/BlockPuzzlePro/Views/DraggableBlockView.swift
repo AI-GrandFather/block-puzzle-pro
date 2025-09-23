@@ -317,7 +317,7 @@ struct DraggableBlockTrayView: View {
     
     private var trayHeader: some View {
         HStack {
-            Text("Available Blocks")
+            Text("Block Tray")
                 .font(.caption)
                 .foregroundColor(.secondary)
             

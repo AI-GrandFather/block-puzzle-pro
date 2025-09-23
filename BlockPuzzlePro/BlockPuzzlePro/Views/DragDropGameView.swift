@@ -324,13 +324,9 @@ struct DragDropGameView: View {
     @ViewBuilder
     private var celebrationOverlay: some View {
         if let message = celebrationMessage, celebrationVisible {
-            VStack {
-                CelebrationToastView(message: message)
-                    .padding(.top, 72)
-                    .padding(.horizontal, 24)
-
-                Spacer()
-            }
+            CelebrationBannerView(message: message)
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
             .transition(.move(edge: .top).combined(with: .opacity))
             .allowsHitTesting(false)
         }
@@ -1058,4 +1054,48 @@ extension View {
 #Preview("Game - Dark") {
     DragDropGameView()
         .preferredColorScheme(.dark)
+}
+
+
+private struct CelebrationBannerView: View {
+    let message: CelebrationMessage
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: message.icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.white)
+                .padding(10)
+                .background(
+                    Circle().fill(Color.accentColor.opacity(0.85))
+                )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(message.title)
+                    .font(.headline.bold())
+                    .foregroundStyle(Color.white)
+                Text(message.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(Color.white.opacity(0.85))
+            }
+
+            if message.points > 0 {
+                Spacer(minLength: 12)
+                Text("+\(message.points)")
+                    .font(.caption.bold())
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule().fill(Color.white.opacity(0.2))
+                    )
+            }
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .background(.ultraThinMaterial)
+        .cornerRadius(18)
+        .shadow(color: Color.black.opacity(0.2), radius: 12, x: 0, y: 6)
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
 }
