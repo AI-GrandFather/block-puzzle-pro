@@ -25,6 +25,8 @@ struct DragDropGameView: View {
     @State private var gridFrame: CGRect = .zero
     @State private var lineClearHighlights: Set<GridPosition> = []
     @State private var lineClearAnimationToken: UUID?
+    @State private var celebrationMessage: CelebrationMessage?
+    @State private var celebrationVisible: Bool = false
 
     private let gridSpacing: CGFloat = 2
     
@@ -50,58 +52,22 @@ struct DragDropGameView: View {
                     .ignoresSafeArea()
                 
                 if isGameReady {
-                    // Main game content
                     VStack(spacing: 24) {
                         gameHeader
-                            .padding(.top, max(geometry.safeAreaInsets.top + 16, 60))
+                            .padding(.top, max(geometry.safeAreaInsets.top + 12, 40))
+                            .padding(.horizontal, 24)
 
-                        GridView(
-                            gameEngine: gameEngine,
-                            dragController: dragController,
-                            cellSize: gridCellSize,
-                            gridSpacing: gridSpacing,
-                            highlightedPositions: lineClearHighlights
-                        )
-                        .frame(width: boardSize, height: boardSize)
-                        .background(
-                            GeometryReader { gridGeometry in
-                                Color.clear
-                                    .onAppear {
-                                        gridFrame = gridGeometry.frame(in: .global)
-                                    }
-                                    .onChange(of: gridGeometry.frame(in: .global)) { _, newValue in
-                                        gridFrame = newValue
-                                    }
-                            }
-                        )
-                        .onDrop(of: ["public.text"], isTargeted: nil) { _, location in
-                            guard let pattern = dragController.draggedBlockPattern else { return false }
-                            let globalPoint = CGPoint(x: gridFrame.minX + location.x, y: gridFrame.minY + location.y)
-                            self.updatePlacementPreview(blockPattern: pattern, blockOrigin: dragController.currentDragPosition)
-                            if self.placementEngine.isCurrentPreviewValid {
-                                let idx = 0
-                                self.handleValidPlacement(blockIndex: idx, blockPattern: pattern, position: globalPoint)
-                                return true
-                            } else {
-                                let idx = 0
-                                self.handleInvalidPlacement(blockIndex: idx, blockPattern: pattern, position: globalPoint)
-                                return false
-                            }
-                        }
+                        // Grid container with explicit centering and size constraints
+                        gridView
+                            .frame(width: boardSize, height: boardSize)
+                            .frame(maxWidth: geometry.size.width - 48, alignment: .center)
+                            .clipped()
 
-                        Spacer(minLength: 0)
-
-                        DraggableBlockTrayView(
-                            blockFactory: blockFactory,
-                            dragController: dragController,
-                            cellSize: gridCellSize
-                        ) { blockIndex, blockPattern in
-                            handleBlockDragStarted(blockIndex: blockIndex, blockPattern: blockPattern)
-                        }
-                        .padding(.bottom, geometry.safeAreaInsets.bottom + 16)
+                        // Tray container
+                        trayView(safeArea: geometry.safeAreaInsets.bottom)
+                            .frame(maxWidth: geometry.size.width - 48, alignment: .center)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .padding(.horizontal, 24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     
                     // Floating drag preview overlay
                     if let draggedPattern = dragController.draggedBlockPattern {
@@ -126,10 +92,11 @@ struct DragDropGameView: View {
                     // Loading state
                     loadingView
                 }
-            }
-            .onAppear {
-                setupGameView(screenSize: geometry.size)
-            }
+        }
+        .overlay(celebrationOverlay, alignment: .top)
+        .onAppear {
+            setupGameView(screenSize: geometry.size)
+        }
             .onChange(of: geometry.size) { _, newValue in
                 updateScreenSize(newValue)
             }
@@ -155,6 +122,9 @@ struct DragDropGameView: View {
                     gameEngine.clearActiveLineClears()
                 }
             }
+            .onChange(of: gameEngine.lastScoreEvent?.newTotal) { _, _ in
+                triggerCelebration(with: gameEngine.lastScoreEvent)
+            }
         }
         .environmentObject(deviceManager)
         // Removed .onChange(of: dragController.isDragging) due to non-existent property
@@ -163,61 +133,77 @@ struct DragDropGameView: View {
     // MARK: - View Components
     
     private var backgroundColor: some View {
-        let lightGradient = LinearGradient(
+        let aurora = LinearGradient(
             colors: [
-                Color(UIColor.systemTeal.withAlphaComponent(0.18)),
-                Color(UIColor.systemIndigo.withAlphaComponent(0.08)),
-                Color(UIColor.systemBackground)
+                Color(red: 0.11, green: 0.16, blue: 0.34),
+                Color(red: 0.05, green: 0.29, blue: 0.49),
+                Color(red: 0.15, green: 0.06, blue: 0.35)
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
 
-        let darkGradient = LinearGradient(
+        let sunrise = LinearGradient(
             colors: [
-                Color(UIColor.systemGray5.withAlphaComponent(0.3)),
+                Color(red: 0.96, green: 0.77, blue: 0.36).opacity(0.55),
+                Color(red: 0.69, green: 0.51, blue: 0.91).opacity(0.7),
                 Color(UIColor.systemBackground)
             ],
             startPoint: .top,
-            endPoint: .bottom
-        )
-
-        return colorScheme == .dark ? AnyView(darkGradient) : AnyView(lightGradient)
-    }
-    
-    private var gameHeader: some View {
-        let headerFill = LinearGradient(
-            colors: [Color(UIColor.systemBackground), Color(UIColor.secondarySystemBackground)],
-            startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
 
-        return HStack {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Block Puzzle Pro")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+        return ZStack {
+            (colorScheme == .dark ? aurora : sunrise)
 
-                Text("Score: \(gameEngine.score)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
+            RadialGradient(
+                colors: [Color.white.opacity(colorScheme == .dark ? 0.1 : 0.25), Color.clear],
+                center: .center,
+                startRadius: 60,
+                endRadius: 420
+            )
+        }
+        .ignoresSafeArea()
+    }
+    
+    private var gameHeader: some View {
+        HStack(alignment: .center, spacing: 20) {
+            ScoreView(
+                score: gameEngine.score,
+                highScore: gameEngine.highScore,
+                lastEvent: gameEngine.lastScoreEvent
+            )
 
-            Spacer()
+            Spacer(minLength: 16)
 
             Button(action: startNewGame) {
-                Label("New Game", systemImage: "arrow.clockwise")
-                    .font(.subheadline.bold())
+                Label("Restart", systemImage: "arrow.counterclockwise")
+                    .font(.caption.bold())
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Color.accentColor)
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.white)
+            .background(
+                Capsule()
+                    .fill(Color.accentColor)
+            )
+            .shadow(color: Color.accentColor.opacity(0.28), radius: 10, x: 0, y: 6)
+
+            Button {
+                // TODO: Present settings sheet
+            } label: {
+                Image(systemName: "gearshape.fill")
+                    .font(.title3)
+                    .foregroundStyle(Color.secondary)
+                    .padding(12)
+                    .background(
+                        Circle()
+                            .fill(Color(UIColor.secondarySystemBackground).opacity(0.7))
+                    )
+            }
+            .buttonStyle(.plain)
         }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(headerFill)
-                .shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: 8)
-        )
     }
     
     private var loadingView: some View {
@@ -230,12 +216,84 @@ struct DragDropGameView: View {
                 .foregroundColor(.secondary)
         }
     }
+
+    private var gridView: some View {
+        GridView(
+            gameEngine: gameEngine,
+            dragController: dragController,
+            cellSize: gridCellSize,
+            gridSpacing: gridSpacing,
+            highlightedPositions: lineClearHighlights
+        )
+        .background(
+            GeometryReader { gridGeometry in
+                Color.clear
+                    .onAppear {
+                        gridFrame = gridGeometry.frame(in: .global)
+                    }
+                    .onChange(of: gridGeometry.frame(in: .global)) { _, newValue in
+                        gridFrame = newValue
+                    }
+            }
+        )
+        .onDrop(of: ["public.text"], isTargeted: nil) { _, location in
+            guard
+                let pattern = dragController.draggedBlockPattern,
+                let index = dragController.currentBlockIndex
+            else { return false }
+
+            let globalPoint = CGPoint(
+                x: gridFrame.minX + location.x,
+                y: gridFrame.minY + location.y
+            )
+
+            updatePlacementPreview(
+                blockPattern: pattern,
+                blockOrigin: dragController.currentDragPosition
+            )
+
+            if placementEngine.isCurrentPreviewValid {
+                handleValidPlacement(blockIndex: index, blockPattern: pattern, position: globalPoint)
+                return true
+            } else {
+                handleInvalidPlacement(blockIndex: index, blockPattern: pattern, position: globalPoint)
+                return false
+            }
+        }
+    }
+
+    private func trayView(safeArea: CGFloat) -> some View {
+        DraggableBlockTrayView(
+            blockFactory: blockFactory,
+            dragController: dragController,
+            cellSize: gridCellSize
+        ) { blockIndex, blockPattern in
+            handleBlockDragStarted(blockIndex: blockIndex, blockPattern: blockPattern)
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, max(safeArea + 16, 32))
+    }
+
+    @ViewBuilder
+    private var celebrationOverlay: some View {
+        if let message = celebrationMessage, celebrationVisible {
+            CelebrationPopupView(message: message)
+                .padding(.top, 80)
+                .padding(.horizontal, 24)
+                .transition(.scale.combined(with: .opacity))
+                .allowsHitTesting(false)
+        }
+    }
     
     private var availableGridLength: CGFloat {
         guard screenSize != .zero else { return 320 }
 
-        let widthLimit = max(240, screenSize.width - 48)
-        let heightLimit = max(240, screenSize.height * 0.55)
+        // Use more conservative padding to ensure grid fits properly
+        let horizontalPadding: CGFloat = 64  // Increased from 48 to give more margin
+        let widthLimit = max(240, screenSize.width - horizontalPadding)
+
+        // Height calculation with more conservative ratio
+        let heightLimit = max(240, screenSize.height * 0.5)  // Reduced from 0.55
 
         return min(widthLimit, heightLimit)
     }
@@ -376,7 +434,7 @@ struct DragDropGameView: View {
         UIAccessibility.post(notification: .announcement, argument: "Lines cleared if any")
 
         // Regenerate the placed block (infinite supply design)
-        blockFactory.regenerateBlock(at: blockIndex)
+        blockFactory.consumeBlock(at: blockIndex)
 
         // Clear preview (drag controller handles its own cleanup)
         placementEngine.clearPreview()
@@ -425,12 +483,169 @@ struct DragDropGameView: View {
     
     // MARK: - Accessibility
     
-    private func announceGameState() {
+    private func triggerCelebration(with event: ScoreEvent?) {
+        guard let event = event, let message = makeCelebrationMessage(from: event) else {
+            return
+        }
+
+        celebrationMessage = message
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+            celebrationVisible = true
+        }
+
+        let token = message.id
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+            guard celebrationMessage?.id == token else { return }
+            withAnimation(.easeOut(duration: 0.35)) {
+                celebrationVisible = false
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                if celebrationMessage?.id == token {
+                    celebrationMessage = nil
+                }
+            }
+        }
+    }
+
+    private func makeCelebrationMessage(from event: ScoreEvent) -> CelebrationMessage? {
+        guard event.linesCleared >= 2 else { return nil }
+
+        let title: String
+        let subtitle: String
+        let icon: String
+
+        switch event.linesCleared {
+        case 2:
+            title = "Twin Streak!"
+            subtitle = "Double clear, double cheers!"
+            icon = "sparkles"
+        case 3:
+            title = "Triple Cascade!"
+            subtitle = "Three rows swept in one swoop."
+            icon = "flame.fill"
+        default:
+            title = "Combo Overdrive!"
+            subtitle = "\(event.linesCleared) lines evaporated in style."
+            icon = "burst.fill"
+        }
+
+        return CelebrationMessage(title: title, subtitle: subtitle, icon: icon, points: event.totalDelta)
+    }
+
+private func announceGameState() {
         let announcement = "Game ready. \(blockFactory.getAvailableBlocks().count) blocks available. Score: \(gameEngine.score)"
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             UIAccessibility.post(notification: .announcement, argument: announcement)
         }
+    }
+}
+
+// MARK: - Celebration Models
+
+struct CelebrationMessage: Identifiable, Equatable {
+    let id = UUID()
+    let title: String
+    let subtitle: String
+    let icon: String
+    let points: Int
+}
+
+private struct CelebrationPopupView: View {
+    let message: CelebrationMessage
+    @State private var scale: CGFloat = 0.85
+    @State private var glowOpacity: Double = 0.55
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 24)
+                .fill(popBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .strokeBorder(popHighlight, lineWidth: 1.2)
+                )
+                .shadow(color: Color.black.opacity(0.25), radius: 22, x: 0, y: 16)
+
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(popAccent)
+                        .frame(width: 56, height: 56)
+                        .overlay(
+                            Circle()
+                                .stroke(popHighlight, lineWidth: 1.2)
+                        )
+
+                    Image(systemName: message.icon)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(Color.white)
+                        .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(message.title)
+                        .font(.system(size: 22, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color.white)
+
+                    Text(message.subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.white.opacity(0.85))
+                }
+
+                Spacer(minLength: 12)
+
+                if message.points > 0 {
+                    Text("+\(message.points)")
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.18))
+                        )
+                }
+            }
+            .padding(.vertical, 20)
+            .padding(.horizontal, 24)
+        }
+        .frame(maxWidth: 360)
+        .scaleEffect(scale)
+        .shadow(color: popAccent.opacity(glowOpacity), radius: 30, x: 0, y: 0)
+        .onAppear {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                scale = 1.05
+            }
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                glowOpacity = 0.2
+            }
+        }
+    }
+
+    private var popBackground: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(red: 0.16, green: 0.2, blue: 0.4).opacity(0.95),
+                Color(red: 0.1, green: 0.1, blue: 0.25).opacity(0.88)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private var popAccent: Color {
+        Color(red: 0.87, green: 0.39, blue: 0.93)
+    }
+
+    private var popHighlight: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.white.opacity(0.45),
+                Color.white.opacity(0.1)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 }
 
