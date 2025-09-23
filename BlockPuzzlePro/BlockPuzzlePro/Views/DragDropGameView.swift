@@ -109,17 +109,24 @@ struct DragDropGameView: View {
                 let token = UUID()
                 lineClearAnimationToken = token
 
-                withAnimation(.easeOut(duration: 0.18)) {
+                // Start the enhanced line clear animation
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0)) {
                     lineClearHighlights = highlights
                 }
 
-                let fadeDelay: TimeInterval = 0.45
+                // Extended duration to allow for the full sparkle and glow sequence
+                let fadeDelay: TimeInterval = 0.8
                 DispatchQueue.main.asyncAfter(deadline: .now() + fadeDelay) {
                     guard lineClearAnimationToken == token else { return }
-                    withAnimation(.easeOut(duration: 0.25)) {
+                    withAnimation(.easeOut(duration: 0.4)) {
                         lineClearHighlights = []
                     }
-                    gameEngine.clearActiveLineClears()
+
+                    // Clear the lines after animation completes
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        guard lineClearAnimationToken == token else { return }
+                        gameEngine.clearActiveLineClears()
+                    }
                 }
             }
             .onChange(of: gameEngine.lastScoreEvent?.newTotal) { _, _ in

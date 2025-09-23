@@ -72,19 +72,15 @@ struct GridCellView: View {
                 )
             
             if isHighlighted {
-                RoundedRectangle(cornerRadius: cellSize * 0.25)
-                    .fill(Color.accentColor.opacity(0.28))
-                    .frame(width: cellSize * 0.92, height: cellSize * 0.92)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: cellSize * 0.25)
-                            .stroke(Color.accentColor.opacity(0.9), lineWidth: 3)
-                    )
-                    .transition(.scale.combined(with: .opacity))
+                LineClearEffectView(cellSize: cellSize)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.1).combined(with: .opacity),
+                        removal: .scale(scale: 1.2).combined(with: .opacity)
+                    ))
             }
         }
-        .scaleEffect(isHighlighted ? 1.05 : 1.0)
-        .opacity(isHighlighted ? 0.85 : 1.0)
-        .animation(.easeOut(duration: 0.2), value: isHighlighted)
+        .scaleEffect(isHighlighted ? 1.08 : 1.0)
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isHighlighted)
     }
     
     private var cellColor: Color {
@@ -95,6 +91,183 @@ struct GridCellView: View {
             return Color(blockColor.uiColor)
         case .preview(let blockColor):
             return Color(blockColor.uiColor).opacity(0.5)
+        }
+    }
+}
+
+// MARK: - Particle Burst Effect
+
+struct ParticleBurstView: View {
+    let cellSize: CGFloat
+    @State private var particleStates: [ParticleState] = []
+
+    struct ParticleState: Identifiable {
+        let id = UUID()
+        var position: CGPoint = .zero
+        var velocity: CGPoint = .zero
+        var opacity: Double = 1.0
+        var scale: Double = 1.0
+        var rotation: Double = 0.0
+    }
+
+    var body: some View {
+        ZStack {
+            ForEach(particleStates) { particle in
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.white, Color.accentColor.opacity(0.8)],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 2
+                        )
+                    )
+                    .frame(width: 4, height: 4)
+                    .scaleEffect(particle.scale)
+                    .opacity(particle.opacity)
+                    .rotationEffect(.degrees(particle.rotation))
+                    .position(particle.position)
+                    .shadow(color: Color.accentColor, radius: 1, x: 0, y: 0)
+            }
+        }
+        .onAppear {
+            createParticleBurst()
+        }
+    }
+
+    private func createParticleBurst() {
+        let particleCount = 8
+        particleStates = (0..<particleCount).map { index in
+            let angle = Double(index) * (2 * Double.pi / Double(particleCount))
+            let speed: Double = Double.random(in: 20...40)
+
+            return ParticleState(
+                position: CGPoint(x: cellSize/2, y: cellSize/2),
+                velocity: CGPoint(
+                    x: cos(angle) * speed,
+                    y: sin(angle) * speed
+                ),
+                opacity: Double.random(in: 0.8...1.0),
+                scale: Double.random(in: 0.5...1.2),
+                rotation: Double.random(in: 0...360)
+            )
+        }
+
+        // Animate particles outward
+        withAnimation(.easeOut(duration: 0.6)) {
+            for i in particleStates.indices {
+                particleStates[i].position.x += particleStates[i].velocity.x
+                particleStates[i].position.y += particleStates[i].velocity.y
+                particleStates[i].opacity = 0.0
+                particleStates[i].scale = 0.2
+                particleStates[i].rotation += 180
+            }
+        }
+    }
+}
+
+// MARK: - Line Clear Effect View
+
+struct LineClearEffectView: View {
+    let cellSize: CGFloat
+
+    @State private var glowIntensity: Double = 0.0
+    @State private var sparkleOpacity: Double = 0.0
+    @State private var sparkleRotation: Double = 0.0
+    @State private var shimmerOffset: CGFloat = -50
+
+    var body: some View {
+        ZStack {
+            // Main glow effect
+            RoundedRectangle(cornerRadius: cellSize * 0.25)
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color.white,
+                            Color.accentColor.opacity(0.8),
+                            Color.accentColor.opacity(0.4)
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: cellSize * 0.6
+                    )
+                )
+                .frame(width: cellSize * 0.92, height: cellSize * 0.92)
+                .overlay(
+                    RoundedRectangle(cornerRadius: cellSize * 0.25)
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color.white,
+                                    Color.accentColor,
+                                    Color.white
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 2
+                        )
+                )
+                .shadow(color: Color.accentColor.opacity(glowIntensity), radius: 15, x: 0, y: 0)
+                .shadow(color: Color.white.opacity(glowIntensity * 0.5), radius: 8, x: 0, y: 0)
+
+            // Shimmer effect
+            RoundedRectangle(cornerRadius: cellSize * 0.25)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.clear,
+                            Color.white.opacity(0.6),
+                            Color.clear
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: cellSize * 0.92, height: cellSize * 0.92)
+                .offset(x: shimmerOffset)
+                .clipped()
+
+            // Sparkle particles
+            ForEach(0..<4, id: \.self) { index in
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 3, height: 3)
+                    .offset(
+                        x: CGFloat(cos(Double(index) * .pi / 2)) * cellSize * 0.4,
+                        y: CGFloat(sin(Double(index) * .pi / 2)) * cellSize * 0.4
+                    )
+                    .opacity(sparkleOpacity)
+                    .rotationEffect(.degrees(sparkleRotation))
+                    .shadow(color: Color.accentColor, radius: 2, x: 0, y: 0)
+            }
+
+            // Particle burst effect
+            ParticleBurstView(cellSize: cellSize)
+        }
+        .onAppear {
+            // Sequence of animations
+            withAnimation(.easeOut(duration: 0.1)) {
+                glowIntensity = 1.0
+                sparkleOpacity = 1.0
+            }
+
+            // Shimmer sweep
+            withAnimation(.easeInOut(duration: 0.3).delay(0.05)) {
+                shimmerOffset = cellSize + 50
+            }
+
+            // Sparkle rotation
+            withAnimation(.linear(duration: 0.5).repeatCount(2, autoreverses: false)) {
+                sparkleRotation = 360
+            }
+
+            // Glow pulse
+            withAnimation(.easeInOut(duration: 0.2).delay(0.1).repeatCount(2, autoreverses: true)) {
+                glowIntensity = 0.7
+            }
+
+            // Final fade out preparation happens in parent
         }
     }
 }
