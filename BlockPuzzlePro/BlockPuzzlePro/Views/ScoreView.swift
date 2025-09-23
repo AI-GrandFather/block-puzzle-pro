@@ -11,26 +11,9 @@ struct ScoreView: View {
     @State private var deltaOffset: CGFloat = 4.0
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        VStack(spacing: 12) {
+            highScoreBanner
             scorePlate
-
-            if let deltaText = deltaText {
-                Text(deltaText)
-                    .font(.caption.bold())
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(accentGradient(opacity: 0.22))
-                            .overlay(
-                                Capsule()
-                                    .stroke(accentGradient(opacity: 0.65), lineWidth: 1)
-                            )
-                    )
-                    .foregroundStyle(Color.accentColor)
-                    .opacity(deltaOpacity)
-                    .offset(y: deltaOffset)
-            }
         }
         .onAppear {
             scale = 1.0
@@ -62,50 +45,100 @@ struct ScoreView: View {
         }
     }
 
-    private var scorePlate: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Score")
-                .font(.caption2)
-                .fontWeight(.medium)
-                .foregroundStyle(.secondary)
+    private var highScoreBanner: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: "crown.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(goldenGradient)
+                .accessibilityHidden(true)
 
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text("\(score)")
-                    .font(.system(size: 34, weight: .heavy, design: .rounded))
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
-                    .scaleEffect(scale)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Best")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text("\(highScore)")
-                        .font(.callout)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(lastEvent?.isNewHighScore == true ? Color.accentColor : Color.primary)
-                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("HIGH SCORE")
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(goldenGradient)
+                Text("\(highScore)")
+                    .font(.system(size: 20, weight: .heavy, design: .rounded))
+                    .foregroundStyle(highScoreColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(highScoreColor.opacity(0.22), lineWidth: 1)
+                            .padding(.vertical, -4)
+                            .padding(.horizontal, -6)
+                    )
             }
 
-            if let bonus = lastEvent?.lineClearBonus, bonus > 0 {
-                Text("Combo bonus +\(bonus)")
-                    .font(.caption2)
-                    .foregroundStyle(Color.accentColor)
-                    .transition(.opacity)
+            Spacer()
+
+            if lastEvent?.isNewHighScore == true {
+                Text("NEW!")
+                    .font(.caption.bold())
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(highScoreColor))
+                    .transition(.scale.combined(with: .opacity))
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var scorePlate: some View {
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .center, spacing: 8) {
+                Text("CURRENT SCORE")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.secondary)
+
+                Text("\(score)")
+                    .font(.system(size: 44, weight: .black, design: .rounded))
+                    .foregroundStyle(scoreColor)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                    .scaleEffect(scale)
+                    .accessibilityLabel("Current score \(score)")
+
+                if let bonus = lastEvent?.lineClearBonus, bonus > 0 {
+                    Text("Combo bonus +\(bonus)")
+                        .font(.caption2)
+                        .foregroundStyle(Color.accentColor)
+                        .transition(.opacity)
+                }
+            }
+            .frame(maxWidth: .infinity)
+
+            if let deltaText = deltaText {
+                Text(deltaText)
+                    .font(.caption.bold())
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(accentGradient(opacity: 0.22))
+                            .overlay(
+                                Capsule()
+                                    .stroke(accentGradient(opacity: 0.65), lineWidth: 1)
+                            )
+                    )
+                    .foregroundStyle(Color.accentColor)
+                    .opacity(deltaOpacity)
+                    .offset(y: deltaOffset)
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 18)
         .background(
-            RoundedRectangle(cornerRadius: 18)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(glassGradient)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 8)
+                .shadow(color: Color.black.opacity(0.12), radius: 14, x: 0, y: 10)
         )
-        .frame(minWidth: 150, alignment: .leading)
+        .frame(minWidth: 200)
     }
 
     private var deltaText: String? {
@@ -133,6 +166,25 @@ struct ScoreView: View {
             ],
             startPoint: .leading,
             endPoint: .trailing
+        )
+    }
+
+    private var highScoreColor: Color {
+        Color(red: 0.97, green: 0.79, blue: 0.19)
+    }
+
+    private var scoreColor: Color {
+        Color(red: 0.29, green: 0.54, blue: 0.96)
+    }
+
+    private var goldenGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(red: 0.99, green: 0.87, blue: 0.36),
+                Color(red: 0.98, green: 0.76, blue: 0.18)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
         )
     }
 }

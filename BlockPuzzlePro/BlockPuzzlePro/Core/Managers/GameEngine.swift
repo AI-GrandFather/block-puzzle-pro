@@ -121,6 +121,33 @@ class GameEngine: ObservableObject {
         // Allow placement on empty cells or preview cells (preview cells can be overwritten)
         return cell.isEmpty || cell.isPreview
     }
+
+    /// Determine if a full block pattern can be placed anywhere on the grid.
+    func canPlace(blockPattern: BlockPattern) -> Bool {
+        for row in 0..<Self.gridSize {
+            for column in 0..<Self.gridSize {
+                guard let origin = GridPosition(row: row, column: column) else { continue }
+                guard blockPattern.canFit(at: origin, in: Self.gridSize) else { continue }
+
+                let positions = blockPattern.getGridPositions(placedAt: origin)
+                if positions.allSatisfy({ canPlaceAt(position: $0) }) {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
+    /// Evaluate if any blocks from the provided collection can be placed on the grid.
+    func hasAnyValidMove(using blocks: [BlockPattern]) -> Bool {
+        for block in blocks {
+            if canPlace(blockPattern: block) {
+                return true
+            }
+        }
+        return false
+    }
     
     /// Get all empty positions in the grid
     func getEmptyPositions() -> [GridPosition] {
@@ -175,6 +202,13 @@ class GameEngine: ObservableObject {
         isGameActive = true
 
         logger.info("New game started")
+    }
+
+    /// Mark the current session as ended without mutating grid contents.
+    func endGame() {
+        guard isGameActive else { return }
+        isGameActive = false
+        logger.info("Game ended")
     }
     
     /// Place blocks at specified positions

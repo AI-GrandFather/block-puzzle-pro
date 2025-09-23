@@ -28,6 +28,10 @@ struct DragDropGameView: View {
     @State private var lineClearAnimationToken: UUID?
     @State private var celebrationMessage: CelebrationMessage?
     @State private var celebrationVisible: Bool = false
+    @State private var isGameOver: Bool = false
+    @State private var lastGameOverScore: Int = 0
+    @State private var isSettingsPresented: Bool = false
+    @State private var debugLoggingEnabled: Bool = false
 
     // Performance optimization properties
     @State private var lastUpdateTime: TimeInterval = 0
@@ -74,9 +78,10 @@ struct DragDropGameView: View {
                             .frame(maxWidth: geometry.size.width - 48, alignment: .center)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .allowsHitTesting(!isGameOver)
                     
                     // Floating drag preview overlay
-                    if let draggedPattern = dragController.draggedBlockPattern {
+                    if !isGameOver, let draggedPattern = dragController.draggedBlockPattern {
                         let rootOrigin = geometry.frame(in: .global).origin
 
                         let previewOriginGlobal = (placementEngine.isCurrentPreviewValid ? snappedPreviewOrigin() : nil) ?? dragController.currentDragPosition
@@ -100,10 +105,20 @@ struct DragDropGameView: View {
                 }
         }
         .overlay(celebrationOverlay, alignment: .top)
+        .overlay(gameOverOverlay)
+        .sheet(isPresented: $isSettingsPresented) {
+            SettingsSheet(
+                debugLoggingEnabled: $debugLoggingEnabled,
+                onRestart: { restartFromSettings() }
+            )
+            .presentationDetents([.medium])
+        }
         .onAppear {
             setupGameView(screenSize: geometry.size)
+            setupPerformanceOptimizations()
+            debugLoggingEnabled = DebugLog.isLoggingEnabled
         }
-            .onChange(of: geometry.size) { _, newValue in
+        .onChange(of: geometry.size) { _, newValue in
                 updateScreenSize(newValue)
             }
             .onReceive(gameEngine.$activeLineClears) { clears in
@@ -143,11 +158,14 @@ struct DragDropGameView: View {
             .onChange(of: gameEngine.lastScoreEvent?.newTotal) { _, _ in
                 triggerCelebration(with: gameEngine.lastScoreEvent)
             }
+            .onReceive(blockFactory.$traySlots) { _ in
+                evaluateGameOver()
+            }
+            .onChange(of: debugLoggingEnabled) { _, value in
+                DebugLog.setEnabled(value)
+            }
         }
         .environmentObject(deviceManager)
-        .onAppear {
-            setupPerformanceOptimizations()
-        }
         // Removed .onChange(of: dragController.isDragging) due to non-existent property
     }
     
@@ -188,43 +206,38 @@ struct DragDropGameView: View {
     }
     
     private var gameHeader: some View {
-        HStack(alignment: .center, spacing: 20) {
+        HStack(alignment: .center, spacing: 16) {
+            Spacer(minLength: 12)
+
             ScoreView(
                 score: gameEngine.score,
                 highScore: gameEngine.highScore,
                 lastEvent: gameEngine.lastScoreEvent
             )
+            .frame(maxWidth: 280)
 
-            Spacer(minLength: 16)
+            Spacer(minLength: 12)
 
-            Button(action: startNewGame) {
-                Label("Restart", systemImage: "arrow.counterclockwise")
-                    .font(.caption.bold())
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.white)
-            .background(
-                Capsule()
-                    .fill(Color.accentColor)
-            )
-            .shadow(color: Color.accentColor.opacity(0.28), radius: 10, x: 0, y: 6)
-
-            Button {
-                // TODO: Present settings sheet
-            } label: {
-                Image(systemName: "gearshape.fill")
-                    .font(.title3)
-                    .foregroundStyle(Color.secondary)
-                    .padding(12)
-                    .background(
-                        Circle()
-                            .fill(Color(UIColor.secondarySystemBackground).opacity(0.7))
-                    )
-            }
-            .buttonStyle(.plain)
+            settingsButton
         }
+    }
+
+    private var settingsButton: some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            isSettingsPresented = true
+        } label: {
+            Image(systemName: "gearshape.fill")
+                .font(.title3)
+                .foregroundStyle(Color.secondary)
+                .padding(12)
+                .background(
+                    Circle()
+                        .fill(Color(UIColor.secondarySystemBackground).opacity(0.7))
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open settings")
     }
     
     private var loadingView: some View {
@@ -309,6 +322,19 @@ struct DragDropGameView: View {
             .allowsHitTesting(false)
         }
     }
+
+    @ViewBuilder
+    private var gameOverOverlay: some View {
+        if isGameOver {
+            GameOverOverlayView(
+                score: lastGameOverScore,
+                highScore: gameEngine.highScore,
+                onRestart: restartFromGameOver,
+                onOpenSettings: { isSettingsPresented = true }
+            )
+            .transition(.opacity.combined(with: .scale))
+        }
+    }
     
     private var availableGridLength: CGFloat {
         guard screenSize != .zero else { return 320 }
@@ -353,12 +379,19 @@ struct DragDropGameView: View {
         // Clear any existing state first
         placementEngine.clearPreview()
         dragController.reset()
+        isGameOver = false
+        lastGameOverScore = 0
 
         // Setup drag controller callbacks
         setupDragCallbacks()
 
         // Start new game
         gameEngine.startNewGame()
+        blockFactory.resetTray()
+
+        DispatchQueue.main.async {
+            evaluateGameOver()
+        }
 
         // Mark as ready respecting Reduce Motion accessibility setting
         if UIAccessibility.isReduceMotionEnabled {
@@ -409,15 +442,38 @@ struct DragDropGameView: View {
     }
     
     private func startNewGame() {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        performRestart(triggerHaptics: true)
+    }
 
-        // Clear all state immediately before animation
+    private func restartFromSettings() {
+        isSettingsPresented = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            performRestart(triggerHaptics: true)
+        }
+    }
+
+    private func restartFromGameOver() {
+        performRestart(triggerHaptics: true)
+    }
+
+    private func performRestart(triggerHaptics: Bool) {
+        if triggerHaptics {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        }
+
         placementEngine.clearPreview()
         dragController.reset()
+        blockFactory.resetTray()
 
         withAnimation(.easeInOut(duration: 0.3)) {
+            isGameOver = false
             gameEngine.startNewGame()
-            blockFactory.regenerateAllBlocks()
+        }
+
+        lastGameOverScore = 0
+
+        DispatchQueue.main.async {
+            evaluateGameOver()
         }
     }
     
@@ -475,6 +531,10 @@ struct DragDropGameView: View {
         // Clear preview (drag controller handles its own cleanup)
         placementEngine.clearPreview()
 
+        DispatchQueue.main.async {
+            evaluateGameOver()
+        }
+
         // CRITICAL: Force reset drag controller if gesture doesn't complete properly
         // This prevents the controller from getting stuck in dragging state
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -515,6 +575,43 @@ struct DragDropGameView: View {
 
         // Clear preview (drag controller handles its own cleanup)
         placementEngine.clearPreview()
+    }
+
+    private func evaluateGameOver() {
+        guard gameEngine.isGameActive else { return }
+
+        guard blockFactory.hasAvailableBlocks else {
+            updateGameOverState(false)
+            return
+        }
+
+        let blocks = blockFactory.availableBlocks
+        guard !blocks.isEmpty else {
+            updateGameOverState(false)
+            return
+        }
+
+        let hasMove = gameEngine.hasAnyValidMove(using: blocks)
+        updateGameOverState(!hasMove)
+    }
+
+    private func updateGameOverState(_ shouldShow: Bool) {
+        if shouldShow {
+            guard !isGameOver else { return }
+            lastGameOverScore = gameEngine.score
+            gameEngine.endGame()
+            placementEngine.clearPreview()
+            dragController.reset()
+
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                isGameOver = true
+            }
+        } else {
+            guard isGameOver else { return }
+            withAnimation(.easeOut(duration: 0.25)) {
+                isGameOver = false
+            }
+        }
     }
     
     // MARK: - Accessibility
@@ -667,6 +764,155 @@ private struct CelebrationToastView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(message.title). \(message.subtitle)")
         .accessibilityValue(message.points > 0 ? "+\(message.points) points" : "")
+    }
+}
+
+private struct GameOverOverlayView: View {
+    let score: Int
+    let highScore: Int
+    let onRestart: () -> Void
+    let onOpenSettings: () -> Void
+
+    @State private var showContent = false
+
+    private var isNewHighScore: Bool {
+        score >= highScore && highScore > 0
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.45)
+                .ignoresSafeArea()
+
+            VStack(spacing: 24) {
+                VStack(spacing: 12) {
+                    Image(systemName: "hexagon.fill")
+                        .font(.system(size: 52))
+                        .foregroundStyle(LinearGradient(
+                            colors: [Color.accentColor, Color.accentColor.opacity(0.6)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ))
+                        .shadow(color: Color.accentColor.opacity(0.4), radius: 12, x: 0, y: 6)
+
+                    Text("Game Over")
+                        .font(.system(size: 32, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color.white)
+
+                    if isNewHighScore {
+                        Text("New high score!")
+                            .font(.headline)
+                            .foregroundStyle(Color.yellow)
+                    }
+                }
+
+                VStack(spacing: 10) {
+                    scoreRow(label: "Final Score", value: score, color: Color.white)
+                    scoreRow(label: "Best", value: highScore, color: Color.yellow)
+                }
+
+                VStack(spacing: 16) {
+                    Button(action: onRestart) {
+                        Label("Play Again", systemImage: "arrow.counterclockwise")
+                            .font(.headline)
+                            .foregroundStyle(Color.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(RoundedRectangle(cornerRadius: 16).fill(Color.accentColor))
+                    }
+
+                    Button(action: onOpenSettings) {
+                        Label("Settings", systemImage: "gearshape.fill")
+                            .font(.headline)
+                            .foregroundStyle(Color.accentColor)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color.accentColor.opacity(0.5), lineWidth: 1.2)
+                            )
+                    }
+                }
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 32)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.2), radius: 30, x: 0, y: 18)
+            .scaleEffect(showContent ? 1.0 : 0.92)
+            .opacity(showContent ? 1.0 : 0.0)
+            .onAppear {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    showContent = true
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Game over. Final score: \(score). High score: \(highScore)")
+    }
+
+    private func scoreRow(label: String, value: Int, color: Color) -> some View {
+        HStack {
+            Text(label.uppercased())
+                .font(.caption)
+                .foregroundStyle(Color.white.opacity(0.7))
+
+            Spacer()
+
+            Text("\(value)")
+                .font(.system(size: 24, weight: .heavy, design: .rounded))
+                .foregroundStyle(color)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.white.opacity(0.08))
+        )
+    }
+}
+
+private struct SettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @Binding var debugLoggingEnabled: Bool
+    let onRestart: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Session") {
+                    Button {
+                        onRestart()
+                        dismiss()
+                    } label: {
+                        Label("Restart Game", systemImage: "arrow.counterclockwise")
+                            .font(.headline)
+                    }
+                }
+
+                #if DEBUG
+                Section("Debug") {
+                    Toggle(isOn: $debugLoggingEnabled) {
+                        Label("Verbose debug logging", systemImage: "waveform")
+                    }
+                }
+                #endif
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Settings")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 }
 

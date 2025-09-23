@@ -334,7 +334,7 @@ extension EnvironmentValues {
 /// Lightweight debug logger that is compiled out of release builds.
 @MainActor
 enum DebugLog {
-    #if DEBUG
+#if DEBUG
     private static var isEnabled = false
 
     static func enable() {
@@ -349,9 +349,19 @@ enum DebugLog {
         guard isEnabled else { return }
         print(message())
     }
-    #else
+
+    static var isLoggingEnabled: Bool {
+        isEnabled
+    }
+
+    static func setEnabled(_ enabled: Bool) {
+        isEnabled = enabled
+    }
+#else
     static func enable() {}
     static func disable() {}
     static func trace(_ message: @autoclosure () -> String) {}
-    #endif
+    static var isLoggingEnabled: Bool { false }
+    static func setEnabled(_ enabled: Bool) {}
+#endif
 }
