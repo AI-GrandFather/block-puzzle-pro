@@ -15,6 +15,12 @@ struct LineClear: Identifiable, Equatable {
     let positions: [GridPosition]
     let fragments: [Fragment]
 
+    struct Fragment: Identifiable, Equatable {
+        let id = UUID()
+        let position: GridPosition
+        let color: BlockColor
+    }
+
     var id: String {
         switch kind {
         case .row(let row):
