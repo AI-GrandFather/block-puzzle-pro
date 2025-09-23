@@ -32,6 +32,8 @@ struct DragDropGameView: View {
     @State private var lastGameOverScore: Int = 0
     @State private var isSettingsPresented: Bool = false
     @State private var debugLoggingEnabled: Bool = false
+    @State private var fragmentEffects: [FragmentEffect] = []
+    @State private var fragmentCleanupQueue: Set<UUID> = []
 
     // Performance optimization properties
     @State private var lastUpdateTime: TimeInterval = 0
@@ -276,7 +278,7 @@ struct DragDropGameView: View {
             )
 
             FragmentOverlayView(effects: fragmentEffects) { effectID in
-                fragmentEffects.removeAll { $0.id == effectID }
+                fragmentCleanupQueue.insert(effectID)
             }
             .frame(width: boardSize, height: boardSize, alignment: .topLeading)
             .allowsHitTesting(false)
@@ -633,6 +635,11 @@ struct DragDropGameView: View {
         }
 
         fragmentEffects.append(contentsOf: newEffects)
+
+        if !fragmentCleanupQueue.isEmpty {
+            fragmentEffects.removeAll { fragmentCleanupQueue.contains($0.id) }
+            fragmentCleanupQueue.removeAll()
+        }
     }
 
     private func evaluateGameOver() {
