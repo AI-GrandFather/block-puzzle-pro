@@ -34,11 +34,11 @@ struct SimpleDragTestView: View {
                         .onChanged { value in
                             isDragging = true
                             position = value.translation
-                            print("📦 Simple drag: \(value.translation)")
+                            DebugLog.trace("📦 Simple drag: \(value.translation)")
                         }
                         .onEnded { value in
                             isDragging = false
-                            print("📦 Simple drag ended: \(value.translation)")
+                            DebugLog.trace("📦 Simple drag ended: \(value.translation)")
                             // Reset position with animation
                             withAnimation(.spring()) {
                                 position = .zero

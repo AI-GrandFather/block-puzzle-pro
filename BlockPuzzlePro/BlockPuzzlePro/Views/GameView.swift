@@ -157,10 +157,10 @@ struct GameView: View {
                 // Block placed successfully - regenerate it (infinite supply)
                 blockFactory.regenerateBlock(at: index)
                 
-                print("✅ Placed \(blockPattern.type) at \(validPosition) and regenerated")
+                DebugLog.trace("✅ Placed \(blockPattern.type) at \(validPosition) and regenerated")
             }
         } else {
-            print("❌ No valid placement found for \(blockPattern.type)")
+            DebugLog.trace("❌ No valid placement found for \(blockPattern.type)")
         }
     }
     

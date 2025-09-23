@@ -93,7 +93,7 @@ struct DraggableBlockView: View {
                     .onChanged { value in
                         // CRITICAL: Check if ANY drag is already active to prevent multiple simultaneous drags
                         if !didSendDragBegan && dragController.dragState == .idle {
-                            print("🎮 Block \(blockIndex): Starting drag, controller state: \(dragController.dragState)")
+                            DebugLog.trace("🎮 Block \(blockIndex): Starting drag, controller state: \(dragController.dragState)")
                             didSendDragBegan = true
                             dragGestureID = UUID() // New gesture ID
 
@@ -107,7 +107,7 @@ struct DraggableBlockView: View {
                                 touchOffset = .zero
                             }
 
-                            print("🧭 Block \(blockIndex): startLocation=\(value.startLocation) blockFrame.origin=\(blockFrame.origin) touchOffset=\(touchOffset)")
+                            DebugLog.trace("🧭 Block \(blockIndex): startLocation=\(value.startLocation) blockFrame.origin=\(blockFrame.origin) touchOffset=\(touchOffset)")
 
                             // Start drag through controller - use coordinates directly from named space
                             dragController.startDrag(
@@ -118,24 +118,24 @@ struct DraggableBlockView: View {
                             )
 
                         } else if !didSendDragBegan {
-                            print("🚫 Block \(blockIndex): Cannot start drag, controller state: \(dragController.dragState)")
+                            DebugLog.trace("🚫 Block \(blockIndex): Cannot start drag, controller state: \(dragController.dragState)")
                         }
 
                         // Only update drag if this is the actively dragged block
                         if dragController.isBlockDragged(blockIndex) {
                             dragController.updateDrag(to: value.location)
-                            print("📍 Block \(blockIndex): updateDrag location=\(value.location) currentDragPosition=\(dragController.currentDragPosition) touch=\(dragController.currentTouchLocation)")
+                            DebugLog.trace("📍 Block \(blockIndex): updateDrag location=\(value.location) currentDragPosition=\(dragController.currentDragPosition) touch=\(dragController.currentTouchLocation)")
                         }
                     }
                     .onEnded { value in
-                        print("🏁 Block \(blockIndex): Gesture ended, isBlockDragged: \(dragController.isBlockDragged(blockIndex))")
+                        DebugLog.trace("🏁 Block \(blockIndex): Gesture ended, isBlockDragged: \(dragController.isBlockDragged(blockIndex))")
 
                         // Only end drag if this is the actively dragged block
                         if dragController.isBlockDragged(blockIndex) {
-                            print("📍 Block \(blockIndex): Calling endDrag")
+                            DebugLog.trace("📍 Block \(blockIndex): Calling endDrag")
                             dragController.endDrag(at: value.location)
                         } else {
-                            print("⏭️ Block \(blockIndex): Skipping endDrag - not actively dragged")
+                            DebugLog.trace("⏭️ Block \(blockIndex): Skipping endDrag - not actively dragged")
                         }
 
                         // Reset gesture state

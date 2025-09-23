@@ -277,7 +277,7 @@ extension VisualConstants {
             blockFactory: mockBlockFactory,
             cellSize: 35
         ) { index, blockPattern in
-            print("Selected block \(index): \(blockPattern.type)")
+            DebugLog.trace("Selected block \(index): \(blockPattern.type)")
         }
         .padding()
     }

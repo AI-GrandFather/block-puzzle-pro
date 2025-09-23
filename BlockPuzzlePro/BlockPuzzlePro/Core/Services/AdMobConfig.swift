@@ -34,11 +34,12 @@ struct AdMobConfig {
     
     // MARK: - Configuration Info
     
+    @MainActor
     static func logCurrentConfiguration() {
         let config = isProduction ? "PRODUCTION" : "TEST"
-        print("🎯 AdMob Configuration: \(config)")
-        print("📱 App ID: \(appID)")
-        print("🎬 Rewarded Ad Unit: \(rewardedAdUnitID)")
+        DebugLog.trace("🎯 AdMob Configuration: \(config)")
+        DebugLog.trace("📱 App ID: \(appID)")
+        DebugLog.trace("🎬 Rewarded Ad Unit: \(rewardedAdUnitID)")
     }
 }
 

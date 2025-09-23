@@ -298,11 +298,15 @@ struct DragDropGameView: View {
     @ViewBuilder
     private var celebrationOverlay: some View {
         if let message = celebrationMessage, celebrationVisible {
-            CelebrationPopupView(message: message)
-                .padding(.top, 80)
-                .padding(.horizontal, 24)
-                .transition(.scale.combined(with: .opacity))
-                .allowsHitTesting(false)
+            VStack {
+                CelebrationToastView(message: message)
+                    .padding(.top, 72)
+                    .padding(.horizontal, 24)
+
+                Spacer()
+            }
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .allowsHitTesting(false)
         }
     }
     
@@ -336,9 +340,9 @@ struct DragDropGameView: View {
         // Detect ProMotion capability
         isProMotionDevice = UIScreen.main.maximumFramesPerSecond >= 120
 
-        print("🚀 Performance optimizations enabled")
-        print("📱 Device max refresh rate: \(UIScreen.main.maximumFramesPerSecond)Hz")
-        print("⚡ ProMotion support: \(isProMotionDevice ? "YES" : "NO")")
+        DebugLog.trace("🚀 Performance optimizations enabled")
+        DebugLog.trace("📱 Device max refresh rate: \(UIScreen.main.maximumFramesPerSecond)Hz")
+        DebugLog.trace("⚡ ProMotion support: \(isProMotionDevice ? "YES" : "NO")")
     }
 
     // MARK: - Game Logic
@@ -374,19 +378,19 @@ struct DragDropGameView: View {
         // Drag began callback
         dragController.onDragBegan = { blockIndex, blockPattern, position in
             handleDragBegan(blockIndex: blockIndex, blockPattern: blockPattern, position: position)
-            print("🎯 onDragBegan blockIndex=\(blockIndex) position=\(position) pattern=\(blockPattern.type)")
+            DebugLog.trace("🎯 onDragBegan blockIndex=\(blockIndex) position=\(position) pattern=\(blockPattern.type)")
         }
         
         // Drag changed callback
         dragController.onDragChanged = { blockIndex, blockPattern, position in
             // Update placement preview using the controller's computed origin
-            print("🔄 onDragChanged blockIndex=\(blockIndex) reportedPosition=\(position) currentDragPosition=\(self.dragController.currentDragPosition)")
+            DebugLog.trace("🔄 onDragChanged blockIndex=\(blockIndex) reportedPosition=\(position) currentDragPosition=\(self.dragController.currentDragPosition)")
             self.updatePlacementPreview(blockPattern: blockPattern, blockOrigin: self.dragController.currentDragPosition)
         }
 
         // Drag ended callback
         dragController.onDragEnded = { blockIndex, blockPattern, position in
-            print("🛑 onDragEnded blockIndex=\(blockIndex) position=\(position) state=\(self.dragController.dragState)")
+            DebugLog.trace("🛑 onDragEnded blockIndex=\(blockIndex) position=\(position) state=\(self.dragController.dragState)")
             // Commit placement and handle result
             let placementSuccess = self.placementEngine.commitPlacement(blockPattern: blockPattern)
 
@@ -451,14 +455,14 @@ struct DragDropGameView: View {
             cellSize: gridCellSize,
             gridSpacing: gridSpacing
         )
-        print("🧮 updatePlacementPreview blockIndex=\(dragController.currentBlockIndex ?? -1) origin=\(blockOrigin) touch=\(dragController.currentTouchLocation) touchOffset=\(dragController.dragTouchOffset) gridFrame=\(gridFrame)")
+        DebugLog.trace("🧮 updatePlacementPreview blockIndex=\(dragController.currentBlockIndex ?? -1) origin=\(blockOrigin) touch=\(dragController.currentTouchLocation) touchOffset=\(dragController.dragTouchOffset) gridFrame=\(gridFrame)")
         
         // Removed the following line as per instructions:
         // dragController.setDropValidity(placementEngine.isCurrentPreviewValid)
     }
     
     private func handleValidPlacement(blockIndex: Int, blockPattern: BlockPattern, position: CGPoint) {
-        print("✅ PLACEMENT SUCCESS: Block \(blockIndex) placed successfully")
+        DebugLog.trace("✅ PLACEMENT SUCCESS: Block \(blockIndex) placed successfully")
 
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         UIAccessibility.post(notification: .announcement, argument: "Placed block successfully")
@@ -475,7 +479,7 @@ struct DragDropGameView: View {
         // This prevents the controller from getting stuck in dragging state
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if self.dragController.dragState != .idle {
-                print("🚨 FORCE RESET: Drag controller stuck in \(self.dragController.dragState) state after placement")
+                DebugLog.trace("🚨 FORCE RESET: Drag controller stuck in \(self.dragController.dragState) state after placement")
                 self.dragController.reset()
             }
         }
@@ -586,104 +590,83 @@ struct CelebrationMessage: Identifiable, Equatable {
     let points: Int
 }
 
-private struct CelebrationPopupView: View {
+private struct CelebrationToastView: View {
     let message: CelebrationMessage
-    @State private var scale: CGFloat = 0.85
-    @State private var glowOpacity: Double = 0.55
+
+    @State private var animateContent = false
+    private let accentGradient = LinearGradient(
+        colors: [
+            Color(red: 0.72, green: 0.45, blue: 0.98),
+            Color(red: 0.44, green: 0.53, blue: 0.99)
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 24)
-                .fill(popBackground)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24)
-                        .strokeBorder(popHighlight, lineWidth: 1.2)
-                )
-                .shadow(color: Color.black.opacity(0.25), radius: 22, x: 0, y: 16)
+        HStack(spacing: 16) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(accentGradient)
+                    .frame(width: 48, height: 48)
+                    .shadow(color: Color.black.opacity(0.25), radius: 8, x: 0, y: 6)
 
-            HStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(popAccent)
-                        .frame(width: 56, height: 56)
-                        .overlay(
-                            Circle()
-                                .stroke(popHighlight, lineWidth: 1.2)
-                        )
-
-                    Image(systemName: message.icon)
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(Color.white)
-                        .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2)
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(message.title)
-                        .font(.system(size: 22, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color.white)
-
-                    Text(message.subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.white.opacity(0.85))
-                }
-
-                Spacer(minLength: 12)
-
-                if message.points > 0 {
-                    Text("+\(message.points)")
-                        .font(.system(size: 20, weight: .black, design: .rounded))
-                        .foregroundStyle(Color.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.18))
-                        )
-                }
+                Image(systemName: message.icon)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                    .scaleEffect(animateContent ? 1.0 : 0.82)
             }
-            .padding(.vertical, 20)
-            .padding(.horizontal, 24)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(message.title)
+                    .font(.system(.headline, design: .rounded))
+                    .fontWeight(.heavy)
+                    .foregroundStyle(Color.primary)
+
+                Text(message.subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            if message.points > 0 {
+                Text("+\(message.points)")
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color.accentColor.opacity(0.18))
+                    )
+                    .foregroundStyle(Color.accentColor)
+                    .scaleEffect(animateContent ? 1.0 : 0.9)
+            }
         }
+        .padding(.leading, 14)
+        .padding(.trailing, 18)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.22), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 12)
         .frame(maxWidth: 360)
-        .scaleEffect(scale)
-        .shadow(color: popAccent.opacity(glowOpacity), radius: 30, x: 0, y: 0)
+        .scaleEffect(animateContent ? 1.0 : 0.94)
+        .opacity(animateContent ? 1.0 : 0.75)
         .onAppear {
-            let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
-            let responseMultiplier: Double = isProMotion ? 0.7 : 1.0
-
-            withAnimation(.spring(response: 0.3 * responseMultiplier, dampingFraction: 0.75)) {
-                scale = 1.05
-            }
-            withAnimation(.easeInOut(duration: 0.8 * responseMultiplier).repeatForever(autoreverses: true)) {
-                glowOpacity = 0.2
+            let response = UIScreen.main.maximumFramesPerSecond >= 120 ? 0.26 : 0.3
+            withAnimation(.spring(response: response, dampingFraction: 0.82)) {
+                animateContent = true
             }
         }
-    }
-
-    private var popBackground: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(red: 0.16, green: 0.2, blue: 0.4).opacity(0.95),
-                Color(red: 0.1, green: 0.1, blue: 0.25).opacity(0.88)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
-    private var popAccent: Color {
-        Color(red: 0.87, green: 0.39, blue: 0.93)
-    }
-
-    private var popHighlight: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color.white.opacity(0.45),
-                Color.white.opacity(0.1)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(message.title). \(message.subtitle)")
+        .accessibilityValue(message.points > 0 ? "+\(message.points) points" : "")
     }
 }
 

@@ -328,3 +328,30 @@ extension EnvironmentValues {
         set { self[DeviceManagerKey.self] = newValue }
     }
 }
+
+// MARK: - Debug Logging Helper
+
+/// Lightweight debug logger that is compiled out of release builds.
+@MainActor
+enum DebugLog {
+    #if DEBUG
+    private static var isEnabled = false
+
+    static func enable() {
+        isEnabled = true
+    }
+
+    static func disable() {
+        isEnabled = false
+    }
+
+    static func trace(_ message: @autoclosure () -> String) {
+        guard isEnabled else { return }
+        print(message())
+    }
+    #else
+    static func enable() {}
+    static func disable() {}
+    static func trace(_ message: @autoclosure () -> String) {}
+    #endif
+}

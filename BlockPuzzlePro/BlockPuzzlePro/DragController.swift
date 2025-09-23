@@ -252,16 +252,12 @@ class DragController: ObservableObject {
 
     /// Update visual effects with optimized animations for 120Hz ProMotion
     private func updateVisualEffects() {
-        // Subtle rotation effect based on drag velocity (optimized calculation)
         let normalizedOffset = dragOffset.width / 100.0
-        let rotation = sin(normalizedOffset) * 1.5 // Reduced rotation for smoother feel
+        dragRotation = sin(normalizedOffset) * 1.5
 
-        // Use optimized animation timing for ProMotion displays
-        let animationDuration = isProMotionDisplay ? 0.016 : 0.03 // ~1 frame at 60Hz or 120Hz
-
-        withAnimation(.linear(duration: animationDuration)) {
-            dragRotation = rotation
-        }
+        let shadowX = max(min(dragOffset.width * 0.05, 10), -10)
+        let shadowY = max(min(8 + dragOffset.height * 0.03, 14), 2)
+        shadowOffset = CGSize(width: shadowX, height: shadowY)
     }
 
     
@@ -573,7 +569,7 @@ class DragController: ObservableObject {
     /// Handle drag timeout - auto-reset stuck drags
     private func handleDragTimeout() {
         logger.warning("⏰ Drag timeout triggered - force resetting stuck drag")
-        print("🚨 DRAG TIMEOUT: Force resetting drag controller after \(self.maxDragDuration)s")
+        DebugLog.trace("🚨 DRAG TIMEOUT: Force resetting drag controller after \(self.maxDragDuration)s")
 
         // Force reset the entire drag controller
         reset()

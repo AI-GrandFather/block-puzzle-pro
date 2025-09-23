@@ -76,11 +76,11 @@ struct ComponentTestView: View {
         let invalidPos = GridPosition(row: -1, column: -1)
         testResults["Grid Position Validation"] = validPos != nil && invalidPos == nil
         
-        print("✅ All tests completed!")
+        DebugLog.trace("✅ All tests completed!")
         
         // Print detailed results
         for (test, result) in testResults {
-            print("\(result ? "✅" : "❌") \(test)")
+            DebugLog.trace("\(result ? "✅" : "❌") \(test)")
         }
     }
 }

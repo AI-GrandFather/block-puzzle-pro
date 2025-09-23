@@ -258,7 +258,7 @@ struct FloatingBlockPreview: View {
             dragController: DragController(),
             cellSize: 30
         ) { index, pattern in
-            print("Drag started for block \(index): \(pattern.type)")
+            DebugLog.trace("Drag started for block \(index): \(pattern.type)")
         }
         
         Spacer()
