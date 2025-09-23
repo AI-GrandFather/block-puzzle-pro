@@ -122,6 +122,8 @@ struct DragDropGameView: View {
             .onReceive(gameEngine.$activeLineClears) { clears in
                 guard !clears.isEmpty else { return }
 
+                spawnFragments(from: clears)
+
                 let highlights = Set(clears.flatMap { $0.positions })
                 guard !highlights.isEmpty else { return }
 
@@ -253,24 +255,32 @@ struct DragDropGameView: View {
     }
 
     private var gridView: some View {
-        GridView(
-            gameEngine: gameEngine,
-            dragController: dragController,
-            cellSize: gridCellSize,
-            gridSpacing: gridSpacing,
-            highlightedPositions: lineClearHighlights
-        )
-        .background(
-            GeometryReader { gridGeometry in
-                Color.clear
-                    .onAppear {
-                        gridFrame = gridGeometry.frame(in: .global)
-                    }
-                    .onChange(of: gridGeometry.frame(in: .global)) { _, newValue in
-                        gridFrame = newValue
-                    }
+        ZStack(alignment: .topLeading) {
+            GridView(
+                gameEngine: gameEngine,
+                dragController: dragController,
+                cellSize: gridCellSize,
+                gridSpacing: gridSpacing,
+                highlightedPositions: lineClearHighlights
+            )
+            .background(
+                GeometryReader { gridGeometry in
+                    Color.clear
+                        .onAppear {
+                            gridFrame = gridGeometry.frame(in: .global)
+                        }
+                        .onChange(of: gridGeometry.frame(in: .global)) { _, newValue in
+                            gridFrame = newValue
+                        }
+                }
+            )
+
+            FragmentOverlayView(effects: fragmentEffects) { effectID in
+                fragmentEffects.removeAll { $0.id == effectID }
             }
-        )
+            .frame(width: boardSize, height: boardSize, alignment: .topLeading)
+            .allowsHitTesting(false)
+        }
         .onDrop(of: ["public.text"], isTargeted: nil) { _, location in
             guard
                 let pattern = dragController.draggedBlockPattern,
@@ -576,6 +586,53 @@ struct DragDropGameView: View {
 
         // Clear preview (drag controller handles its own cleanup)
         placementEngine.clearPreview()
+    }
+
+    private func spawnFragments(from clears: [LineClear]) {
+        guard !clears.isEmpty else { return }
+
+        let cellSpan = gridCellSize + gridSpacing
+        let fragmentSize = gridCellSize / 2.4
+        let offsets: [CGPoint] = [
+            CGPoint(x: 0.3, y: 0.3),
+            CGPoint(x: 0.7, y: 0.3),
+            CGPoint(x: 0.3, y: 0.7),
+            CGPoint(x: 0.7, y: 0.7)
+        ]
+
+        var newEffects: [FragmentEffect] = []
+
+        let fragments = clears.flatMap { $0.fragments }
+        for fragment in fragments {
+            let baseX = gridSpacing + CGFloat(fragment.position.column) * cellSpan
+            let baseY = gridSpacing + CGFloat(fragment.position.row) * cellSpan
+
+            for offsetPoint in offsets {
+                let startPoint = CGPoint(
+                    x: baseX + offsetPoint.x * gridCellSize,
+                    y: baseY + offsetPoint.y * gridCellSize
+                )
+
+                let driftX = CGFloat.random(in: -22...22)
+                let driftY = CGFloat.random(in: 80...140)
+                let delay = Double.random(in: 0.0...0.08)
+                let rotation = Double.random(in: -35...35)
+
+                newEffects.append(
+                    FragmentEffect(
+                        color: Color(fragment.color.uiColor),
+                        startPoint: startPoint,
+                        targetOffset: CGSize(width: driftX, height: driftY),
+                        size: fragmentSize * CGFloat.random(in: 0.75...1.05),
+                        delay: delay,
+                        duration: 0.55,
+                        rotation: rotation
+                    )
+                )
+            }
+        }
+
+        fragmentEffects.append(contentsOf: newEffects)
     }
 
     private func evaluateGameOver() {
@@ -914,6 +971,64 @@ private struct SettingsSheet: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Fragment Effects
+
+private struct FragmentEffect: Identifiable {
+    let id = UUID()
+    let color: Color
+    let startPoint: CGPoint
+    let targetOffset: CGSize
+    let size: CGFloat
+    let delay: Double
+    let duration: Double
+    let rotation: Double
+}
+
+private struct FragmentOverlayView: View {
+    let effects: [FragmentEffect]
+    let onEffectFinished: (UUID) -> Void
+
+    var body: some View {
+        ZStack {
+            ForEach(effects) { effect in
+                FallingFragmentView(effect: effect) {
+                    onEffectFinished(effect.id)
+                }
+            }
+        }
+    }
+}
+
+private struct FallingFragmentView: View {
+    let effect: FragmentEffect
+    let onComplete: () -> Void
+
+    @State private var offset: CGSize = .zero
+    @State private var opacity: Double = 1.0
+    @State private var rotation: Double = 0.0
+
+    var body: some View {
+        Rectangle()
+            .fill(effect.color)
+            .frame(width: effect.size, height: effect.size)
+            .position(x: effect.startPoint.x, y: effect.startPoint.y)
+            .offset(offset)
+            .rotationEffect(.degrees(rotation))
+            .opacity(opacity)
+            .onAppear {
+                withAnimation(.easeIn(duration: effect.duration).delay(effect.delay)) {
+                    offset = effect.targetOffset
+                    opacity = 0.0
+                    rotation = effect.rotation
+                }
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + effect.delay + effect.duration + 0.05) {
+                    onComplete()
+                }
+            }
     }
 }
 

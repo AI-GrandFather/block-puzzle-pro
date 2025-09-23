@@ -5,6 +5,12 @@ import os.log
 // MARK: - Line Clear Models
 
 /// Represents a single cleared line (row or column)
+struct LineFragment: Identifiable, Equatable {
+    let id = UUID()
+    let position: GridPosition
+    let color: BlockColor
+}
+
 struct LineClear: Identifiable, Equatable {
     enum Kind: Equatable {
         case row(Int)
@@ -13,6 +19,7 @@ struct LineClear: Identifiable, Equatable {
 
     let kind: Kind
     let positions: [GridPosition]
+    let fragments: [LineFragment]
 
     var id: String {
         switch kind {
@@ -40,6 +47,10 @@ struct LineClearResult {
 
     var uniquePositions: Set<GridPosition> {
         Set(clears.flatMap { $0.positions })
+    }
+
+    var fragments: [LineFragment] {
+        clears.flatMap { $0.fragments }
     }
 
     var isEmpty: Bool { clears.isEmpty }
@@ -305,31 +316,33 @@ class GameEngine: ObservableObject {
             }
         }
         
-        // Clear completed lines
-        for row in completedRows {
-            for column in 0..<Self.gridSize {
-                let position = GridPosition(unsafeRow: row, unsafeColumn: column)
-                setCell(at: position, to: .empty)
-            }
-        }
-        
-        for column in completedColumns {
-            for row in 0..<Self.gridSize {
-                let position = GridPosition(unsafeRow: row, unsafeColumn: column)
-                setCell(at: position, to: .empty)
-            }
-        }
-
         var lineClears: [LineClear] = []
 
+        // Clear completed lines
         for row in completedRows {
+            var rowFragments: [LineFragment] = []
+            for column in 0..<Self.gridSize {
+                let position = GridPosition(unsafeRow: row, unsafeColumn: column)
+                if let cell = cell(at: position), case .occupied(let color) = cell {
+                    rowFragments.append(LineFragment(position: position, color: color))
+                }
+                setCell(at: position, to: .empty)
+            }
             let positions = (0..<Self.gridSize).compactMap { GridPosition(row: row, column: $0) }
-            lineClears.append(LineClear(kind: .row(row), positions: positions))
+            lineClears.append(LineClear(kind: .row(row), positions: positions, fragments: rowFragments))
         }
 
         for column in completedColumns {
+            var columnFragments: [LineFragment] = []
+            for row in 0..<Self.gridSize {
+                let position = GridPosition(unsafeRow: row, unsafeColumn: column)
+                if let cell = cell(at: position), case .occupied(let color) = cell {
+                    columnFragments.append(LineFragment(position: position, color: color))
+                }
+                setCell(at: position, to: .empty)
+            }
             let positions = (0..<Self.gridSize).compactMap { GridPosition(row: $0, column: column) }
-            lineClears.append(LineClear(kind: .column(column), positions: positions))
+            lineClears.append(LineClear(kind: .column(column), positions: positions, fragments: columnFragments))
         }
 
         activeLineClears = lineClears
