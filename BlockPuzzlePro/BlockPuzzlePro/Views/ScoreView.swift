@@ -11,7 +11,7 @@ struct ScoreView: View {
     @State private var deltaOffset: CGFloat = 4.0
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             highScoreBanner
             scorePlate
         }
@@ -46,29 +46,34 @@ struct ScoreView: View {
     }
 
     private var highScoreBanner: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+        HStack(spacing: 10) {
             Image(systemName: "crown.fill")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(goldenGradient)
+                .shadow(color: Color.black.opacity(0.12), radius: 3, x: 0, y: 2)
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("HIGH SCORE")
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .foregroundStyle(goldenGradient)
-                Text("\(highScore)")
-                    .font(.system(size: 20, weight: .heavy, design: .rounded))
-                    .foregroundStyle(highScoreColor)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(highScoreColor.opacity(0.22), lineWidth: 1)
-                            .padding(.vertical, -4)
-                            .padding(.horizontal, -6)
-                    )
-            }
+            Text("HIGH SCORE")
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.primary.opacity(0.55))
 
-            Spacer()
+            Text("\(highScore)")
+                .font(.system(size: 18, weight: .heavy, design: .rounded))
+                .foregroundStyle(goldenGradient)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.15))
+                        .overlay(
+                            Capsule()
+                                .stroke(goldenGradient, lineWidth: 1)
+                        )
+                )
+                .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+
+            Spacer(minLength: 12)
 
             if lastEvent?.isNewHighScore == true {
                 Text("NEW!")
@@ -76,25 +81,20 @@ struct ScoreView: View {
                     .foregroundStyle(Color.white)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(Capsule().fill(highScoreColor))
+                    .background(Capsule().fill(goldenGradient))
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 18)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var scorePlate: some View {
         ZStack(alignment: .topTrailing) {
             VStack(alignment: .center, spacing: 8) {
-                Text("CURRENT SCORE")
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.secondary)
-
                 Text("\(score)")
                     .font(.system(size: 44, weight: .black, design: .rounded))
-                    .foregroundStyle(scoreColor)
+                    .foregroundStyle(scoreGradient)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
                     .scaleEffect(scale)
@@ -127,8 +127,8 @@ struct ScoreView: View {
                     .offset(y: deltaOffset)
             }
         }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 18)
+        .padding(.horizontal, 26)
+        .padding(.vertical, 24)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(glassGradient)
@@ -169,12 +169,15 @@ struct ScoreView: View {
         )
     }
 
-    private var highScoreColor: Color {
-        Color(red: 0.97, green: 0.79, blue: 0.19)
-    }
-
-    private var scoreColor: Color {
-        Color(red: 0.29, green: 0.54, blue: 0.96)
+    private var scoreGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(red: 0.24, green: 0.53, blue: 0.96),
+                Color(red: 0.45, green: 0.75, blue: 1.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 
     private var goldenGradient: LinearGradient {
