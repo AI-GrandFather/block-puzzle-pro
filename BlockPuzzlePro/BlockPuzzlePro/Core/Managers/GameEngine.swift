@@ -62,16 +62,26 @@ class GameEngine: ObservableObject {
     
     /// Current score
     @Published private(set) var score: Int = 0
+
+    /// Breakdown of the most recent scoring update for UI animations
+    @Published private(set) var lastScoreEvent: ScoreEvent? = nil
+
+    /// Highest score achieved in the current app session
+    @Published private(set) var highScore: Int = 0
     
     /// Whether the game is currently active
     @Published private(set) var isGameActive: Bool = false
 
     /// Recently cleared lines for animation/highlight purposes
     @Published private(set) var activeLineClears: [LineClear] = []
-    
+
     // MARK: - Constants
-    
+
     static let gridSize = 10
+
+    // MARK: - Private State
+
+    private var scoreTracker = ScoreTracker()
     
     // MARK: - Initialization
     
@@ -81,6 +91,7 @@ class GameEngine: ObservableObject {
             repeating: Array(repeating: GridCell.empty, count: Self.gridSize), 
             count: Self.gridSize
         )
+        scoreTracker.reset()
         logger.info("GameEngine initialized with \(Self.gridSize)x\(Self.gridSize) grid")
     }
     
@@ -157,10 +168,12 @@ class GameEngine: ObservableObject {
             repeating: Array(repeating: GridCell.empty, count: Self.gridSize), 
             count: Self.gridSize
         )
-        
+
         score = 0
+        lastScoreEvent = nil
+        scoreTracker.reset()
         isGameActive = true
-        
+
         logger.info("New game started")
     }
     
@@ -173,16 +186,56 @@ class GameEngine: ObservableObject {
                 return false
             }
         }
-        
+
         // Place all blocks
         for position in positions {
             setCell(at: position, to: .occupied(color: color))
         }
-        
+
         logger.info("Placed \(positions.count) blocks with color \(color.rawValue)")
         return true
     }
-    
+
+    /// Apply scoring for a placement and its resulting line clears.
+    @discardableResult
+    func applyScore(placedCells: Int, lineClearResult: LineClearResult) -> ScoreEvent? {
+        let totalLinesCleared = lineClearResult.totalClearedLines
+        guard placedCells > 0 || totalLinesCleared > 0 else {
+            return nil
+        }
+
+        let breakdown = scoreTracker.recordPlacement(
+            placedCells: max(0, placedCells),
+            linesCleared: max(0, totalLinesCleared)
+        )
+
+        score = scoreTracker.totalScore
+
+        let didSetNewHigh = scoreTracker.bestScore > highScore
+        if didSetNewHigh {
+            highScore = scoreTracker.bestScore
+        }
+
+        let event = ScoreEvent(
+            placedCells: breakdown.placedCells,
+            linesCleared: breakdown.linesCleared,
+            placementPoints: breakdown.placementPoints,
+            lineClearBonus: breakdown.lineClearBonus,
+            totalDelta: breakdown.totalPoints,
+            newTotal: score,
+            highScore: highScore,
+            isNewHighScore: didSetNewHigh
+        )
+
+        lastScoreEvent = event
+
+        logger.info(
+            "Score updated by \(event.totalDelta) points (placement: \(event.placementPoints), bonus: \(event.lineClearBonus)) -> total \(event.newTotal)"
+        )
+
+        return event
+    }
+
     /// Check for completed lines and clear them
     func processCompletedLines() -> LineClearResult {
         var completedRows: [Int] = []

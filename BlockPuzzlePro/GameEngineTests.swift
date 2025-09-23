@@ -235,4 +235,127 @@ struct GameEngineTests {
         engine.clearActiveLineClears()
         #expect(engine.activeLineClears.isEmpty == true)
     }
+
+    @Test("Placement scoring adds base cell points")
+    func placementScoringAddsBasePoints() async throws {
+        let engine = GameEngine()
+        engine.startNewGame()
+
+        let positions = [
+            GridPosition(unsafeRow: 0, unsafeColumn: 0),
+            GridPosition(unsafeRow: 0, unsafeColumn: 1),
+            GridPosition(unsafeRow: 1, unsafeColumn: 0)
+        ]
+
+        let placed = engine.placeBlocks(at: positions, color: .blue)
+        #expect(placed == true)
+
+        let lineResult = engine.processCompletedLines()
+        #expect(lineResult.isEmpty == true)
+
+        let event = engine.applyScore(placedCells: positions.count, lineClearResult: lineResult)
+        #expect(event?.placementPoints == positions.count)
+        #expect(event?.lineClearBonus == 0)
+        #expect(engine.score == positions.count)
+    }
+
+    @Test("Single line clear awards correct bonus")
+    func singleLineClearAwardsCorrectBonus() async throws {
+        let engine = GameEngine()
+        engine.startNewGame()
+
+        let targetRow = 4
+        let color: BlockColor = .purple
+
+        for col in 0..<(GameEngine.gridSize - 1) {
+            let position = GridPosition(unsafeRow: targetRow, unsafeColumn: col)
+            engine.setCell(at: position, to: .occupied(color: color))
+        }
+
+        let finalPosition = GridPosition(unsafeRow: targetRow, unsafeColumn: GameEngine.gridSize - 1)
+        let placementSuccess = engine.placeBlocks(at: [finalPosition], color: color)
+        #expect(placementSuccess == true)
+
+        let lineResult = engine.processCompletedLines()
+        #expect(lineResult.rows.contains(targetRow))
+        #expect(lineResult.totalClearedLines == 1)
+
+        let event = engine.applyScore(placedCells: 1, lineClearResult: lineResult)
+        #expect(event?.lineClearBonus == 100)
+        #expect(event?.totalDelta == 101)
+        #expect(engine.score == 101)
+    }
+
+    @Test("Simultaneous multi-line clear uses exponential bonus")
+    func simultaneousMultiLineClearBonus() async throws {
+        let engine = GameEngine()
+        engine.startNewGame()
+
+        let column = GameEngine.gridSize - 1
+        let firstRow = 3
+        let secondRow = 4
+        let fillColor: BlockColor = .red
+
+        for row in 0..<GameEngine.gridSize {
+            if row != firstRow && row != secondRow {
+                let position = GridPosition(unsafeRow: row, unsafeColumn: column)
+                engine.setCell(at: position, to: .occupied(color: fillColor))
+            }
+        }
+
+        for col in 0..<(GameEngine.gridSize - 1) {
+            let pos1 = GridPosition(unsafeRow: firstRow, unsafeColumn: col)
+            let pos2 = GridPosition(unsafeRow: secondRow, unsafeColumn: col)
+            engine.setCell(at: pos1, to: .occupied(color: fillColor))
+            engine.setCell(at: pos2, to: .occupied(color: fillColor))
+        }
+
+        let placementPositions = [
+            GridPosition(unsafeRow: firstRow, unsafeColumn: column),
+            GridPosition(unsafeRow: secondRow, unsafeColumn: column)
+        ]
+
+        let placementSuccess = engine.placeBlocks(at: placementPositions, color: fillColor)
+        #expect(placementSuccess == true)
+
+        let lineResult = engine.processCompletedLines()
+        #expect(lineResult.totalClearedLines == 3)
+        #expect(lineResult.rows.contains(firstRow))
+        #expect(lineResult.rows.contains(secondRow))
+        #expect(lineResult.columns.contains(column))
+
+        let event = engine.applyScore(placedCells: placementPositions.count, lineClearResult: lineResult)
+        #expect(event?.placementPoints == placementPositions.count)
+        #expect(event?.lineClearBonus == 600)
+        #expect(event?.totalDelta == placementPositions.count + 600)
+        #expect(engine.score == placementPositions.count + 600)
+    }
+
+    @Test("High score updates and persists across sessions")
+    func highScorePersistsAcrossGames() async throws {
+        let engine = GameEngine()
+        engine.startNewGame()
+
+        let position = try #require(GridPosition(row: 0, column: 0))
+        let placed = engine.placeBlocks(at: [position], color: .cyan)
+        #expect(placed == true)
+
+        let noClearResult = engine.processCompletedLines()
+        let singleEvent = engine.applyScore(placedCells: 1, lineClearResult: noClearResult)
+        #expect(singleEvent != nil)
+        #expect(engine.highScore == 1)
+
+        engine.startNewGame()
+        #expect(engine.score == 0)
+        #expect(engine.highScore == 1)
+
+        let rowPositions = (0..<GameEngine.gridSize).compactMap { GridPosition(row: 0, column: $0) }
+        let rowPlaced = engine.placeBlocks(at: rowPositions, color: .orange)
+        #expect(rowPlaced == true)
+
+        let rowClearResult = engine.processCompletedLines()
+        let rowEvent = engine.applyScore(placedCells: rowPositions.count, lineClearResult: rowClearResult)
+        #expect(rowEvent?.isNewHighScore == true)
+        #expect(engine.highScore == rowEvent?.newTotal)
+    }
 }

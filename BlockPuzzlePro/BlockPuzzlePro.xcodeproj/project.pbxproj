@@ -25,6 +25,8 @@
 		8F27CB582E75E17F004E6A4C /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB512E75E17F004E6A4C /* GameView.swift */; };
 		8F27CB592E75E17F004E6A4C /* BlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB4E2E75E17F004E6A4C /* BlockView.swift */; };
 		8F27CB5D2E769512004E6A4C /* DragController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB5C2E769512004E6A4C /* DragController.swift */; };
+		B1A4F3022F0A4D1D00A12345 /* ScoreTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A4F3002F0A4D1D00A12345 /* ScoreTracker.swift */; };
+		B1A4F3032F0A4D1D00A12345 /* ScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A4F3012F0A4D1D00A12345 /* ScoreView.swift */; };
 		A50001F72C8A1234000123AB /* BlockPuzzleProApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50001F62C8A1234000123AB /* BlockPuzzleProApp.swift */; };
 		A50001F92C8A1234000123AB /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = A50001F82C8A1234000123AB /* GameScene.sks */; };
 		A50001FB2C8A1234000123AB /* Actions.sks in Resources */ = {isa = PBXBuildFile; fileRef = A50001FA2C8A1234000123AB /* Actions.sks */; };
@@ -54,6 +56,8 @@
 		8F27CB512E75E17F004E6A4C /* GameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameView.swift; sourceTree = "<group>"; };
 		8F27CB522E75E17F004E6A4C /* GridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridView.swift; sourceTree = "<group>"; };
 		8F27CB5C2E769512004E6A4C /* DragController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragController.swift; sourceTree = "<group>"; };
+		B1A4F3002F0A4D1D00A12345 /* ScoreTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreTracker.swift; sourceTree = "<group>"; };
+		B1A4F3012F0A4D1D00A12345 /* ScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreView.swift; sourceTree = "<group>"; };
 		8FE754852E7AD76A0067A8D3 /* GameEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngineTests.swift; sourceTree = "<group>"; };
 		8FE754862E7AE26F0067A8D3 /* DragController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragController.swift; sourceTree = "<group>"; };
 		8FE754872E7AE4FD0067A8D3 /* DragController 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DragController 2.swift"; sourceTree = "<group>"; };
@@ -138,6 +142,7 @@
 				8F27CB502E75E17F004E6A4C /* DraggableBlockView.swift */,
 				8F27CB512E75E17F004E6A4C /* GameView.swift */,
 				8F27CB522E75E17F004E6A4C /* GridView.swift */,
+				B1A4F3012F0A4D1D00A12345 /* ScoreView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -146,6 +151,7 @@
 			isa = PBXGroup;
 			children = (
 				8F9999F02E75E999004E6A4C /* PlacementEngine.swift */,
+				B1A4F3002F0A4D1D00A12345 /* ScoreTracker.swift */,
 			);
 			path = Game;
 			sourceTree = "<group>";
@@ -283,6 +289,8 @@
 				8F27CB592E75E17F004E6A4C /* BlockView.swift in Sources */,
 				8F27CB4B2E75E170004E6A4C /* DeviceManager.swift in Sources */,
 				8F27CB4C2E75E170004E6A4C /* BlockType.swift in Sources */,
+				B1A4F3022F0A4D1D00A12345 /* ScoreTracker.swift in Sources */,
+				B1A4F3032F0A4D1D00A12345 /* ScoreView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

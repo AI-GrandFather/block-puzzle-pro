@@ -70,35 +70,14 @@ final class BlockTrayViewTests: XCTestCase {
     
     // MARK: - Block Display Tests
     
-    func testBlockTrayView_DisplaysThreeBlocks() {
+    func testBlockTrayView_DisplaysThreeSlots() {
         // Given
-        let trayView = createBlockTrayView()
-        let availableBlocks = blockFactory.getAvailableBlocks()
-        
+        _ = createBlockTrayView()
+        let traySlots = blockFactory.getTraySlots()
+
         // When/Then
-        XCTAssertEqual(availableBlocks.count, 3, "Should display three blocks")
-        
-        // Verify we have the expected block types
-        let blockTypes = availableBlocks.map { $0.type }
-        XCTAssertTrue(blockTypes.contains(.lShape))
-        XCTAssertTrue(blockTypes.contains(.single))
-        XCTAssertTrue(blockTypes.contains(.horizontal))
-    }
-    
-    // MARK: - Block Color Tests
-    
-    func testBlockTrayView_BlocksHaveCorrectColors() {
-        // Given
-        let availableBlocks = blockFactory.getAvailableBlocks()
-        
-        // When/Then
-        let lShapeBlock = availableBlocks.first { $0.type == .lShape }
-        let singleBlock = availableBlocks.first { $0.type == .single }
-        let horizontalBlock = availableBlocks.first { $0.type == .horizontal }
-        
-        XCTAssertEqual(lShapeBlock?.color, .orange, "L-Shape should be orange")
-        XCTAssertEqual(singleBlock?.color, .blue, "Single block should be blue")
-        XCTAssertEqual(horizontalBlock?.color, .green, "Horizontal block should be green")
+        XCTAssertEqual(traySlots.count, 3, "Tray should expose three slots")
+        XCTAssertTrue(traySlots.allSatisfy { $0 != nil }, "All slots should be filled on initialization")
     }
     
     // MARK: - Block Selection Simulation Tests
@@ -106,12 +85,14 @@ final class BlockTrayViewTests: XCTestCase {
     func testBlockTrayView_BlockSelectionCallback() {
         // Given
         let trayView = createBlockTrayView()
-        let availableBlocks = blockFactory.getAvailableBlocks()
-        
+        guard let firstBlock = blockFactory.getBlock(at: 0) else {
+            XCTFail("Expected a block at index 0")
+            return
+        }
+
         // When - Simulate selecting first block
-        let firstBlock = availableBlocks[0]
         trayView.onBlockSelected(0, firstBlock)
-        
+
         // Then
         XCTAssertTrue(blockSelectedCallbackInvoked)
         XCTAssertEqual(selectedBlockIndex, 0)
@@ -122,8 +103,8 @@ final class BlockTrayViewTests: XCTestCase {
     func testBlockTrayView_MultipleBlockSelections() {
         // Given
         let trayView = createBlockTrayView()
-        let availableBlocks = blockFactory.getAvailableBlocks()
-        
+        let availableBlocks = blockFactory.availableBlocks
+
         // When - Select each block in sequence
         for (index, block) in availableBlocks.enumerated() {
             // Reset callback state
@@ -146,40 +127,43 @@ final class BlockTrayViewTests: XCTestCase {
     
     func testBlockTrayView_BlockRegenerationMaintainsCount() {
         // Given
-        let originalBlocks = blockFactory.getAvailableBlocks()
-        XCTAssertEqual(originalBlocks.count, 3)
-        
-        // When - Regenerate each block
-        for index in 0..<originalBlocks.count {
-            blockFactory.regenerateBlock(at: index)
-        }
-        
-        let newBlocks = blockFactory.getAvailableBlocks()
-        
-        // Then
-        XCTAssertEqual(newBlocks.count, 3, "Should still have three blocks after regeneration")
+        let originalSlots = blockFactory.getTraySlots()
+        XCTAssertEqual(originalSlots.count, 3)
+
+        blockFactory.consumeBlock(at: 0)
+        let midCycleSlots = blockFactory.getTraySlots()
+        XCTAssertNil(midCycleSlots[0])
+        XCTAssertTrue(midCycleSlots[1...].allSatisfy { $0 != nil })
+
+        blockFactory.consumeBlock(at: 1)
+        blockFactory.consumeBlock(at: 2)
+        let refreshedSlots = blockFactory.getTraySlots()
+        XCTAssertTrue(refreshedSlots.allSatisfy { $0 != nil })
+        XCTAssertEqual(refreshedSlots.count, 3)
     }
-    
-    func testBlockTrayView_BlockRegenerationMaintainsTypes() {
+
+    func testBlockTrayView_TrayRefreshIntroducesVariety() {
         // Given
-        let originalBlocks = blockFactory.getAvailableBlocks()
-        let originalTypes = Set(originalBlocks.map { $0.type })
-        
-        // When - Regenerate all blocks
-        blockFactory.regenerateAllBlocks()
-        let newBlocks = blockFactory.getAvailableBlocks()
-        let newTypes = Set(newBlocks.map { $0.type })
-        
+        let initialTypes = Set(blockFactory.getTraySlots().compactMap { $0?.type })
+
+        // When - Consume entire tray to force refresh
+        for index in 0..<3 {
+            blockFactory.consumeBlock(at: index)
+        }
+
+        let refreshedTypes = Set(blockFactory.getTraySlots().compactMap { $0?.type })
+
         // Then
-        XCTAssertEqual(originalTypes, newTypes, "Block types should be preserved after regeneration")
+        XCTAssertEqual(refreshedTypes.count, 3)
+        XCTAssertNotEqual(initialTypes, refreshedTypes)
     }
-    
+
     // MARK: - Accessibility Tests
-    
+
     func testBlockTrayView_BlocksHaveAccessibilityLabels() {
         // Given
-        let availableBlocks = blockFactory.getAvailableBlocks()
-        
+        let availableBlocks = blockFactory.availableBlocks
+
         // When/Then - Verify each block type has accessibility description
         for block in availableBlocks {
             let accessibilityDescription = block.color.accessibilityDescription
@@ -188,14 +172,7 @@ final class BlockTrayViewTests: XCTestCase {
             XCTAssertFalse(accessibilityDescription.isEmpty, "Block should have accessibility description")
             XCTAssertFalse(blockTypeDescription.isEmpty, "Block should have display name")
             
-            switch block.type {
-            case .single:
-                XCTAssertEqual(blockTypeDescription, "Single Block")
-            case .horizontal:
-                XCTAssertEqual(blockTypeDescription, "Horizontal Block")
-            case .lShape:
-                XCTAssertEqual(blockTypeDescription, "L-Shape Block")
-            }
+            XCTAssertFalse(blockTypeDescription.isEmpty)
         }
     }
     

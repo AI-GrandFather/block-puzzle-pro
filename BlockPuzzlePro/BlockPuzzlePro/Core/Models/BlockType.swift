@@ -5,9 +5,15 @@ import SpriteKit
 
 /// Defines the different types of blocks available in the game
 enum BlockType: String, CaseIterable, Identifiable {
-    case single = "single"           // 1x1 block
-    case horizontal = "horizontal"   // 1x2 block  
-    case lShape = "lShape"          // L-shape block
+    case single = "single"                 // 1x1 block
+    case horizontal = "horizontal"         // 1x2 horizontal domino
+    case vertical = "vertical"             // 2x1 vertical domino
+    case lineThree = "lineThree"           // 1x3 bar
+    case square = "square"                 // 2x2 square
+    case lShape = "lShape"                 // Classic corner piece
+    case tShape = "tShape"                 // T-shaped piece
+    case zigZag = "zigZag"                 // Z-shaped piece
+    case plus = "plus"                     // Plus / cross piece
     
     var id: String { rawValue }
     
@@ -17,9 +23,21 @@ enum BlockType: String, CaseIterable, Identifiable {
         case .single:
             return "Single Block"
         case .horizontal:
-            return "Horizontal Block"
+            return "Domino"
+        case .vertical:
+            return "Vertical Domino"
         case .lShape:
             return "L-Shape Block"
+        case .lineThree:
+            return "Triple Bar"
+        case .square:
+            return "Square"
+        case .tShape:
+            return "T-Shape"
+        case .zigZag:
+            return "Zig-Zag"
+        case .plus:
+            return "Plus Piece"
         }
     }
     
@@ -30,10 +48,38 @@ enum BlockType: String, CaseIterable, Identifiable {
             return [[true]]
         case .horizontal:
             return [[true, true]]
+        case .vertical:
+            return [
+                [true],
+                [true]
+            ]
+        case .lineThree:
+            return [[true, true, true]]
+        case .square:
+            return [
+                [true, true],
+                [true, true]
+            ]
         case .lShape:
             return [
                 [true, false],
                 [true, true]
+            ]
+        case .tShape:
+            return [
+                [true, true, true],
+                [false, true, false]
+            ]
+        case .zigZag:
+            return [
+                [false, true, true],
+                [true, true, false]
+            ]
+        case .plus:
+            return [
+                [false, true, false],
+                [true,  true, true],
+                [false, true, false]
             ]
         }
     }
@@ -134,64 +180,109 @@ class BlockFactory: ObservableObject {
     
     // MARK: - Properties
     
-    /// Current available blocks in the tray
-    @Published private(set) var availableBlocks: [BlockPattern] = []
-    
-    /// The three starting block types for this story
-    private let startingBlockTypes: [BlockType] = [.lShape, .single, .horizontal]
-    
-    /// Color assignments for each block type
-    private let blockColors: [BlockType: BlockColor] = [
-        .lShape: .orange,      // Most complex, warm attention color
-        .single: .blue,        // Simple, cool and reliable  
-        .horizontal: .green    // Medium complexity, fresh growth color
-    ]
+    /// Current tray slots (exactly three, may contain nil if consumed)
+    @Published private(set) var traySlots: [BlockPattern?] = []
+
+    /// Number of blocks displayed in the tray simultaneously
+    private let traySize = 3
+
+    /// Remember the previous tray selection to avoid repetition
+    private var lastTrayTypes: Set<BlockType> = []
+
+    /// Random generator for block and color selection
+    private var generator = SystemRandomNumberGenerator()
     
     // MARK: - Initialization
     
     init() {
-        generateInitialBlocks()
+        refillTray()
     }
-    
-    // MARK: - Block Generation
-    
-    /// Generate the initial set of three blocks
-    private func generateInitialBlocks() {
-        availableBlocks = startingBlockTypes.map { blockType in
-            let color = blockColors[blockType] ?? .blue
-            return BlockPattern(type: blockType, color: color)
+
+    // MARK: - Public API
+
+    /// Current tray contents (nil entries indicate a consumed slot)
+    func getTraySlots() -> [BlockPattern?] {
+        traySlots
+    }
+
+    /// Retrieve a block at a specific tray index
+    func getBlock(at index: Int) -> BlockPattern? {
+        guard traySlots.indices.contains(index) else { return nil }
+        return traySlots[index]
+    }
+
+    /// Consume a block; tray refreshes only when all slots are empty
+    func consumeBlock(at index: Int) {
+        guard traySlots.indices.contains(index), traySlots[index] != nil else { return }
+
+        var updatedSlots = traySlots
+        updatedSlots[index] = nil
+        traySlots = updatedSlots
+
+        if traySlots.compactMap({ $0 }).isEmpty {
+            refillTray()
         }
     }
-    
-    /// Get the current available blocks
-    func getAvailableBlocks() -> [BlockPattern] {
-        return availableBlocks
+
+    /// Reset the tray to a fresh random selection (used when starting a new game)
+    func resetTray() {
+        refillTray()
     }
-    
-    /// Regenerate a specific block after placement (infinite supply)
+
+    /// Legacy API: behave like consuming a block so tray only refreshes when empty
     func regenerateBlock(at index: Int) {
-        guard index >= 0 && index < availableBlocks.count else { return }
-        
-        let blockType = startingBlockTypes[index]
-        let color = blockColors[blockType] ?? .blue
-        var updatedBlocks = availableBlocks
-        updatedBlocks[index] = BlockPattern(type: blockType, color: color)
-        availableBlocks = updatedBlocks
+        consumeBlock(at: index)
     }
-    
-    /// Regenerate all blocks (for testing or reset scenarios)
+
+    /// Legacy API: reset the full tray with a fresh random selection
     func regenerateAllBlocks() {
-        generateInitialBlocks()
+        resetTray()
     }
-    
-    /// Check if any blocks are available for placement
+
+    /// Determine if any blocks remain unplaced in the current tray cycle
     var hasAvailableBlocks: Bool {
-        return !availableBlocks.isEmpty
+        traySlots.contains { $0 != nil }
     }
-    
-    /// Get a specific block pattern by index
-    func getBlock(at index: Int) -> BlockPattern? {
-        guard index >= 0 && index < availableBlocks.count else { return nil }
-        return availableBlocks[index]
+
+    /// Convenience accessor for non-empty blocks (legacy API compatibility)
+    var availableBlocks: [BlockPattern] {
+        traySlots.compactMap { $0 }
+    }
+
+    /// Legacy helper returning only non-empty blocks
+    func getAvailableBlocks() -> [BlockPattern] {
+        availableBlocks
+    }
+
+    // MARK: - Tray Generation
+
+    private func refillTray() {
+        let types = pickTrayTypes()
+        traySlots = types.map { makePattern(for: $0) }
+    }
+
+    private func pickTrayTypes() -> [BlockType] {
+        var pool = BlockType.allCases.shuffled(using: &generator)
+
+        if pool.count < traySize {
+            return Array(repeating: .single, count: traySize)
+        }
+
+        var selected = Array(pool.prefix(traySize))
+
+        var attempts = 0
+        while Set(selected) == lastTrayTypes && attempts < 5 {
+            pool.shuffle(using: &generator)
+            selected = Array(pool.prefix(traySize))
+            attempts += 1
+        }
+
+        lastTrayTypes = Set(selected)
+        return selected
+    }
+
+    private func makePattern(for type: BlockType) -> BlockPattern {
+        let color = BlockColor.allCases.randomElement(using: &generator) ?? .blue
+        return BlockPattern(type: type, color: color)
     }
 }

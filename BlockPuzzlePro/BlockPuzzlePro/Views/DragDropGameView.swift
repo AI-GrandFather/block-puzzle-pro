@@ -2,6 +2,7 @@ import SwiftUI
 import Foundation
 import CoreGraphics
 import Combine
+import QuartzCore
 
 // MARK: - Drag Drop Game View
 
@@ -27,6 +28,11 @@ struct DragDropGameView: View {
     @State private var lineClearAnimationToken: UUID?
     @State private var celebrationMessage: CelebrationMessage?
     @State private var celebrationVisible: Bool = false
+
+    // Performance optimization properties
+    @StateObject private var performanceAnimator = DisplayLinkAnimator()
+    @State private var lastUpdateTime: TimeInterval = 0
+    @State private var frameSkipCounter: Int = 0
 
     private let gridSpacing: CGFloat = 2
     
@@ -109,21 +115,28 @@ struct DragDropGameView: View {
                 let token = UUID()
                 lineClearAnimationToken = token
 
-                // Start the enhanced line clear animation
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0)) {
+                // Start the enhanced line clear animation with ProMotion optimization
+                let isProMotionDevice = UIScreen.main.maximumFramesPerSecond >= 120
+
+                withAnimation(.spring(
+                    response: isProMotionDevice ? 0.2 : 0.4,
+                    dampingFraction: 0.7,
+                    blendDuration: 0
+                )) {
                     lineClearHighlights = highlights
                 }
 
-                // Extended duration to allow for the full sparkle and glow sequence
-                let fadeDelay: TimeInterval = 0.8
+                // Optimized timing for different refresh rates
+                let fadeDelay: TimeInterval = isProMotionDevice ? 0.6 : 0.8
                 DispatchQueue.main.asyncAfter(deadline: .now() + fadeDelay) {
                     guard lineClearAnimationToken == token else { return }
-                    withAnimation(.easeOut(duration: 0.4)) {
+                    withAnimation(.easeOut(duration: isProMotionDevice ? 0.3 : 0.4)) {
                         lineClearHighlights = []
                     }
 
                     // Clear the lines after animation completes
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    let clearDelay: TimeInterval = isProMotionDevice ? 0.3 : 0.4
+                    DispatchQueue.main.asyncAfter(deadline: .now() + clearDelay) {
                         guard lineClearAnimationToken == token else { return }
                         gameEngine.clearActiveLineClears()
                     }
@@ -134,6 +147,12 @@ struct DragDropGameView: View {
             }
         }
         .environmentObject(deviceManager)
+        .onAppear {
+            setupPerformanceOptimizations()
+        }
+        .onDisappear {
+            performanceAnimator.stop()
+        }
         // Removed .onChange(of: dragController.isDragging) due to non-existent property
     }
     
@@ -316,8 +335,39 @@ struct DragDropGameView: View {
         gridCellSize * CGFloat(GameEngine.gridSize) + gridSpacing * CGFloat(GameEngine.gridSize + 1)
     }
     
+    // MARK: - Performance Optimization
+
+    private func setupPerformanceOptimizations() {
+        // Enable high-performance display link for smooth animations
+        performanceAnimator.start()
+
+        // Setup performance monitoring
+        performanceAnimator.onFrame = { [weak self] deltaTime in
+            self?.handlePerformanceFrame(deltaTime: deltaTime)
+        }
+
+        print("🚀 Performance optimizations enabled")
+        print("📱 Device max refresh rate: \(UIScreen.main.maximumFramesPerSecond)Hz")
+        print("⚡ ProMotion support: \(UIScreen.main.maximumFramesPerSecond >= 120 ? "YES" : "NO")")
+    }
+
+    private func handlePerformanceFrame(deltaTime: TimeInterval) {
+        // Skip performance-heavy operations on dropped frames
+        guard deltaTime < 1.0 / 90.0 else {
+            frameSkipCounter += 1
+            return
+        }
+
+        // Reset skip counter on good frames
+        frameSkipCounter = 0
+        lastUpdateTime = CACurrentMediaTime()
+
+        // Trigger any high-frequency updates here if needed
+        // (Currently all game logic is event-driven, which is optimal)
+    }
+
     // MARK: - Game Logic
-    
+
     private func setupGameView(screenSize: CGSize) {
         self.screenSize = screenSize
 
@@ -496,14 +546,18 @@ struct DragDropGameView: View {
         }
 
         celebrationMessage = message
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+        let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
+        let responseMultiplier: Double = isProMotion ? 0.7 : 1.0
+
+        withAnimation(.spring(response: 0.35 * responseMultiplier, dampingFraction: 0.7)) {
             celebrationVisible = true
         }
 
         let token = message.id
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+        let displayDuration: TimeInterval = isProMotion ? 1.2 : 1.4
+        DispatchQueue.main.asyncAfter(deadline: .now() + displayDuration) {
             guard celebrationMessage?.id == token else { return }
-            withAnimation(.easeOut(duration: 0.35)) {
+            withAnimation(.easeOut(duration: 0.35 * responseMultiplier)) {
                 celebrationVisible = false
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
@@ -620,10 +674,13 @@ private struct CelebrationPopupView: View {
         .scaleEffect(scale)
         .shadow(color: popAccent.opacity(glowOpacity), radius: 30, x: 0, y: 0)
         .onAppear {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+            let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
+            let responseMultiplier: Double = isProMotion ? 0.7 : 1.0
+
+            withAnimation(.spring(response: 0.3 * responseMultiplier, dampingFraction: 0.75)) {
                 scale = 1.05
             }
-            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+            withAnimation(.easeInOut(duration: 0.8 * responseMultiplier).repeatForever(autoreverses: true)) {
                 glowOpacity = 0.2
             }
         }

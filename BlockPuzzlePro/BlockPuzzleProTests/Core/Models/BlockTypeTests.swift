@@ -168,7 +168,13 @@ final class BlockTypeTests: XCTestCase {
         // Given/When/Then
         XCTAssertEqual(BlockType.single.cellCount, 1)
         XCTAssertEqual(BlockType.horizontal.cellCount, 2)
+        XCTAssertEqual(BlockType.vertical.cellCount, 2)
+        XCTAssertEqual(BlockType.lineThree.cellCount, 3)
+        XCTAssertEqual(BlockType.square.cellCount, 4)
         XCTAssertEqual(BlockType.lShape.cellCount, 3)
+        XCTAssertEqual(BlockType.tShape.cellCount, 4)
+        XCTAssertEqual(BlockType.zigZag.cellCount, 4)
+        XCTAssertEqual(BlockType.plus.cellCount, 5)
     }
 }
 
@@ -289,6 +295,7 @@ final class BlockPatternTests: XCTestCase {
 
 // MARK: - BlockFactory Tests
 
+@MainActor
 final class BlockFactoryTests: XCTestCase {
     
     // MARK: - Properties
@@ -307,131 +314,57 @@ final class BlockFactoryTests: XCTestCase {
         super.tearDown()
     }
     
-    // MARK: - Initialization Tests
-    
-    func testBlockFactory_InitialBlocksGenerated() {
-        // Given/When (factory initialized in setUp)
-        let availableBlocks = blockFactory.getAvailableBlocks()
-        
-        // Then
-        XCTAssertEqual(availableBlocks.count, 3)
+    // MARK: - Tray Behaviour
+
+    func testFactoryStartsWithThreeTraySlots() {
+        let slots = blockFactory.getTraySlots()
+        XCTAssertEqual(slots.count, 3)
+        XCTAssertTrue(slots.allSatisfy { $0 != nil })
     }
-    
-    func testBlockFactory_InitialBlockTypes() {
-        // Given/When
-        let availableBlocks = blockFactory.getAvailableBlocks()
-        
-        // Then
-        let blockTypes = availableBlocks.map { $0.type }
-        XCTAssertTrue(blockTypes.contains(.lShape))
-        XCTAssertTrue(blockTypes.contains(.single))
-        XCTAssertTrue(blockTypes.contains(.horizontal))
+
+    func testFactoryProvidesUniqueTypesPerTray() {
+        let slots = blockFactory.getTraySlots().compactMap { $0 }
+        let uniqueTypes = Set(slots.map { $0.type })
+        XCTAssertEqual(uniqueTypes.count, slots.count)
     }
-    
-    func testBlockFactory_InitialBlockColors() {
-        // Given/When
-        let availableBlocks = blockFactory.getAvailableBlocks()
-        
-        // Then
-        let lShapeBlock = availableBlocks.first { $0.type == .lShape }
-        let singleBlock = availableBlocks.first { $0.type == .single }
-        let horizontalBlock = availableBlocks.first { $0.type == .horizontal }
-        
-        XCTAssertEqual(lShapeBlock?.color, .orange)
-        XCTAssertEqual(singleBlock?.color, .blue)
-        XCTAssertEqual(horizontalBlock?.color, .green)
+
+    func testFactoryConsumeBlockKeepsRemainingSlots() {
+        let initialSlots = blockFactory.getTraySlots()
+        blockFactory.consumeBlock(at: 0)
+
+        let updatedSlots = blockFactory.getTraySlots()
+        XCTAssertEqual(updatedSlots.count, initialSlots.count)
+        XCTAssertNil(updatedSlots[0])
+        XCTAssertTrue(updatedSlots[1...].allSatisfy { $0 != nil })
+        XCTAssertTrue(blockFactory.hasAvailableBlocks)
     }
-    
-    // MARK: - Block Access Tests
-    
-    func testBlockFactory_HasAvailableBlocks() {
-        // Given/When
-        let hasBlocks = blockFactory.hasAvailableBlocks
-        
-        // Then
-        XCTAssertTrue(hasBlocks)
-    }
-    
-    func testBlockFactory_GetBlockByIndex() {
-        // Given
-        let availableBlocks = blockFactory.getAvailableBlocks()
-        
-        // When
-        let firstBlock = blockFactory.getBlock(at: 0)
-        let secondBlock = blockFactory.getBlock(at: 1)
-        let thirdBlock = blockFactory.getBlock(at: 2)
-        
-        // Then
-        XCTAssertNotNil(firstBlock)
-        XCTAssertNotNil(secondBlock)
-        XCTAssertNotNil(thirdBlock)
-        XCTAssertEqual(firstBlock?.type, availableBlocks[0].type)
-        XCTAssertEqual(secondBlock?.type, availableBlocks[1].type)
-        XCTAssertEqual(thirdBlock?.type, availableBlocks[2].type)
-    }
-    
-    func testBlockFactory_GetBlockByInvalidIndex() {
-        // Given/When
-        let invalidBlock1 = blockFactory.getBlock(at: -1)
-        let invalidBlock2 = blockFactory.getBlock(at: 3)
-        
-        // Then
-        XCTAssertNil(invalidBlock1)
-        XCTAssertNil(invalidBlock2)
-    }
-    
-    // MARK: - Block Regeneration Tests
-    
-    func testBlockFactory_RegenerateBlock() {
-        // Given
-        let originalBlocks = blockFactory.getAvailableBlocks()
-        let originalFirstBlock = originalBlocks[0]
-        
-        // When
-        blockFactory.regenerateBlock(at: 0)
-        let newBlocks = blockFactory.getAvailableBlocks()
-        let newFirstBlock = newBlocks[0]
-        
-        // Then
-        XCTAssertEqual(newBlocks.count, 3)
-        XCTAssertEqual(newFirstBlock.type, originalFirstBlock.type)
-        XCTAssertEqual(newFirstBlock.color, originalFirstBlock.color)
-    }
-    
-    func testBlockFactory_RegenerateBlockInvalidIndex() {
-        // Given
-        let originalBlocks = blockFactory.getAvailableBlocks()
-        
-        // When
-        blockFactory.regenerateBlock(at: -1)
-        blockFactory.regenerateBlock(at: 3)
-        let newBlocks = blockFactory.getAvailableBlocks()
-        
-        // Then - blocks should remain unchanged
-        XCTAssertEqual(newBlocks.count, originalBlocks.count)
-        for (index, block) in newBlocks.enumerated() {
-            XCTAssertEqual(block.type, originalBlocks[index].type)
-            XCTAssertEqual(block.color, originalBlocks[index].color)
+
+    func testFactoryRefreshesAfterAllConsumed() {
+        let firstCycleTypes = Set(blockFactory.getTraySlots().compactMap { $0?.type })
+
+        for index in 0..<3 {
+            blockFactory.consumeBlock(at: index)
         }
+
+        let refreshedSlots = blockFactory.getTraySlots()
+        XCTAssertTrue(refreshedSlots.allSatisfy { $0 != nil })
+        let refreshedTypes = Set(refreshedSlots.compactMap { $0?.type })
+        XCTAssertEqual(refreshedTypes.count, 3)
+        XCTAssertNotEqual(refreshedTypes, firstCycleTypes)
     }
-    
-    func testBlockFactory_RegenerateAllBlocks() {
-        // Given
-        let originalBlocks = blockFactory.getAvailableBlocks()
-        
-        // When
-        blockFactory.regenerateAllBlocks()
-        let newBlocks = blockFactory.getAvailableBlocks()
-        
-        // Then
-        XCTAssertEqual(newBlocks.count, 3)
-        
-        // Verify types and colors are preserved
-        let newBlockTypes = newBlocks.map { $0.type }
-        let originalBlockTypes = originalBlocks.map { $0.type }
-        
-        for originalType in originalBlockTypes {
-            XCTAssertTrue(newBlockTypes.contains(originalType))
-        }
+
+    func testFactoryGetBlockHandlesInvalidIndex() {
+        XCTAssertNil(blockFactory.getBlock(at: -1))
+        XCTAssertNil(blockFactory.getBlock(at: 3))
+        XCTAssertNil(blockFactory.getBlock(at: 99))
+    }
+
+    func testFactoryResetTrayGeneratesNewSet() {
+        let originalTypes = Set(blockFactory.getTraySlots().compactMap { $0?.type })
+        blockFactory.resetTray()
+        let refreshedTypes = Set(blockFactory.getTraySlots().compactMap { $0?.type })
+
+        XCTAssertEqual(refreshedTypes.count, 3)
+        XCTAssertNotEqual(originalTypes, refreshedTypes)
     }
 }

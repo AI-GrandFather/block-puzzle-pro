@@ -80,7 +80,11 @@ struct GridCellView: View {
             }
         }
         .scaleEffect(isHighlighted ? 1.08 : 1.0)
-        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isHighlighted)
+        .promotionSpring(
+            response: 0.4,
+            dampingFraction: 0.7,
+            value: isHighlighted
+        )
     }
     
     private var cellColor: Color {
@@ -153,8 +157,11 @@ struct ParticleBurstView: View {
             )
         }
 
-        // Animate particles outward
-        withAnimation(.easeOut(duration: 0.6)) {
+        // Animate particles outward with ProMotion optimization
+        let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
+        let duration = isProMotion ? 0.5 : 0.6
+
+        withAnimation(.easeOut(duration: duration)) {
             for i in particleStates.indices {
                 particleStates[i].position.x += particleStates[i].velocity.x
                 particleStates[i].position.y += particleStates[i].velocity.y
@@ -246,24 +253,27 @@ struct LineClearEffectView: View {
             ParticleBurstView(cellSize: cellSize)
         }
         .onAppear {
-            // Sequence of animations
-            withAnimation(.easeOut(duration: 0.1)) {
+            let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
+            let speedMultiplier: Double = isProMotion ? 0.7 : 1.0
+
+            // Sequence of animations optimized for refresh rate
+            withAnimation(.easeOut(duration: 0.1 * speedMultiplier)) {
                 glowIntensity = 1.0
                 sparkleOpacity = 1.0
             }
 
-            // Shimmer sweep
-            withAnimation(.easeInOut(duration: 0.3).delay(0.05)) {
+            // Shimmer sweep - faster on ProMotion
+            withAnimation(.easeInOut(duration: 0.25 * speedMultiplier).delay(0.05 * speedMultiplier)) {
                 shimmerOffset = cellSize + 50
             }
 
-            // Sparkle rotation
-            withAnimation(.linear(duration: 0.5).repeatCount(2, autoreverses: false)) {
+            // Sparkle rotation - smoother on 120Hz
+            withAnimation(.linear(duration: 0.4 * speedMultiplier).repeatCount(2, autoreverses: false)) {
                 sparkleRotation = 360
             }
 
-            // Glow pulse
-            withAnimation(.easeInOut(duration: 0.2).delay(0.1).repeatCount(2, autoreverses: true)) {
+            // Glow pulse - more responsive on ProMotion
+            withAnimation(.easeInOut(duration: 0.15 * speedMultiplier).delay(0.08 * speedMultiplier).repeatCount(2, autoreverses: true)) {
                 glowIntensity = 0.7
             }
 

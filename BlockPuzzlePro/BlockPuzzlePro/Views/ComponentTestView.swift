@@ -49,8 +49,9 @@ struct ComponentTestView: View {
         testResults["GameEngine Initialization"] = gameEngine.score == 0
         
         // Test 2: BlockFactory creation
-        blockFactory.regenerateAllBlocks()
-        testResults["BlockFactory Creates Blocks"] = blockFactory.hasAvailableBlocks && blockFactory.availableBlocks.count == 3
+        blockFactory.resetTray()
+        let traySlots = blockFactory.getTraySlots()
+        testResults["BlockFactory Creates Blocks"] = traySlots.count == 3 && traySlots.allSatisfy { $0 != nil }
         
         // Test 3: Grid operations
         let testPosition = GridPosition(unsafeRow: 0, unsafeColumn: 0)
@@ -58,8 +59,7 @@ struct ComponentTestView: View {
         testResults["Grid Can Place Blocks"] = canPlace
         
         // Test 4: Block patterns
-        let lShapeBlock = blockFactory.availableBlocks.first { $0.type == .lShape }
-        testResults["L-Shape Block Pattern"] = lShapeBlock != nil && lShapeBlock!.occupiedPositions.count == 3
+        testResults["Unique Tray Types"] = Set(blockFactory.availableBlocks.map { $0.type }).count == blockFactory.availableBlocks.count
         
         // Test 5: DeviceManager configuration
         testResults["DeviceManager Configuration"] = deviceManager.preferredCellSize > 0

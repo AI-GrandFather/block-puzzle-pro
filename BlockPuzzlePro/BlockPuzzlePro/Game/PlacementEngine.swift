@@ -279,6 +279,7 @@ final class PlacementEngine: ObservableObject {
             }
         }
 
+        let placedCellCount = previewPositions.count
         let success = gameEngine.placeBlocks(at: previewPositions, color: blockPattern.color)
 
         if success {
@@ -286,6 +287,9 @@ final class PlacementEngine: ObservableObject {
             let lineClearResult = gameEngine.processCompletedLines()
             if !lineClearResult.isEmpty {
                 logger.info("Line clear triggered: rows=\(lineClearResult.rows) columns=\(lineClearResult.columns)")
+            }
+            if let scoreEvent = gameEngine.applyScore(placedCells: placedCellCount, lineClearResult: lineClearResult) {
+                logger.info("Placement score event: +\(scoreEvent.totalDelta) (cells=\(scoreEvent.placedCells), lines=\(scoreEvent.linesCleared)) -> total \(scoreEvent.newTotal)")
             }
         } else {
             logger.error("Failed to place block at positions: \(self.previewPositions) - this should not happen after validation")

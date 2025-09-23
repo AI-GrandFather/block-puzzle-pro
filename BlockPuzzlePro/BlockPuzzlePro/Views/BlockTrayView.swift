@@ -34,15 +34,13 @@ struct BlockTrayView: View {
             
             // Main tray container
             HStack(spacing: 0) {
-                ForEach(Array(blockFactory.getAvailableBlocks().enumerated()), id: \.offset) { index, blockPattern in
+                ForEach(Array(blockFactory.getTraySlots().enumerated()), id: \.offset) { index, blockPattern in
                     blockSlot(for: blockPattern, at: index)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(trayBackground)
-            .cornerRadius(12)
-            .shadow(color: shadowColor, radius: 4, x: 0, y: 2)
         }
     }
     
@@ -56,7 +54,7 @@ struct BlockTrayView: View {
             
             Spacer()
             
-            Text("\(blockFactory.getAvailableBlocks().count)")
+            Text("\(blockFactory.availableBlocks.count)")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -64,7 +62,7 @@ struct BlockTrayView: View {
         .padding(.bottom, 8)
     }
     
-    private func blockSlot(for blockPattern: BlockPattern, at index: Int) -> some View {
+    private func blockSlot(for blockPattern: BlockPattern?, at index: Int) -> some View {
         let isSelected = selectedBlockIndex == index
         let blockSize = calculateBlockSlotSize()
         
@@ -77,50 +75,76 @@ struct BlockTrayView: View {
                     .frame(width: blockSize.width, height: blockSize.height)
                 
                 // Block view
-                BlockView(
-                    blockPattern: blockPattern,
-                    cellSize: cellSize,
-                    isInteractive: true
-                )
-                .scaleEffect(isSelected ? 1.1 : 1.0)
-                .animation(.easeInOut(duration: 0.2), value: isSelected)
+                if let pattern = blockPattern {
+                    BlockView(
+                        blockPattern: pattern,
+                        cellSize: cellSize,
+                        isInteractive: true
+                    )
+                    .scaleEffect(isSelected ? 1.1 : 1.0)
+                    .animation(.easeInOut(duration: 0.2), value: isSelected)
+                } else {
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [5]))
+                        .foregroundColor(.secondary.opacity(0.35))
+                        .frame(width: blockSize.width - 8, height: blockSize.height - 8)
+                        .overlay(
+                            Image(systemName: "hourglass")
+                                .font(.title3.bold())
+                                .foregroundColor(.secondary.opacity(0.5))
+                        )
+                }
             }
             .frame(width: blockSize.width, height: blockSize.height)
             .contentShape(Rectangle()) // Makes entire area tappable
             .onTapGesture {
-                handleBlockSelection(at: index, blockPattern: blockPattern)
+                guard let pattern = blockPattern else { return }
+                handleBlockSelection(at: index, blockPattern: pattern)
             }
             .accessibilityAddTraits(.isButton)
-            .accessibilityLabel("Select \(blockPattern.type.displayName)")
-            .accessibilityHint("Double tap to select this block for placement")
+            .accessibilityLabel(blockPattern?.type.displayName ?? "Slot empty")
+            .accessibilityHint(blockPattern == nil ? "Slot waits for the next block refresh" : "Double tap to select this block for placement")
             
             // Block type indicator
-            Text(blockTypeIndicator(for: blockPattern.type))
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .opacity(0.8)
+            if let pattern = blockPattern {
+                Text(blockTypeIndicator(for: pattern.type))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .opacity(0.8)
+            } else {
+                Text("Awaiting")
+                    .font(.caption2)
+                    .foregroundColor(.secondary.opacity(0.6))
+            }
         }
         .frame(maxWidth: .infinity) // Equal spacing
         .padding(.horizontal, 8)
     }
     
-    private var trayBackground: Color {
-        colorScheme == .dark ? 
-            Color(UIColor.systemGray6) : 
-            Color(UIColor.systemGray5)
-    }
-    
-    private var shadowColor: Color {
-        colorScheme == .dark ? 
-            Color.black.opacity(0.3) : 
-            Color.gray.opacity(0.2)
+    private var trayBackground: some View {
+        let gradient = LinearGradient(
+            colors: [
+                Color(UIColor.secondarySystemBackground).opacity(colorScheme == .dark ? 0.6 : 0.85),
+                Color(UIColor.systemBackground).opacity(colorScheme == .dark ? 0.4 : 0.7)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+
+        return RoundedRectangle(cornerRadius: 18)
+            .fill(gradient)
+            .overlay(
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.18), radius: 14, x: 0, y: 10)
     }
     
     // MARK: - Helper Methods
     
     private func calculateBlockSlotSize() -> CGSize {
-        let maxBlockWidth: CGFloat = 2 * cellSize + 2 // 2 cells + spacing
-        let maxBlockHeight: CGFloat = 2 * cellSize + 2 // 2 cells + spacing
+        let maxBlockWidth: CGFloat = 3 * cellSize + 6 // accommodate wider shapes
+        let maxBlockHeight: CGFloat = 3 * cellSize + 6 // accommodate taller shapes
         let padding: CGFloat = 16
         
         return CGSize(
@@ -132,8 +156,14 @@ struct BlockTrayView: View {
     private func blockTypeIndicator(for blockType: BlockType) -> String {
         switch blockType {
         case .single: return "•"
-        case .horizontal: return "••" 
-        case .lShape: return "L"
+        case .horizontal: return "═"
+        case .vertical: return "║"
+        case .lineThree: return "≡"
+        case .square: return "▣"
+        case .lShape: return "└"
+        case .tShape: return "┴"
+        case .zigZag: return "≈"
+        case .plus: return "✛"
         }
     }
     

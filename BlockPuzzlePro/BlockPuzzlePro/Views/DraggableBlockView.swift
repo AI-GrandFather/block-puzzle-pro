@@ -297,7 +297,7 @@ struct DraggableBlockTrayView: View {
             
             // Main tray container with draggable blocks
             HStack(spacing: 0) {
-                ForEach(Array(blockFactory.getAvailableBlocks().enumerated()), id: \.offset) { index, blockPattern in
+                ForEach(Array(blockFactory.getTraySlots().enumerated()), id: \.offset) { index, blockPattern in
                     draggableBlockSlot(for: blockPattern, at: index)
                 }
             }
@@ -323,7 +323,7 @@ struct DraggableBlockTrayView: View {
             
             Spacer()
             
-            Text("\(blockFactory.getAvailableBlocks().count)")
+            Text("\(blockFactory.availableBlocks.count)")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -331,10 +331,10 @@ struct DraggableBlockTrayView: View {
         .padding(.bottom, 8)
     }
     
-    private func draggableBlockSlot(for blockPattern: BlockPattern, at index: Int) -> some View {
+    private func draggableBlockSlot(for blockPattern: BlockPattern?, at index: Int) -> some View {
         let blockSize = calculateBlockSlotSize()
         let isDragged = dragController.isBlockDragged(index)
-        
+
         return VStack(spacing: 8) {
             // Block slot container
             ZStack {
@@ -351,20 +351,32 @@ struct DraggableBlockTrayView: View {
                     )
 
                 // Draggable block (kept in hierarchy so gesture can finish reliably)
-                DraggableBlockView(
-                    blockPattern: blockPattern,
-                    blockIndex: index,
-                    cellSize: cellSize,
-                    dragController: dragController
-                )
-                .opacity(isDragged ? 0.0001 : 1.0)
-                .allowsHitTesting(!isDragged || dragController.draggedBlockIndex == index)
+                if let pattern = blockPattern {
+                    DraggableBlockView(
+                        blockPattern: pattern,
+                        blockIndex: index,
+                        cellSize: cellSize,
+                        dragController: dragController
+                    )
+                    .opacity(isDragged ? 0.0001 : 1.0)
+                    .allowsHitTesting(!isDragged || dragController.draggedBlockIndex == index)
+                } else {
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [5]))
+                        .foregroundColor(.secondary.opacity(0.35))
+                        .padding(12)
+                        .overlay(
+                            Image(systemName: "sparkles")
+                                .font(.headline)
+                                .foregroundColor(.secondary.opacity(0.6))
+                        )
+                }
             }
             .frame(width: blockSize.width, height: blockSize.height)
             .contentShape(Rectangle())
 
             // Block type indicator
-            Text(blockTypeIndicator(for: blockPattern.type))
+            Text(blockTypeIndicator(for: blockPattern?.type))
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .opacity(isDragged ? 0.5 : 0.8)
@@ -406,21 +418,29 @@ struct DraggableBlockTrayView: View {
     // MARK: - Helper Methods
     
     private func calculateBlockSlotSize() -> CGSize {
-        let maxBlockWidth: CGFloat = 2 * cellSize + 2
-        let maxBlockHeight: CGFloat = 2 * cellSize + 2
+        let maxBlockWidth: CGFloat = 3 * cellSize + 6
+        let maxBlockHeight: CGFloat = 3 * cellSize + 6
         let padding: CGFloat = 16
-        
+
         return CGSize(
             width: maxBlockWidth + padding,
             height: maxBlockHeight + padding
         )
     }
-    
-    private func blockTypeIndicator(for blockType: BlockType) -> String {
+
+    private func blockTypeIndicator(for blockType: BlockType?) -> String {
+        guard let blockType = blockType else { return "…" }
+
         switch blockType {
         case .single: return "•"
-        case .horizontal: return "••"
-        case .lShape: return "L"
+        case .horizontal: return "═"
+        case .vertical: return "║"
+        case .lineThree: return "≡"
+        case .square: return "▣"
+        case .lShape: return "└"
+        case .tShape: return "┴"
+        case .zigZag: return "≈"
+        case .plus: return "✛"
         }
     }
 
