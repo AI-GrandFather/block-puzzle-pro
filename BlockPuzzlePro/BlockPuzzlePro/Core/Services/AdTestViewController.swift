@@ -129,7 +129,9 @@ class AdTestViewController: UIViewController {
     private func setupAdManager() {
         Task {
             // Wait for AdManager to initialize
-            while !(await AdManager.shared.isAdManagerInitialized) {
+            while true {
+                let initialized = await MainActor.run { AdManager.shared.isAdManagerInitialized }
+                if initialized { break }
                 try? await Task.sleep(for: .seconds(0.5))
             }
             
@@ -212,8 +214,8 @@ class AdTestViewController: UIViewController {
     
     private func updateDebugInfo() {
         Task {
-            let adInfo = await AdManager.shared.getDebugInfo()
-            let attInfo = ATTManager.shared.getDebugInfo()
+            let adInfo = await MainActor.run { AdManager.shared.getDebugInfo() }
+            let attInfo = await MainActor.run { ATTManager.shared.getDebugInfo() }
             let configInfo = """
             Configuration Debug Info:
             - Environment: \(AdMobConfig.isProduction ? "Production" : "Test")

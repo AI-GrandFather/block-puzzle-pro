@@ -98,12 +98,7 @@ struct ScoreView: View {
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
                     .scaleEffect(scale)
-                    .overlay(
-                        Text("\(score)")
-                            .font(.system(size: 52, weight: .black, design: .rounded))
-                            .stroke(scoreStroke, lineWidth: 3)
-                            .opacity(0.55)
-                    )
+                    .overlay(scoreOutline)
                     .shadow(color: Color.black.opacity(0.25), radius: 12, x: 0, y: 6)
                     .accessibilityLabel("Current score \(score)")
 
@@ -189,11 +184,32 @@ struct ScoreView: View {
         )
     }
 
-    private var scoreStroke: LinearGradient {
+    private var scoreOutline: some View {
+        let offsets: [CGSize] = [
+            .init(width: 1.4, height: 1.4),
+            .init(width: -1.4, height: 1.4),
+            .init(width: 1.4, height: -1.4),
+            .init(width: -1.4, height: -1.4)
+        ]
+
+        return ZStack {
+            ForEach(offsets.indices, id: \.self) { index in
+                scoreOutlineGradient
+                    .mask(
+                        Text("\(score)")
+                            .font(.system(size: 52, weight: .black, design: .rounded))
+                    )
+                    .offset(x: offsets[index].width, y: offsets[index].height)
+            }
+        }
+        .opacity(0.45)
+    }
+
+    private var scoreOutlineGradient: LinearGradient {
         LinearGradient(
             colors: [
-                Color.white.opacity(0.8),
-                Color(red: 0.62, green: 0.76, blue: 1.0).opacity(0.65)
+                Color(red: 0.62, green: 0.76, blue: 1.0),
+                Color.white
             ],
             startPoint: .top,
             endPoint: .bottom
