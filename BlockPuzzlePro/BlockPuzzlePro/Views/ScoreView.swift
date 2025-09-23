@@ -60,15 +60,15 @@ struct ScoreView: View {
 
             Text("\(highScore)")
                 .font(.system(size: 18, weight: .heavy, design: .rounded))
-                .foregroundStyle(goldenGradient)
+                .foregroundStyle(highScoreFill)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(
                     Capsule()
-                        .fill(Color.white.opacity(0.15))
+                        .fill(Color.white.opacity(0.12))
                         .overlay(
                             Capsule()
-                                .stroke(goldenGradient, lineWidth: 1)
+                                .stroke(highScoreStroke, lineWidth: 1)
                         )
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
@@ -93,11 +93,18 @@ struct ScoreView: View {
         ZStack(alignment: .topTrailing) {
             VStack(alignment: .center, spacing: 8) {
                 Text("\(score)")
-                    .font(.system(size: 44, weight: .black, design: .rounded))
-                    .foregroundStyle(scoreGradient)
+                    .font(.system(size: 52, weight: .black, design: .rounded))
+                    .foregroundStyle(scoreFill)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
                     .scaleEffect(scale)
+                    .overlay(
+                        Text("\(score)")
+                            .font(.system(size: 52, weight: .black, design: .rounded))
+                            .stroke(scoreStroke, lineWidth: 3)
+                            .opacity(0.55)
+                    )
+                    .shadow(color: Color.black.opacity(0.25), radius: 12, x: 0, y: 6)
                     .accessibilityLabel("Current score \(score)")
 
                 if let bonus = lastEvent?.lineClearBonus, bonus > 0 {
@@ -127,17 +134,8 @@ struct ScoreView: View {
                     .offset(y: deltaOffset)
             }
         }
-        .padding(.horizontal, 26)
-        .padding(.vertical, 24)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(glassGradient)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.12), radius: 14, x: 0, y: 10)
-        )
+        .padding(.horizontal, 16)
+        .padding(.vertical, 4)
         .frame(minWidth: 200)
     }
 
@@ -145,17 +143,6 @@ struct ScoreView: View {
         guard let event = lastEvent, event.totalDelta != 0 else { return nil }
         let symbol = event.totalDelta > 0 ? "+" : ""
         return "\(symbol)\(event.totalDelta)"
-    }
-
-    private var glassGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(UIColor.systemBackground).opacity(0.92),
-                Color(UIColor.secondarySystemBackground).opacity(0.65)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
     }
 
     private func accentGradient(opacity: Double) -> LinearGradient {
@@ -169,11 +156,44 @@ struct ScoreView: View {
         )
     }
 
-    private var scoreGradient: LinearGradient {
+    private var highScoreFill: LinearGradient {
         LinearGradient(
             colors: [
-                Color(red: 0.24, green: 0.53, blue: 0.96),
-                Color(red: 0.45, green: 0.75, blue: 1.0)
+                Color(red: 0.60, green: 0.80, blue: 1.0),
+                Color(red: 0.46, green: 0.69, blue: 0.99)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var highScoreStroke: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(red: 0.35, green: 0.58, blue: 0.95),
+                Color(red: 0.67, green: 0.85, blue: 1.0)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private var scoreFill: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.white,
+                Color(red: 0.88, green: 0.93, blue: 1.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var scoreStroke: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.white.opacity(0.8),
+                Color(red: 0.62, green: 0.76, blue: 1.0).opacity(0.65)
             ],
             startPoint: .top,
             endPoint: .bottom

@@ -49,10 +49,10 @@ struct VisualConstants {
     
     struct Colors {
         /// Grid background color
-        static let gridBackground = SKColor.systemBackground
-        
+        static let gridBackground = SKColor(red: 0.09, green: 0.18, blue: 0.39, alpha: 1.0)
+
         /// Grid line color - subtle gray for clean geometric style
-        static let gridLines = SKColor(red: 0.875, green: 0.875, blue: 0.875, alpha: 1.0) // #E0E0E0
+        static let gridLines = SKColor(red: 0.12, green: 0.18, blue: 0.33, alpha: 1.0)
         
         /// Valid placement zone highlight - subtle green tint
         static let validPlacement = SKColor(red: 0.91, green: 0.96, blue: 0.91, alpha: 1.0) // #E8F5E8
@@ -61,16 +61,16 @@ struct VisualConstants {
         static let invalidPlacement = SKColor(red: 0.96, green: 0.91, blue: 0.91, alpha: 1.0) // #F5E8E8
         
         /// Cell border color - neutral gray
-        static let cellBorder = SKColor(red: 0.8, green: 0.8, blue: 0.8, alpha: 1.0) // #CCCCCC
-        
+        static let cellBorder = SKColor(red: 0.06, green: 0.12, blue: 0.26, alpha: 1.0)
+
         /// Empty cell background - clean white/neutral
-        static let emptyCellBackground = SKColor(red: 0.98, green: 0.98, blue: 0.98, alpha: 1.0) // #FAFAFA
-        
+        static let emptyCellBackground = SKColor(red: 0.11, green: 0.21, blue: 0.43, alpha: 1.0)
+
         /// Hover state color for interactive feedback
-        static let hoverState = SKColor(red: 0.94, green: 0.94, blue: 0.96, alpha: 1.0) // #F0F0F5
-        
+        static let hoverState = SKColor(red: 0.17, green: 0.28, blue: 0.53, alpha: 1.0)
+
         /// Grid container shadow/outline
-        static let gridShadow = SKColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 0.05)
+        static let gridShadow = SKColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 0.25)
         
         /// High contrast colors for accessibility
         static let highContrastBorder = SKColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1.0)

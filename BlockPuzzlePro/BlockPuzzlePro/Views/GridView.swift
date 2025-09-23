@@ -47,9 +47,14 @@ struct GridView: View {
                 )
             }
         }
-        .padding(gridSpacing)
-        .background(Color(UIColor.systemGray6))
-        .cornerRadius(8)
+        .padding(gridSpacing * 1.5)
+        .background(BoardPalette.boardBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(BoardPalette.boardBorder, lineWidth: 2)
+        )
+        .shadow(color: BoardPalette.boardShadow, radius: 12, x: 0, y: 8)
+        .cornerRadius(18)
     }
 }
 
@@ -68,7 +73,7 @@ struct GridCellView: View {
                 .frame(width: cellSize, height: cellSize)
                 .overlay(
                     Rectangle()
-                        .stroke(Color(UIColor.systemGray5), lineWidth: 0.5)
+                        .stroke(BoardPalette.cellStroke, lineWidth: 1)
                 )
             
             if isHighlighted {
@@ -89,13 +94,32 @@ struct GridCellView: View {
     private var cellColor: Color {
         switch cell {
         case .empty:
-            return Color(UIColor.systemBackground)
+            return BoardPalette.emptyCell
         case .occupied(let blockColor):
             return Color(blockColor.uiColor)
         case .preview(let blockColor):
             return Color(blockColor.uiColor).opacity(0.5)
         }
     }
+}
+
+// MARK: - Palette
+
+private enum BoardPalette {
+    static let boardBackground = LinearGradient(
+        colors: [
+            Color(red: 0.09, green: 0.18, blue: 0.39),
+            Color(red: 0.07, green: 0.14, blue: 0.31)
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    static let boardBorder = Color(red: 0.04, green: 0.08, blue: 0.18).opacity(0.8)
+    static let boardShadow = Color.black.opacity(0.25)
+
+    static let emptyCell = Color(red: 0.11, green: 0.21, blue: 0.43)
+    static let cellStroke = Color(red: 0.06, green: 0.12, blue: 0.26)
 }
 
 // MARK: - Particle Burst Effect
