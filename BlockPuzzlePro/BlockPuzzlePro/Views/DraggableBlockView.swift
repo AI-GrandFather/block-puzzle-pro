@@ -361,15 +361,8 @@ struct DraggableBlockTrayView: View {
                     .opacity(isDragged ? 0.0001 : 1.0)
                     .allowsHitTesting(!isDragged || dragController.draggedBlockIndex == index)
                 } else {
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [5]))
-                        .foregroundColor(.secondary.opacity(0.35))
-                        .padding(12)
-                        .overlay(
-                            Image(systemName: "sparkles")
-                                .font(.headline)
-                                .foregroundColor(.secondary.opacity(0.6))
-                        )
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.white.opacity(0.25))
                 }
             }
             .frame(width: blockSize.width, height: blockSize.height)
@@ -388,7 +381,7 @@ struct DraggableBlockTrayView: View {
     private var trayBackground: Color {
         colorScheme == .dark ?
             Color(UIColor.systemGray6) :
-            Color(UIColor.systemGray5)
+            Color(UIColor.systemGray4).opacity(0.6)
     }
     
     private var shadowColor: Color {
@@ -399,19 +392,17 @@ struct DraggableBlockTrayView: View {
     
     private func slotBackgroundColor(isDragged: Bool) -> Color {
         if isDragged {
-            return colorScheme == .dark ?
-                Color(UIColor.systemGray5) :
-                Color(UIColor.systemGray4)
+            return Color.white.opacity(0.35)
         } else {
-            return Color.clear
+            return Color.white.opacity(0.18)
         }
     }
-    
+
     private func slotBorderColor(isDragged: Bool) -> Color {
         if isDragged {
-            return Color.blue.opacity(0.5)
+            return Color.accentColor.opacity(0.45)
         } else {
-            return Color.clear
+            return Color.white.opacity(0.22)
         }
     }
     
@@ -429,7 +420,7 @@ struct DraggableBlockTrayView: View {
     }
 
     private func blockTypeIndicator(for blockType: BlockType?) -> String {
-        guard let blockType = blockType else { return "…" }
+        guard let blockType = blockType else { return "" }
 
         switch blockType {
         case .single: return "•"

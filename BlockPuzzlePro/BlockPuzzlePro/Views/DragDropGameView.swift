@@ -205,10 +205,7 @@ struct DragDropGameView: View {
     
     private func header(in geometry: GeometryProxy) -> some View {
         HStack(alignment: .center, spacing: 16) {
-            HighScoreBadge(
-                highScore: gameEngine.highScore,
-                isNewHighScore: gameEngine.lastScoreEvent?.isNewHighScore ?? false
-            )
+            HighScoreBadge(highScore: gameEngine.highScore)
 
             Spacer(minLength: 12)
 
@@ -216,7 +213,7 @@ struct DragDropGameView: View {
                 score: gameEngine.score,
                 lastEvent: gameEngine.lastScoreEvent
             )
-            .frame(minWidth: 120)
+            .frame(maxWidth: .infinity)
 
             Spacer(minLength: 12)
 

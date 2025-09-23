@@ -11,69 +11,33 @@ struct ScoreView: View {
 
     var body: some View {
         scoreStack
-            .onAppear {
-                scale = 1.0
-            }
-        .onChange(of: score) { _, _ in
-            let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
-            let responseMultiplier: Double = isProMotion ? 0.7 : 1.0
-
-            withAnimation(.spring(response: 0.35 * responseMultiplier, dampingFraction: 0.6)) {
-                scale = 1.12
-            }
-            withAnimation(.spring(response: 0.5 * responseMultiplier, dampingFraction: 0.8).delay(0.12 * responseMultiplier)) {
-                scale = 1.0
-            }
-        }
-        .onChange(of: lastEvent?.newTotal) { _, _ in
-            guard let event = lastEvent, event.totalDelta != 0 else { return }
-            let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
-            let speedMultiplier: Double = isProMotion ? 0.8 : 1.0
-
-            deltaOpacity = 1.0
-            deltaOffset = -8.0
-            withAnimation(.easeOut(duration: 0.45 * speedMultiplier)) {
-                deltaOffset = -26.0
-            }
-            withAnimation(.easeOut(duration: 0.4 * speedMultiplier).delay(0.25 * speedMultiplier)) {
-                deltaOpacity = 0.0
-            }
-        }
+            .onAppear { scale = 1.0 }
+            .onChange(of: score) { _, _ in animateScore() }
+            .onChange(of: lastEvent?.newTotal) { _, _ in animateDeltaIfNeeded() }
     }
 
     private var scoreStack: some View {
         ZStack(alignment: .topTrailing) {
-            VStack(alignment: .center, spacing: 8) {
-                Text("\(score)")
-                    .font(.system(size: 52, weight: .black, design: .rounded))
-                    .foregroundStyle(scoreFill)
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
-                    .scaleEffect(scale)
-                    .overlay(scoreOutline)
-                    .shadow(color: Color.black.opacity(0.25), radius: 12, x: 0, y: 6)
-                    .accessibilityLabel("Current score \(score)")
-
-                if let bonus = lastEvent?.lineClearBonus, bonus > 0 {
-                    Text("Combo bonus +\(bonus)")
-                        .font(.caption2)
-                        .foregroundStyle(Color.accentColor)
-                        .transition(.opacity)
-                }
-            }
-            .frame(maxWidth: .infinity)
+            Text("\(score)")
+                .font(.system(size: 44, weight: .heavy, design: .rounded))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .multilineTextAlignment(.center)
+                .scaleEffect(scale)
+                .accessibilityLabel("Current score \(score)")
 
             if let deltaText = deltaText {
                 Text(deltaText)
                     .font(.caption.bold())
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
                     .background(
                         Capsule()
-                            .fill(accentGradient(opacity: 0.22))
+                            .fill(accentGradient(opacity: 0.18))
                             .overlay(
                                 Capsule()
-                                    .stroke(accentGradient(opacity: 0.65), lineWidth: 1)
+                                    .stroke(accentGradient(opacity: 0.4), lineWidth: 1)
                             )
                     )
                     .foregroundStyle(Color.accentColor)
@@ -81,8 +45,7 @@ struct ScoreView: View {
                     .offset(y: deltaOffset)
             }
         }
-        .padding(.horizontal, 12)
-        .frame(minWidth: 200)
+        .frame(minWidth: 140)
     }
 
     private var deltaText: String? {
@@ -102,54 +65,36 @@ struct ScoreView: View {
         )
     }
 
-    private var scoreFill: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color.white,
-                Color(red: 0.88, green: 0.93, blue: 1.0)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
+    private func animateScore() {
+        let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
+        let responseMultiplier: Double = isProMotion ? 0.7 : 1.0
 
-    private var scoreOutline: some View {
-        let offsets: [CGSize] = [
-            .init(width: 1.4, height: 1.4),
-            .init(width: -1.4, height: 1.4),
-            .init(width: 1.4, height: -1.4),
-            .init(width: -1.4, height: -1.4)
-        ]
-
-        return ZStack {
-            ForEach(offsets.indices, id: \.self) { index in
-                scoreOutlineGradient
-                    .mask(
-                        Text("\(score)")
-                            .font(.system(size: 52, weight: .black, design: .rounded))
-                    )
-                    .offset(x: offsets[index].width, y: offsets[index].height)
-            }
+        withAnimation(.spring(response: 0.35 * responseMultiplier, dampingFraction: 0.6)) {
+            scale = 1.12
         }
-        .opacity(0.45)
+        withAnimation(.spring(response: 0.5 * responseMultiplier, dampingFraction: 0.8).delay(0.12 * responseMultiplier)) {
+            scale = 1.0
+        }
     }
 
-    private var scoreOutlineGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(red: 0.62, green: 0.76, blue: 1.0),
-                Color.white
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
+    private func animateDeltaIfNeeded() {
+        guard let event = lastEvent, event.totalDelta != 0 else { return }
+        let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
+        let speedMultiplier: Double = isProMotion ? 0.8 : 1.0
 
+        deltaOpacity = 1.0
+        deltaOffset = -8.0
+        withAnimation(.easeOut(duration: 0.45 * speedMultiplier)) {
+            deltaOffset = -26.0
+        }
+        withAnimation(.easeOut(duration: 0.4 * speedMultiplier).delay(0.25 * speedMultiplier)) {
+            deltaOpacity = 0.0
+        }
+    }
 }
 
 struct HighScoreBadge: View {
     let highScore: Int
-    let isNewHighScore: Bool
 
     private let badgeGradient = LinearGradient(
         colors: [
@@ -161,44 +106,21 @@ struct HighScoreBadge: View {
     )
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Image(systemName: "crown.fill")
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(badgeGradient)
-                .shadow(color: Color.black.opacity(0.18), radius: 4, x: 0, y: 3)
 
             Text("\(highScore)")
-                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
                 .foregroundStyle(Color(red: 1.0, green: 0.58, blue: 0.25))
-
-            if isNewHighScore {
-                Text("NEW")
-                    .font(.caption.bold())
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(Color(red: 1.0, green: 0.58, blue: 0.25))
-                    )
-            }
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 14)
-        .background(
-            Capsule()
-                .fill(Color.white.opacity(0.15))
-        )
-        .overlay(
-            Capsule()
-                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-        )
     }
 }
 
 #Preview("Score View") {
     VStack(spacing: 20) {
-        HighScoreBadge(highScore: 2000, isNewHighScore: true)
+        HighScoreBadge(highScore: 2000)
         ScoreView(score: 1280, lastEvent: ScoreEvent(
             placedCells: 5,
             linesCleared: 1,
