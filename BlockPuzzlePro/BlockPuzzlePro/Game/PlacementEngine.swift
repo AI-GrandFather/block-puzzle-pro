@@ -53,7 +53,9 @@ final class PlacementEngine: ObservableObject {
     @Published private(set) var isCurrentPreviewValid: Bool = false
 
     /// Grid size constant
-    private let gridSize = GameEngine.gridSize
+    private var gridSize: Int {
+        gameEngine?.gridSize ?? 10 // Fallback to 10 if gameEngine is not available
+    }
 
     /// Cached last base grid position calculated from drag
     private var lastBaseGridPosition: GridPosition?
@@ -118,7 +120,7 @@ final class PlacementEngine: ObservableObject {
 
         guard column >= 0, row >= 0, column < gridSize, row < gridSize else { return nil }
 
-        return GridPosition(row: row, column: column)
+        return GridPosition(unsafeRow: row, unsafeColumn: column)
     }
 
     /// Convert grid position to screen position (cell centre)
@@ -153,7 +155,7 @@ final class PlacementEngine: ObservableObject {
                 for col in (targetPosition.column - distance)...(targetPosition.column + distance) {
                     if abs(row - targetPosition.row) == distance ||
                         abs(col - targetPosition.column) == distance {
-                        if let candidate = GridPosition(row: row, column: col),
+                        if let candidate = GridPosition(row: row, column: col, gridSize: gridSize),
                            case .valid = validatePlacement(blockPattern: blockPattern, at: candidate) {
                             return candidate
                         }
@@ -342,7 +344,7 @@ final class PlacementEngine: ObservableObject {
             return nil
         }
 
-        return GridPosition(row: row, column: column)
+        return GridPosition(unsafeRow: row, unsafeColumn: column)
     }
 
     /// Infer a grid position using the finger location when the projected origin falls outside the board
@@ -386,7 +388,7 @@ final class PlacementEngine: ObservableObject {
 
         logger.debug("anchorCell=(r:\(anchorCell.row, privacy: .public), c:\(anchorCell.column, privacy: .public)) fingerGrid=(r:\(fingerGridPosition.row, privacy: .public), c:\(fingerGridPosition.column, privacy: .public)) unclamped=(r:\(candidateRow, privacy: .public), c:\(candidateColumn, privacy: .public)) clamped=(r:\(clampedRow, privacy: .public), c:\(clampedColumn, privacy: .public)) patternSize=(w:\(patternWidth, privacy: .public), h:\(patternHeight, privacy: .public))")
 
-        guard let candidateBase = GridPosition(row: clampedRow, column: clampedColumn) else {
+        guard let candidateBase = GridPosition(row: clampedRow, column: clampedColumn, gridSize: gridSize) else {
             return nil
         }
 
@@ -478,7 +480,7 @@ final class PlacementEngine: ObservableObject {
             let targetRow = gridPosition.row + Int(cellPosition.y)
             let targetCol = gridPosition.column + Int(cellPosition.x)
 
-            if let targetGridPos = GridPosition(row: targetRow, column: targetCol) {
+            if let targetGridPos = GridPosition(row: targetRow, column: targetCol, gridSize: gridSize) {
                 positions.append(targetGridPos)
             }
         }
@@ -501,7 +503,7 @@ final class PlacementEngine: ObservableObject {
 
         for row in 0..<gridSize {
             for col in 0..<gridSize {
-                if let gridPos = GridPosition(row: row, column: col),
+                if let gridPos = GridPosition(row: row, column: col, gridSize: gridSize),
                    case .valid = validatePlacement(blockPattern: blockPattern, at: gridPos) {
                     validPositions.append(gridPos)
                 }
@@ -555,7 +557,7 @@ final class PlacementEngine: ObservableObject {
 
         for row in 0..<gridSize {
             for col in 0..<gridSize {
-                if let gridPos = GridPosition(row: row, column: col),
+                if let gridPos = GridPosition(row: row, column: col, gridSize: gridSize),
                    case .valid = validatePlacement(blockPattern: blockPattern, at: gridPos) {
                     suggestions.append(gridPos)
                     if suggestions.count >= limit {

@@ -5,7 +5,7 @@ import SwiftUI
 /// Test view to validate all components work together
 struct ComponentTestView: View {
     
-    @StateObject private var gameEngine = GameEngine()
+    @StateObject private var gameEngine = GameEngine(gameMode: .grid10x10)
     @StateObject private var blockFactory = BlockFactory()
     @StateObject private var dragController = DragController()
     @StateObject private var deviceManager = DeviceManager()
@@ -72,8 +72,8 @@ struct ComponentTestView: View {
         testResults["Color System"] = redColor.uiColor != nil
         
         // Test 8: Grid position validation
-        let validPos = GridPosition(row: 5, column: 5)
-        let invalidPos = GridPosition(row: -1, column: -1)
+        let validPos = GridPosition(row: 5, column: 5, gridSize: gameEngine.gridSize)
+        let invalidPos = GridPosition(row: -1, column: -1, gridSize: gameEngine.gridSize)
         testResults["Grid Position Validation"] = validPos != nil && invalidPos == nil
         
         DebugLog.trace("✅ All tests completed!")

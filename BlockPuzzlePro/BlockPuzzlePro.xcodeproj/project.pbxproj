@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		8F27CB432E75E170004E6A4C /* GameEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB342E75E170004E6A4C /* GameEngine.swift */; };
-		8F9999F12E75E999004E6A4C /* PlacementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9999F02E75E999004E6A4C /* PlacementEngine.swift */; };
 		8F27CB442E75E170004E6A4C /* GameAdIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB3D2E75E170004E6A4C /* GameAdIntegration.swift */; };
 		8F27CB452E75E170004E6A4C /* AdManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB392E75E170004E6A4C /* AdManager.swift */; };
 		8F27CB462E75E170004E6A4C /* VisualConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB402E75E170004E6A4C /* VisualConstants.swift */; };
@@ -25,8 +24,8 @@
 		8F27CB582E75E17F004E6A4C /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB512E75E17F004E6A4C /* GameView.swift */; };
 		8F27CB592E75E17F004E6A4C /* BlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB4E2E75E17F004E6A4C /* BlockView.swift */; };
 		8F27CB5D2E769512004E6A4C /* DragController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB5C2E769512004E6A4C /* DragController.swift */; };
-		B1A4F3022F0A4D1D00A12345 /* ScoreTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A4F3002F0A4D1D00A12345 /* ScoreTracker.swift */; };
-		B1A4F3032F0A4D1D00A12345 /* ScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A4F3012F0A4D1D00A12345 /* ScoreView.swift */; };
+		8F9999F12E75E999004E6A4C /* PlacementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9999F02E75E999004E6A4C /* PlacementEngine.swift */; };
+		8FF31A332E830F2800B882EE /* GameMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FF31A322E830F2800B882EE /* GameMode.swift */; };
 		A50001F72C8A1234000123AB /* BlockPuzzleProApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50001F62C8A1234000123AB /* BlockPuzzleProApp.swift */; };
 		A50001F92C8A1234000123AB /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = A50001F82C8A1234000123AB /* GameScene.sks */; };
 		A50001FB2C8A1234000123AB /* Actions.sks in Resources */ = {isa = PBXBuildFile; fileRef = A50001FA2C8A1234000123AB /* Actions.sks */; };
@@ -35,11 +34,12 @@
 		A50002022C8A1234000123AB /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A50002002C8A1234000123AB /* Main.storyboard */; };
 		A50002042C8A1235000123AB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A50002032C8A1235000123AB /* Assets.xcassets */; };
 		A50002072C8A1235000123AB /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A50002052C8A1235000123AB /* LaunchScreen.storyboard */; };
+		B1A4F3022F0A4D1D00A12345 /* ScoreTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A4F3002F0A4D1D00A12345 /* ScoreTracker.swift */; };
+		B1A4F3032F0A4D1D00A12345 /* ScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A4F3012F0A4D1D00A12345 /* ScoreView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		8F27CB342E75E170004E6A4C /* GameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngine.swift; sourceTree = "<group>"; };
-		8F9999F02E75E999004E6A4C /* PlacementEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementEngine.swift; sourceTree = "<group>"; };
 		8F27CB362E75E170004E6A4C /* BlockType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockType.swift; sourceTree = "<group>"; };
 		8F27CB372E75E170004E6A4C /* GridCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridCell.swift; sourceTree = "<group>"; };
 		8F27CB392E75E170004E6A4C /* AdManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdManager.swift; sourceTree = "<group>"; };
@@ -56,12 +56,12 @@
 		8F27CB512E75E17F004E6A4C /* GameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameView.swift; sourceTree = "<group>"; };
 		8F27CB522E75E17F004E6A4C /* GridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridView.swift; sourceTree = "<group>"; };
 		8F27CB5C2E769512004E6A4C /* DragController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragController.swift; sourceTree = "<group>"; };
-		B1A4F3002F0A4D1D00A12345 /* ScoreTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreTracker.swift; sourceTree = "<group>"; };
-		B1A4F3012F0A4D1D00A12345 /* ScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreView.swift; sourceTree = "<group>"; };
+		8F9999F02E75E999004E6A4C /* PlacementEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementEngine.swift; sourceTree = "<group>"; };
 		8FE754852E7AD76A0067A8D3 /* GameEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngineTests.swift; sourceTree = "<group>"; };
 		8FE754862E7AE26F0067A8D3 /* DragController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragController.swift; sourceTree = "<group>"; };
 		8FE754872E7AE4FD0067A8D3 /* DragController 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DragController 2.swift"; sourceTree = "<group>"; };
 		8FE754882E7AE5C20067A8D3 /* DragController 3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DragController 3.swift"; sourceTree = "<group>"; };
+		8FF31A322E830F2800B882EE /* GameMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameMode.swift; sourceTree = "<group>"; };
 		A50001F32C8A1234000123AB /* BlockPuzzlePro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BlockPuzzlePro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A50001F62C8A1234000123AB /* BlockPuzzleProApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockPuzzleProApp.swift; sourceTree = "<group>"; };
 		A50001F82C8A1234000123AB /* GameScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = GameScene.sks; sourceTree = "<group>"; };
@@ -71,6 +71,8 @@
 		A50002012C8A1234000123AB /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		A50002032C8A1235000123AB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A50002062C8A1235000123AB /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		B1A4F3002F0A4D1D00A12345 /* ScoreTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreTracker.swift; sourceTree = "<group>"; };
+		B1A4F3012F0A4D1D00A12345 /* ScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,6 +97,7 @@
 		8F27CB382E75E170004E6A4C /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				8FF31A322E830F2800B882EE /* GameMode.swift */,
 				8F27CB362E75E170004E6A4C /* BlockType.swift */,
 				8F27CB372E75E170004E6A4C /* GridCell.swift */,
 			);
@@ -276,6 +279,7 @@
 				8F9999F12E75E999004E6A4C /* PlacementEngine.swift in Sources */,
 				8F27CB442E75E170004E6A4C /* GameAdIntegration.swift in Sources */,
 				8F27CB452E75E170004E6A4C /* AdManager.swift in Sources */,
+				8FF31A332E830F2800B882EE /* GameMode.swift in Sources */,
 				8F27CB462E75E170004E6A4C /* VisualConstants.swift in Sources */,
 				8F27CB472E75E170004E6A4C /* AdTestViewController.swift in Sources */,
 				8F27CB482E75E170004E6A4C /* GridCell.swift in Sources */,

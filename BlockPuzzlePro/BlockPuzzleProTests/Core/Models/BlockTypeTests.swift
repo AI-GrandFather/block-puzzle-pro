@@ -12,16 +12,28 @@ final class BlockTypeTests: XCTestCase {
         let allCases = BlockType.allCases
         
         // Then
-        XCTAssertEqual(allCases.count, 3)
+        XCTAssertEqual(allCases.count, 11)
         XCTAssertTrue(allCases.contains(.single))
         XCTAssertTrue(allCases.contains(.horizontal))
+        XCTAssertTrue(allCases.contains(.vertical))
+        XCTAssertTrue(allCases.contains(.lineThree))
+        XCTAssertTrue(allCases.contains(.lineThreeVertical))
+        XCTAssertTrue(allCases.contains(.lineFourVertical))
+        XCTAssertTrue(allCases.contains(.square))
         XCTAssertTrue(allCases.contains(.lShape))
+        XCTAssertTrue(allCases.contains(.tShape))
+        XCTAssertTrue(allCases.contains(.zigZag))
+        XCTAssertTrue(allCases.contains(.plus))
     }
     
     func testBlockType_DisplayNames() {
         // Given/When/Then
         XCTAssertEqual(BlockType.single.displayName, "Single Block")
-        XCTAssertEqual(BlockType.horizontal.displayName, "Horizontal Block")
+        XCTAssertEqual(BlockType.horizontal.displayName, "Domino")
+        XCTAssertEqual(BlockType.vertical.displayName, "Vertical Domino")
+        XCTAssertEqual(BlockType.lineThree.displayName, "Triple Bar")
+        XCTAssertEqual(BlockType.lineThreeVertical.displayName, "Vertical Triple Bar")
+        XCTAssertEqual(BlockType.lineFourVertical.displayName, "Vertical Quad Bar")
         XCTAssertEqual(BlockType.lShape.displayName, "L-Shape Block")
     }
     
@@ -29,6 +41,10 @@ final class BlockTypeTests: XCTestCase {
         // Given/When/Then
         XCTAssertEqual(BlockType.single.id, "single")
         XCTAssertEqual(BlockType.horizontal.id, "horizontal")
+        XCTAssertEqual(BlockType.vertical.id, "vertical")
+        XCTAssertEqual(BlockType.lineThree.id, "lineThree")
+        XCTAssertEqual(BlockType.lineThreeVertical.id, "lineThreeVertical")
+        XCTAssertEqual(BlockType.lineFourVertical.id, "lineFourVertical")
         XCTAssertEqual(BlockType.lShape.id, "lShape")
     }
     
@@ -64,6 +80,24 @@ final class BlockTypeTests: XCTestCase {
         XCTAssertEqual(pattern[0][1], true)
         XCTAssertEqual(pattern, expectedPattern)
     }
+
+    func testLineThreeVerticalBlock_Pattern() {
+        // Given
+        let blockType = BlockType.lineThreeVertical
+
+        // When
+        let pattern = blockType.pattern
+
+        // Then
+        let expectedPattern = [
+            [true],
+            [true],
+            [true]
+        ]
+        XCTAssertEqual(pattern.count, 3)
+        XCTAssertEqual(pattern[0].count, 1)
+        XCTAssertEqual(pattern, expectedPattern)
+    }
     
     func testLShapeBlock_Pattern() {
         // Given
@@ -80,6 +114,25 @@ final class BlockTypeTests: XCTestCase {
         XCTAssertEqual(pattern.count, 2)
         XCTAssertEqual(pattern[0].count, 2)
         XCTAssertEqual(pattern[1].count, 2)
+        XCTAssertEqual(pattern, expectedPattern)
+    }
+
+    func testLineFourVerticalBlock_Pattern() {
+        // Given
+        let blockType = BlockType.lineFourVertical
+
+        // When
+        let pattern = blockType.pattern
+
+        // Then
+        let expectedPattern = [
+            [true],
+            [true],
+            [true],
+            [true]
+        ]
+        XCTAssertEqual(pattern.count, 4)
+        XCTAssertEqual(pattern[0].count, 1)
         XCTAssertEqual(pattern, expectedPattern)
     }
     
@@ -108,6 +161,18 @@ final class BlockTypeTests: XCTestCase {
         XCTAssertEqual(size.width, 2.0)
         XCTAssertEqual(size.height, 1.0)
     }
+
+    func testLineThreeVerticalBlock_Size() {
+        // Given
+        let blockType = BlockType.lineThreeVertical
+
+        // When
+        let size = blockType.size
+
+        // Then
+        XCTAssertEqual(size.width, 1.0)
+        XCTAssertEqual(size.height, 3.0)
+    }
     
     func testLShapeBlock_Size() {
         // Given
@@ -119,6 +184,18 @@ final class BlockTypeTests: XCTestCase {
         // Then
         XCTAssertEqual(size.width, 2.0)
         XCTAssertEqual(size.height, 2.0)
+    }
+
+    func testLineFourVerticalBlock_Size() {
+        // Given
+        let blockType = BlockType.lineFourVertical
+
+        // When
+        let size = blockType.size
+
+        // Then
+        XCTAssertEqual(size.width, 1.0)
+        XCTAssertEqual(size.height, 4.0)
     }
     
     // MARK: - Occupied Positions Tests
@@ -147,6 +224,20 @@ final class BlockTypeTests: XCTestCase {
         XCTAssertTrue(positions.contains(CGPoint(x: 0, y: 0)))
         XCTAssertTrue(positions.contains(CGPoint(x: 1, y: 0)))
     }
+
+    func testLineThreeVerticalBlock_OccupiedPositions() {
+        // Given
+        let blockType = BlockType.lineThreeVertical
+
+        // When
+        let positions = blockType.occupiedPositions
+
+        // Then
+        XCTAssertEqual(positions.count, 3)
+        XCTAssertTrue(positions.contains(CGPoint(x: 0, y: 0)))
+        XCTAssertTrue(positions.contains(CGPoint(x: 0, y: 1)))
+        XCTAssertTrue(positions.contains(CGPoint(x: 0, y: 2)))
+    }
     
     func testLShapeBlock_OccupiedPositions() {
         // Given
@@ -161,6 +252,21 @@ final class BlockTypeTests: XCTestCase {
         XCTAssertTrue(positions.contains(CGPoint(x: 0, y: 1)))
         XCTAssertTrue(positions.contains(CGPoint(x: 1, y: 1)))
     }
+
+    func testLineFourVerticalBlock_OccupiedPositions() {
+        // Given
+        let blockType = BlockType.lineFourVertical
+
+        // When
+        let positions = blockType.occupiedPositions
+
+        // Then
+        XCTAssertEqual(positions.count, 4)
+        XCTAssertTrue(positions.contains(CGPoint(x: 0, y: 0)))
+        XCTAssertTrue(positions.contains(CGPoint(x: 0, y: 1)))
+        XCTAssertTrue(positions.contains(CGPoint(x: 0, y: 2)))
+        XCTAssertTrue(positions.contains(CGPoint(x: 0, y: 3)))
+    }
     
     // MARK: - Cell Count Tests
     
@@ -170,6 +276,8 @@ final class BlockTypeTests: XCTestCase {
         XCTAssertEqual(BlockType.horizontal.cellCount, 2)
         XCTAssertEqual(BlockType.vertical.cellCount, 2)
         XCTAssertEqual(BlockType.lineThree.cellCount, 3)
+        XCTAssertEqual(BlockType.lineThreeVertical.cellCount, 3)
+        XCTAssertEqual(BlockType.lineFourVertical.cellCount, 4)
         XCTAssertEqual(BlockType.square.cellCount, 4)
         XCTAssertEqual(BlockType.lShape.cellCount, 3)
         XCTAssertEqual(BlockType.tShape.cellCount, 4)

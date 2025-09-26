@@ -195,9 +195,9 @@ final class GridPositionTests: XCTestCase {
     
     func testGridPosition_ValidInitialization() {
         // Given/When
-        let position1 = GridPosition(row: 0, column: 0)
-        let position2 = GridPosition(row: 5, column: 7)
-        let position3 = GridPosition(row: 9, column: 9)
+        let position1 = GridPosition(row: 0, column: 0, gridSize: 10)
+        let position2 = GridPosition(row: 5, column: 7, gridSize: 10)
+        let position3 = GridPosition(row: 9, column: 9, gridSize: 10)
         
         // Then
         XCTAssertNotNil(position1)
@@ -214,11 +214,11 @@ final class GridPositionTests: XCTestCase {
     
     func testGridPosition_InvalidInitialization() {
         // Given/When
-        let invalidPosition1 = GridPosition(row: -1, column: 0)
-        let invalidPosition2 = GridPosition(row: 0, column: -1)
-        let invalidPosition3 = GridPosition(row: 10, column: 0)
-        let invalidPosition4 = GridPosition(row: 0, column: 10)
-        let invalidPosition5 = GridPosition(row: 15, column: 15)
+        let invalidPosition1 = GridPosition(row: -1, column: 0, gridSize: 10)
+        let invalidPosition2 = GridPosition(row: 0, column: -1, gridSize: 10)
+        let invalidPosition3 = GridPosition(row: 10, column: 0, gridSize: 10)
+        let invalidPosition4 = GridPosition(row: 0, column: 10, gridSize: 10)
+        let invalidPosition5 = GridPosition(row: 15, column: 15, gridSize: 10)
         
         // Then
         XCTAssertNil(invalidPosition1)
@@ -240,40 +240,8 @@ final class GridPositionTests: XCTestCase {
         XCTAssertEqual(position1.column, -3)
         XCTAssertEqual(position2.row, 15)
         XCTAssertEqual(position2.column, 20)
-        
-        // These should not be valid according to isValid property
-        XCTAssertFalse(position1.isValid)
-        XCTAssertFalse(position2.isValid)
     }
-    
-    // MARK: - Validity Tests
-    
-    func testGridPosition_IsValid() {
-        // Given
-        let validPositions = [
-            GridPosition(unsafeRow: 0, unsafeColumn: 0),
-            GridPosition(unsafeRow: 5, unsafeColumn: 3),
-            GridPosition(unsafeRow: 9, unsafeColumn: 9)
-        ]
-        
-        let invalidPositions = [
-            GridPosition(unsafeRow: -1, unsafeColumn: 0),
-            GridPosition(unsafeRow: 0, unsafeColumn: -1),
-            GridPosition(unsafeRow: 10, unsafeColumn: 0),
-            GridPosition(unsafeRow: 0, unsafeColumn: 10),
-            GridPosition(unsafeRow: -5, unsafeColumn: -3),
-            GridPosition(unsafeRow: 15, unsafeColumn: 20)
-        ]
-        
-        // When/Then
-        for position in validPositions {
-            XCTAssertTrue(position.isValid, "Position (\(position.row), \(position.column)) should be valid")
-        }
-        
-        for position in invalidPositions {
-            XCTAssertFalse(position.isValid, "Position (\(position.row), \(position.column)) should be invalid")
-        }
-    }
+
     
     // MARK: - Equality and Hashable Tests
     

@@ -57,10 +57,12 @@ struct GridContainerView: View {
     }
     
     private var gridCells: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 10), spacing: 1) {
-            ForEach(0..<100, id: \.self) { index in
-                let row = index / 10
-                let col = index % 10
+        let gridSize = gameEngine.gridSize
+
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: gridSize), spacing: 1) {
+            ForEach(0..<(gridSize * gridSize), id: \.self) { index in
+                let row = index / gridSize
+                let col = index % gridSize
                 let position = GridPosition(unsafeRow: row, unsafeColumn: col)
                 
                 GridCellView(
@@ -107,8 +109,8 @@ struct GridCellView: View {
 
 #Preview {
     GridContainerView(
-        gameEngine: GameEngine(),
-        dragController: DragController(),
+        gameEngine: GameEngine(gameMode: .grid10x10),
+        dragController: DragController(deviceManager: DeviceManager()),
         availableSize: CGSize(width: 300, height: 300)
     )
 }

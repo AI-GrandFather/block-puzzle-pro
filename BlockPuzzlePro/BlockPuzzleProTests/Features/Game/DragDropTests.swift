@@ -18,7 +18,7 @@ final class DragDropTests: XCTestCase {
     override func setUp() {
         super.setUp()
         
-        gameEngine = GameEngine()
+        gameEngine = GameEngine(gameMode: .grid10x10)
         deviceManager = DeviceManager()
         placementEngine = PlacementEngine(gameEngine: gameEngine)
         dragController = DragController(deviceManager: deviceManager)
@@ -111,7 +111,7 @@ final class DragDropTests: XCTestCase {
     func testValidSingleBlockPlacement() {
         // Given: Empty grid and single block
         let blockPattern = BlockPattern(type: .single, color: .blue)
-        let gridPosition = GridPosition(row: 0, column: 0)!
+        let gridPosition = GridPosition(row: 0, column: 0, gridSize: gameEngine.gridSize)!
         
         // When: Validating placement
         let result = placementEngine.validatePlacement(
@@ -132,7 +132,7 @@ final class DragDropTests: XCTestCase {
     func testValidLShapeBlockPlacement() {
         // Given: Empty grid and L-shape block
         let blockPattern = BlockPattern(type: .lShape, color: .green)
-        let gridPosition = GridPosition(row: 0, column: 0)!
+        let gridPosition = GridPosition(row: 0, column: 0, gridSize: gameEngine.gridSize)!
         
         // When: Validating placement
         let result = placementEngine.validatePlacement(
@@ -144,9 +144,9 @@ final class DragDropTests: XCTestCase {
         switch result {
         case .valid(let positions):
             XCTAssertEqual(positions.count, 3) // L-shape has 3 cells
-            XCTAssertTrue(positions.contains(GridPosition(row: 0, column: 0)!))
-            XCTAssertTrue(positions.contains(GridPosition(row: 1, column: 0)!))
-            XCTAssertTrue(positions.contains(GridPosition(row: 1, column: 1)!))
+            XCTAssertTrue(positions.contains(GridPosition(row: 0, column: 0, gridSize: gameEngine.gridSize)!))
+            XCTAssertTrue(positions.contains(GridPosition(row: 1, column: 0, gridSize: gameEngine.gridSize)!))
+            XCTAssertTrue(positions.contains(GridPosition(row: 1, column: 1, gridSize: gameEngine.gridSize)!))
         case .invalid:
             XCTFail("L-shape block placement should be valid at (0,0)")
         }
@@ -155,7 +155,7 @@ final class DragDropTests: XCTestCase {
     func testInvalidPlacementOutOfBounds() {
         // Given: Block pattern near grid edge
         let blockPattern = BlockPattern(type: .lShape, color: .green)
-        let gridPosition = GridPosition(row: 9, column: 9)! // Bottom-right corner
+        let gridPosition = GridPosition(row: 9, column: 9, gridSize: gameEngine.gridSize)! // Bottom-right corner
         
         // When: Validating placement
         let result = placementEngine.validatePlacement(
@@ -174,7 +174,7 @@ final class DragDropTests: XCTestCase {
     
     func testInvalidPlacementCollision() {
         // Given: Occupied grid cell
-        let gridPosition = GridPosition(row: 0, column: 0)!
+        let gridPosition = GridPosition(row: 0, column: 0, gridSize: gameEngine.gridSize)!
         XCTAssertTrue(gameEngine.placeBlocks(at: [gridPosition], color: .red))
         
         let blockPattern = BlockPattern(type: .single, color: .blue)
@@ -215,7 +215,7 @@ final class DragDropTests: XCTestCase {
     
     func testGridToScreenPositionConversion() {
         // Given: Grid position and frame
-        let gridPosition = GridPosition(row: 2, column: 3)!
+        let gridPosition = GridPosition(row: 2, column: 3, gridSize: gameEngine.gridSize)!
         let gridFrame = CGRect(x: 50, y: 100, width: 300, height: 300)
         let cellSize: CGFloat = 30
         
@@ -279,7 +279,7 @@ final class DragDropTests: XCTestCase {
         XCTAssertFalse(placementEngine.isCurrentPreviewValid)
         
         // And grid should be updated
-        let gridPosition = GridPosition(row: 0, column: 0)!
+        let gridPosition = GridPosition(row: 0, column: 0, gridSize: gameEngine.gridSize)!
         let cell = gameEngine.cell(at: gridPosition)
         XCTAssertTrue(cell?.isOccupied == true)
     }
@@ -341,7 +341,7 @@ final class DragDropTests: XCTestCase {
         dragController.endDrag(at: dropPosition)
         
         // Then: Block should be placed on grid
-        let gridPosition = GridPosition(row: 0, column: 0)!
+        let gridPosition = GridPosition(row: 0, column: 0, gridSize: gameEngine.gridSize)!
         let cell = gameEngine.cell(at: gridPosition)
         XCTAssertTrue(cell?.isOccupied == true)
         XCTAssertEqual(cell?.color, blockPattern.color)
@@ -483,7 +483,7 @@ final class DragDropTests: XCTestCase {
         measure {
             for row in 0..<8 {
                 for col in 0..<8 {
-                    if let gridPos = GridPosition(row: row, column: col) {
+                    if let gridPos = GridPosition(row: row, column: col, gridSize: gameEngine.gridSize) {
                         _ = placementEngine.validatePlacement(blockPattern: blockPattern, at: gridPos)
                     }
                 }

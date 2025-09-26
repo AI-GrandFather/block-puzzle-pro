@@ -6,7 +6,7 @@ struct LineClearingTests {
 
     @Test("End-to-end line clearing flow")
     func endToEndLineClearingFlow() async throws {
-        let engine = GameEngine()
+        let engine = GameEngine(gameMode: .grid10x10)
         let placementEngine = PlacementEngine(gameEngine: engine)
 
         engine.startNewGame()
@@ -16,8 +16,8 @@ struct LineClearingTests {
 
         // Fill an entire row by placing individual blocks
         let targetRow = 3
-        for col in 0..<GameEngine.gridSize {
-            let gridPos = try #require(GridPosition(row: targetRow, column: col))
+        for col in 0..<engine.gridSize {
+            let gridPos = try #require(GridPosition(row: targetRow, column: col, gridSize: engine.gridSize))
 
             // Validate placement
             let validation = placementEngine.validatePlacement(
@@ -36,8 +36,8 @@ struct LineClearingTests {
         }
 
         // Verify row is complete before clearing
-        for col in 0..<GameEngine.gridSize {
-            let pos = try #require(GridPosition(row: targetRow, column: col))
+        for col in 0..<engine.gridSize {
+            let pos = try #require(GridPosition(row: targetRow, column: col, gridSize: engine.gridSize))
             #expect(engine.cell(at: pos)?.isOccupied == true)
         }
 
@@ -54,36 +54,36 @@ struct LineClearingTests {
         #expect(engine.activeLineClears.first?.kind == .row(targetRow))
 
         // Verify row is now empty
-        for col in 0..<GameEngine.gridSize {
-            let pos = try #require(GridPosition(row: targetRow, column: col))
+        for col in 0..<engine.gridSize {
+            let pos = try #require(GridPosition(row: targetRow, column: col, gridSize: engine.gridSize))
             #expect(engine.cell(at: pos)?.isEmpty == true)
         }
 
         // Verify spaces are immediately available
-        for col in 0..<GameEngine.gridSize {
-            let pos = try #require(GridPosition(row: targetRow, column: col))
+        for col in 0..<engine.gridSize {
+            let pos = try #require(GridPosition(row: targetRow, column: col, gridSize: engine.gridSize))
             #expect(engine.canPlaceAt(position: pos) == true)
         }
     }
 
     @Test("L-shaped intersection clearing")
     func lShapedIntersectionClearing() async throws {
-        let engine = GameEngine()
+        let engine = GameEngine(gameMode: .grid10x10)
         engine.startNewGame()
 
         let intersectionRow = 5
         let intersectionCol = 4
 
         // Fill row 5 completely
-        for col in 0..<GameEngine.gridSize {
-            let pos = try #require(GridPosition(row: intersectionRow, column: col))
+        for col in 0..<engine.gridSize {
+            let pos = try #require(GridPosition(row: intersectionRow, column: col, gridSize: engine.gridSize))
             let placed = engine.placeBlocks(at: [pos], color: .blue)
             #expect(placed == true)
         }
 
         // Fill column 4 completely (will overlap at intersection)
-        for row in 0..<GameEngine.gridSize {
-            let pos = try #require(GridPosition(row: row, column: intersectionCol))
+        for row in 0..<engine.gridSize {
+            let pos = try #require(GridPosition(row: row, column: intersectionCol, gridSize: engine.gridSize))
             if engine.cell(at: pos)?.isEmpty == true {
                 let placed = engine.placeBlocks(at: [pos], color: .green)
                 #expect(placed == true)
@@ -99,23 +99,23 @@ struct LineClearingTests {
         #expect(result.columns.contains(intersectionCol))
 
         // Verify intersection is cleared (not double-processed)
-        let intersectionPos = try #require(GridPosition(row: intersectionRow, column: intersectionCol))
+        let intersectionPos = try #require(GridPosition(row: intersectionRow, column: intersectionCol, gridSize: engine.gridSize))
         #expect(engine.cell(at: intersectionPos)?.isEmpty == true)
 
         // Verify entire row and column are cleared
-        for col in 0..<GameEngine.gridSize {
-            let pos = try #require(GridPosition(row: intersectionRow, column: col))
+        for col in 0..<engine.gridSize {
+            let pos = try #require(GridPosition(row: intersectionRow, column: col, gridSize: engine.gridSize))
             #expect(engine.cell(at: pos)?.isEmpty == true)
         }
-        for row in 0..<GameEngine.gridSize {
-            let pos = try #require(GridPosition(row: row, column: intersectionCol))
+        for row in 0..<engine.gridSize {
+            let pos = try #require(GridPosition(row: row, column: intersectionCol, gridSize: engine.gridSize))
             #expect(engine.cell(at: pos)?.isEmpty == true)
         }
     }
 
     @Test("Multiple staggered clears")
     func multipleStaggeredClears() async throws {
-        let engine = GameEngine()
+        let engine = GameEngine(gameMode: .grid10x10)
         engine.startNewGame()
 
         let rows = [1, 3, 7]
@@ -123,8 +123,8 @@ struct LineClearingTests {
 
         // Fill multiple rows
         for row in rows {
-            for col in 0..<GameEngine.gridSize {
-                let pos = try #require(GridPosition(row: row, column: col))
+            for col in 0..<engine.gridSize {
+                let pos = try #require(GridPosition(row: row, column: col, gridSize: engine.gridSize))
                 let placed = engine.placeBlocks(at: [pos], color: .red)
                 #expect(placed == true)
             }
@@ -132,8 +132,8 @@ struct LineClearingTests {
 
         // Fill multiple columns (avoiding intersections for clarity)
         for column in columns {
-            for row in 0..<GameEngine.gridSize {
-                let pos = try #require(GridPosition(row: row, column: column))
+            for row in 0..<engine.gridSize {
+                let pos = try #require(GridPosition(row: row, column: column, gridSize: engine.gridSize))
                 if engine.cell(at: pos)?.isEmpty == true {
                     let placed = engine.placeBlocks(at: [pos], color: .yellow)
                     #expect(placed == true)
@@ -150,8 +150,8 @@ struct LineClearingTests {
         for row in rows {
             if result.rows.contains(row) {
                 // If row cleared, verify it's empty
-                for col in 0..<GameEngine.gridSize {
-                    let pos = try #require(GridPosition(row: row, column: col))
+                for col in 0..<engine.gridSize {
+                    let pos = try #require(GridPosition(row: row, column: col, gridSize: engine.gridSize))
                     #expect(engine.cell(at: pos)?.isEmpty == true)
                 }
             }
@@ -161,8 +161,8 @@ struct LineClearingTests {
         for column in columns {
             if result.columns.contains(column) {
                 // If column cleared, verify it's empty
-                for row in 0..<GameEngine.gridSize {
-                    let pos = try #require(GridPosition(row: row, column: column))
+                for row in 0..<engine.gridSize {
+                    let pos = try #require(GridPosition(row: row, column: column, gridSize: engine.gridSize))
                     #expect(engine.cell(at: pos)?.isEmpty == true)
                 }
             }
@@ -171,7 +171,7 @@ struct LineClearingTests {
 
     @Test("Animation state management")
     func animationStateManagement() async throws {
-        let engine = GameEngine()
+        let engine = GameEngine(gameMode: .grid10x10)
         engine.startNewGame()
 
         // Initially no active clears
@@ -179,8 +179,8 @@ struct LineClearingTests {
 
         // Fill a row
         let targetRow = 6
-        for col in 0..<GameEngine.gridSize {
-            let pos = try #require(GridPosition(row: targetRow, column: col))
+        for col in 0..<engine.gridSize {
+            let pos = try #require(GridPosition(row: targetRow, column: col, gridSize: engine.gridSize))
             let placed = engine.placeBlocks(at: [pos], color: .purple)
             #expect(placed == true)
         }
@@ -196,12 +196,12 @@ struct LineClearingTests {
         // Verify clear data structure
         #expect(activeClear.kind == .row(targetRow))
         #expect(activeClear.id == "row-\(targetRow)")
-        #expect(activeClear.positions.count == GameEngine.gridSize)
+        #expect(activeClear.positions.count == engine.gridSize)
 
         // Verify all positions are in the row
         for position in activeClear.positions {
             #expect(position.row == targetRow)
-            #expect(position.column >= 0 && position.column < GameEngine.gridSize)
+            #expect(position.column >= 0 && position.column < engine.gridSize)
         }
 
         // Clear animation state
@@ -211,15 +211,15 @@ struct LineClearingTests {
 
     @Test("Boundary condition clearing")
     func boundaryConditionClearing() async throws {
-        let engine = GameEngine()
+        let engine = GameEngine(gameMode: .grid10x10)
         engine.startNewGame()
 
         // Test edge rows and columns
         let edgePositions = [
             (row: 0, col: -1), // Top row
-            (row: GameEngine.gridSize - 1, col: -1), // Bottom row
+            (row: engine.gridSize - 1, col: -1), // Bottom row
             (row: -1, col: 0), // Left column
-            (row: -1, col: GameEngine.gridSize - 1) // Right column
+            (row: -1, col: engine.gridSize - 1) // Right column
         ]
 
         for (testRow, testCol) in edgePositions {
@@ -227,8 +227,8 @@ struct LineClearingTests {
 
             if testRow >= 0 {
                 // Test edge row
-                for col in 0..<GameEngine.gridSize {
-                    let pos = try #require(GridPosition(row: testRow, column: col))
+                for col in 0..<engine.gridSize {
+                    let pos = try #require(GridPosition(row: testRow, column: col, gridSize: engine.gridSize))
                     let placed = engine.placeBlocks(at: [pos], color: .orange)
                     #expect(placed == true)
                 }
@@ -238,16 +238,16 @@ struct LineClearingTests {
                 #expect(result.rows.contains(testRow))
 
                 // Verify edge row cleared properly
-                for col in 0..<GameEngine.gridSize {
-                    let pos = try #require(GridPosition(row: testRow, column: col))
+                for col in 0..<engine.gridSize {
+                    let pos = try #require(GridPosition(row: testRow, column: col, gridSize: engine.gridSize))
                     #expect(engine.cell(at: pos)?.isEmpty == true)
                 }
             }
 
             if testCol >= 0 {
                 // Test edge column
-                for row in 0..<GameEngine.gridSize {
-                    let pos = try #require(GridPosition(row: row, column: testCol))
+                for row in 0..<engine.gridSize {
+                    let pos = try #require(GridPosition(row: row, column: testCol, gridSize: engine.gridSize))
                     let placed = engine.placeBlocks(at: [pos], color: .cyan)
                     #expect(placed == true)
                 }
@@ -257,8 +257,8 @@ struct LineClearingTests {
                 #expect(result.columns.contains(testCol))
 
                 // Verify edge column cleared properly
-                for row in 0..<GameEngine.gridSize {
-                    let pos = try #require(GridPosition(row: row, column: testCol))
+                for row in 0..<engine.gridSize {
+                    let pos = try #require(GridPosition(row: row, column: testCol, gridSize: engine.gridSize))
                     #expect(engine.cell(at: pos)?.isEmpty == true)
                 }
             }

@@ -88,7 +88,8 @@ class GameEngine: ObservableObject {
 
     // MARK: - Constants
 
-    static let gridSize = 10
+    let gameMode: GameMode
+    let gridSize: Int
 
     // MARK: - Private State
 
@@ -96,27 +97,33 @@ class GameEngine: ObservableObject {
     
     // MARK: - Initialization
     
-    init() {
-        // Initialize empty 10x10 grid
+    init(gameMode: GameMode) {
+        self.gameMode = gameMode
+        self.gridSize = gameMode.gridSize
+        
+        // Initialize empty grid
         self.gameGrid = Array(
-            repeating: Array(repeating: GridCell.empty, count: Self.gridSize), 
-            count: Self.gridSize
+            repeating: Array(repeating: GridCell.empty, count: gridSize),
+            count: gridSize
         )
         scoreTracker.reset()
-        logger.info("GameEngine initialized with \(Self.gridSize)x\(Self.gridSize) grid")
+        logger.info("GameEngine initialized with \(self.gridSize)x\(self.gridSize) grid")
     }
     
     // MARK: - Grid Management
     
+    private func isValid(position: GridPosition) -> Bool {
+        return position.row >= 0 && position.row < self.gridSize && position.column >= 0 && position.column < self.gridSize
+    }
     /// Get the cell at a specific position
     func cell(at position: GridPosition) -> GridCell? {
-        guard position.isValid else { return nil }
+        guard isValid(position: position) else { return nil }
         return gameGrid[position.row][position.column]
     }
     
     /// Set a cell at a specific position
     func setCell(at position: GridPosition, to cell: GridCell) {
-        guard position.isValid else {
+        guard isValid(position: position) else {
             logger.warning("Attempted to set cell at invalid position: \(String(describing: position))")
             return
         }
@@ -135,13 +142,16 @@ class GameEngine: ObservableObject {
 
     /// Determine if a full block pattern can be placed anywhere on the grid.
     func canPlace(blockPattern: BlockPattern) -> Bool {
-        for row in 0..<Self.gridSize {
-            for column in 0..<Self.gridSize {
-                guard let origin = GridPosition(row: row, column: column) else { continue }
-                guard blockPattern.canFit(at: origin, in: Self.gridSize) else { continue }
+        for row in 0..<self.gridSize {
+            for column in 0..<self.gridSize {
+                let origin = GridPosition(unsafeRow: row, unsafeColumn: column)
+                guard blockPattern.canFit(at: origin, in: self.gridSize) else { continue }
 
                 let positions = blockPattern.getGridPositions(placedAt: origin)
-                if positions.allSatisfy({ canPlaceAt(position: $0) }) {
+                if positions.allSatisfy({ [weak self] position in
+                    guard let self = self else { return false }
+                    return self.canPlaceAt(position: position)
+                }) {
                     return true
                 }
             }
@@ -164,8 +174,8 @@ class GameEngine: ObservableObject {
     func getEmptyPositions() -> [GridPosition] {
         var emptyPositions: [GridPosition] = []
         
-        for row in 0..<Self.gridSize {
-            for column in 0..<Self.gridSize {
+        for row in 0..<self.gridSize {
+            for column in 0..<self.gridSize {
                 let position = GridPosition(unsafeRow: row, unsafeColumn: column)
                 if let cell = cell(at: position), cell.isEmpty {
                     emptyPositions.append(position)
@@ -178,8 +188,8 @@ class GameEngine: ObservableObject {
     
     /// Clear all preview cells from the grid
     func clearPreviews() {
-        for row in 0..<Self.gridSize {
-            for column in 0..<Self.gridSize {
+        for row in 0..<self.gridSize {
+            for column in 0..<self.gridSize {
                 let position = GridPosition(unsafeRow: row, unsafeColumn: column)
                 if let cell = cell(at: position), cell.isPreview {
                     setCell(at: position, to: .empty)
@@ -203,8 +213,8 @@ class GameEngine: ObservableObject {
     func startNewGame() {
         // Reset grid to empty
         gameGrid = Array(
-            repeating: Array(repeating: GridCell.empty, count: Self.gridSize), 
-            count: Self.gridSize
+            repeating: Array(repeating: GridCell.empty, count: self.gridSize), 
+            count: self.gridSize
         )
 
         score = 0
@@ -287,11 +297,11 @@ class GameEngine: ObservableObject {
         var completedColumns: [Int] = []
         
         // Check rows
-        for row in 0..<Self.gridSize {
+        for row in 0..<self.gridSize {
             var isComplete = true
-            for column in 0..<Self.gridSize {
+            for column in 0..<self.gridSize {
                 let position = GridPosition(unsafeRow: row, unsafeColumn: column)
-                if let cell = cell(at: position), !cell.isOccupied {
+                if let cell = self.cell(at: position), !cell.isOccupied {
                     isComplete = false
                     break
                 }
@@ -302,11 +312,11 @@ class GameEngine: ObservableObject {
         }
         
         // Check columns
-        for column in 0..<Self.gridSize {
+        for column in 0..<self.gridSize {
             var isComplete = true
-            for row in 0..<Self.gridSize {
+            for row in 0..<self.gridSize {
                 let position = GridPosition(unsafeRow: row, unsafeColumn: column)
-                if let cell = cell(at: position), !cell.isOccupied {
+                if let cell = self.cell(at: position), !cell.isOccupied {
                     isComplete = false
                     break
                 }
@@ -322,27 +332,27 @@ class GameEngine: ObservableObject {
         for row in completedRows {
             var rowFragments: [LineClear.Fragment] = []
             
-            for column in 0..<Self.gridSize {
+            for column in 0..<self.gridSize {
                 let position = GridPosition(unsafeRow: row, unsafeColumn: column)
-                if let cell = cell(at: position), case .occupied(let color) = cell {
+                if let cell = self.cell(at: position), case .occupied(let color) = cell {
                     rowFragments.append(LineClear.Fragment(position: position, color: color))
                 }
-                setCell(at: position, to: .empty)
+                self.setCell(at: position, to: .empty)
             }
-            let positions = (0..<Self.gridSize).compactMap { GridPosition(row: row, column: $0) }
+            let positions = (0..<self.gridSize).map { GridPosition(unsafeRow: row, unsafeColumn: $0) }
             lineClears.append(LineClear(kind: .row(row), positions: positions, fragments: rowFragments))
         }
 
         for column in completedColumns {
             var columnFragments: [LineClear.Fragment] = []
-            for row in 0..<Self.gridSize {
+            for row in 0..<self.gridSize {
                 let position = GridPosition(unsafeRow: row, unsafeColumn: column)
-                if let cell = cell(at: position), case .occupied(let color) = cell {
+                if let cell = self.cell(at: position), case .occupied(let color) = cell {
                     columnFragments.append(LineClear.Fragment(position: position, color: color))
                 }
-                setCell(at: position, to: .empty)
+                self.setCell(at: position, to: .empty)
             }
-            let positions = (0..<Self.gridSize).compactMap { GridPosition(row: $0, column: column) }
+            let positions = (0..<self.gridSize).map { GridPosition(unsafeRow: $0, unsafeColumn: column) }
             lineClears.append(LineClear(kind: .column(column), positions: positions, fragments: columnFragments))
         }
 
@@ -359,15 +369,61 @@ class GameEngine: ObservableObject {
     func clearActiveLineClears() {
         activeLineClears = []
     }
+
+    /// Predict which lines would clear if the supplied positions became occupied.
+    /// This is used for pre-placement highlighting without mutating grid state.
+    func predictedLineClears(for positions: [GridPosition]) -> [LineClear.Kind] {
+        guard !positions.isEmpty else { return [] }
+
+        let placementSet = Set(positions)
+        let candidateRows = Set(placementSet.map { $0.row })
+        let candidateColumns = Set(placementSet.map { $0.column })
+
+        var results: [LineClear.Kind] = []
+
+        for row in candidateRows {
+            var isComplete = true
+            for column in 0..<gridSize {
+                let position = GridPosition(unsafeRow: row, unsafeColumn: column)
+                if placementSet.contains(position) { continue }
+                guard let cell = cell(at: position), cell.isOccupied else {
+                    isComplete = false
+                    break
+                }
+            }
+
+            if isComplete {
+                results.append(.row(row))
+            }
+        }
+
+        for column in candidateColumns {
+            var isComplete = true
+            for row in 0..<gridSize {
+                let position = GridPosition(unsafeRow: row, unsafeColumn: column)
+                if placementSet.contains(position) { continue }
+                guard let cell = cell(at: position), cell.isOccupied else {
+                    isComplete = false
+                    break
+                }
+            }
+
+            if isComplete {
+                results.append(.column(column))
+            }
+        }
+
+        return results
+    }
     
     // MARK: - Debug Utilities
     
     /// Print current grid state for debugging
     func printGrid() {
         logger.debug("Current grid state:")
-        for row in 0..<Self.gridSize {
+        for row in 0..<self.gridSize {
             var rowString = ""
-            for column in 0..<Self.gridSize {
+            for column in 0..<self.gridSize {
                 let position = GridPosition(unsafeRow: row, unsafeColumn: column)
                 if let cell = cell(at: position) {
                     switch cell {

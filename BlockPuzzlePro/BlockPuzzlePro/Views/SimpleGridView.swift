@@ -16,10 +16,12 @@ struct SimpleGridView: View {
     // MARK: - Body
     
     var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.fixed(cellSize), spacing: gridSpacing), count: 10), spacing: gridSpacing) {
-            ForEach(0..<100, id: \.self) { index in
-                let row = index / 10
-                let col = index % 10
+        let gridSize = gameEngine.gridSize
+
+        LazyVGrid(columns: Array(repeating: GridItem(.fixed(cellSize), spacing: gridSpacing), count: gridSize), spacing: gridSpacing) {
+            ForEach(0..<(gridSize * gridSize), id: \.self) { index in
+                let row = index / gridSize
+                let col = index % gridSize
                 let position = GridPosition(unsafeRow: row, unsafeColumn: col)
                 
                 SimpleGridCellView(
@@ -68,8 +70,8 @@ struct SimpleGridCellView: View {
 
 #Preview {
     SimpleGridView(
-        gameEngine: GameEngine(),
-        dragController: DragController(),
+        gameEngine: GameEngine(gameMode: .grid10x10),
+        dragController: DragController(deviceManager: DeviceManager()),
         cellSize: 30,
         gridSpacing: 2
     )

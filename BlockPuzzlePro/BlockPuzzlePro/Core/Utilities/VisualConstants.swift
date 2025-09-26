@@ -10,8 +10,8 @@ struct VisualConstants {
     // MARK: - Grid Constants
     
     struct Grid {
-        /// Total number of cells per side (10x10)
-        static let size: Int = 10
+        /// Default number of cells per side when a specific game mode is unavailable
+        static let defaultSize: Int = 10
         
         /// Grid line width in points
         static let lineWidth: CGFloat = 1.0
@@ -119,7 +119,7 @@ struct VisualConstants {
     // MARK: - Device-Specific Calculations
     
     /// Calculate optimal cell size for current screen
-    static func calculateCellSize(for screenSize: CGSize) -> CGFloat {
+    static func calculateCellSize(for screenSize: CGSize, gridSize: Int = Grid.defaultSize) -> CGFloat {
         let availableWidth = screenSize.width - (Grid.minimumMargin * 2)
         let availableHeight = screenSize.height * Layout.gridAreaPercentage - (Grid.minimumMargin * 2)
         
@@ -127,7 +127,7 @@ struct VisualConstants {
         let availableSize = min(availableWidth, availableHeight)
         
         // Calculate cell size based on grid size and spacing
-        let cellSize = availableSize / CGFloat(Grid.size)
+        let cellSize = availableSize / CGFloat(gridSize)
         
         // Ensure minimum cell size for accessibility
         let calculatedSize = max(cellSize, Grid.minimumCellSize)
@@ -157,8 +157,8 @@ struct VisualConstants {
     }
     
     /// Calculate grid position centered on screen
-    static func calculateGridPosition(for screenSize: CGSize, cellSize: CGFloat) -> CGPoint {
-        let gridWidth = cellSize * CGFloat(Grid.size)
+    static func calculateGridPosition(for screenSize: CGSize, cellSize: CGFloat, gridSize: Int = Grid.defaultSize) -> CGPoint {
+        let gridWidth = cellSize * CGFloat(gridSize)
         let gridHeight = gridWidth // Square grid
         
         // Calculate center position

@@ -159,14 +159,9 @@ struct GridPosition: Equatable, Hashable, CustomStringConvertible {
     let row: Int
     let column: Int
     
-    /// Check if this position is valid for a 10x10 grid
-    var isValid: Bool {
-        return row >= 0 && row < 10 && column >= 0 && column < 10
-    }
-    
     /// Create a GridPosition with validation
-    init?(row: Int, column: Int) {
-        guard row >= 0 && row < 10 && column >= 0 && column < 10 else {
+    init?(row: Int, column: Int, gridSize: Int) {
+        guard row >= 0 && row < gridSize && column >= 0 && column < gridSize else {
             return nil
         }
         self.row = row

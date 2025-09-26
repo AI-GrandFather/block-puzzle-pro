@@ -9,6 +9,8 @@ enum BlockType: String, CaseIterable, Identifiable {
     case horizontal = "horizontal"         // 1x2 horizontal domino
     case vertical = "vertical"             // 2x1 vertical domino
     case lineThree = "lineThree"           // 1x3 bar
+    case lineThreeVertical = "lineThreeVertical" // 3x1 vertical bar
+    case lineFourVertical = "lineFourVertical"   // 4x1 vertical bar
     case square = "square"                 // 2x2 square
     case lShape = "lShape"                 // Classic corner piece
     case tShape = "tShape"                 // T-shaped piece
@@ -26,10 +28,14 @@ enum BlockType: String, CaseIterable, Identifiable {
             return "Domino"
         case .vertical:
             return "Vertical Domino"
-        case .lShape:
-            return "L-Shape Block"
         case .lineThree:
             return "Triple Bar"
+        case .lineThreeVertical:
+            return "Vertical Triple Bar"
+        case .lineFourVertical:
+            return "Vertical Quad Bar"
+        case .lShape:
+            return "L-Shape Block"
         case .square:
             return "Square"
         case .tShape:
@@ -55,6 +61,19 @@ enum BlockType: String, CaseIterable, Identifiable {
             ]
         case .lineThree:
             return [[true, true, true]]
+        case .lineThreeVertical:
+            return [
+                [true],
+                [true],
+                [true]
+            ]
+        case .lineFourVertical:
+            return [
+                [true],
+                [true],
+                [true],
+                [true]
+            ]
         case .square:
             return [
                 [true, true],
@@ -158,9 +177,8 @@ struct BlockPattern {
             let targetRow = position.row + Int(cellPosition.y)
             let targetCol = position.column + Int(cellPosition.x)
             
-            if let gridPos = GridPosition(row: targetRow, column: targetCol) {
-                positions.append(gridPos)
-            }
+            let gridPos = GridPosition(unsafeRow: targetRow, unsafeColumn: targetCol)
+            positions.append(gridPos)
         }
         
         return positions

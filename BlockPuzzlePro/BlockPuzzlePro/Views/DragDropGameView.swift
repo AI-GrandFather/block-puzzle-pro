@@ -24,7 +24,6 @@ struct DragDropGameView: View {
     @State private var screenSize: CGSize = .zero
     @State private var isGameReady: Bool = false
     @State private var gridFrame: CGRect = .zero
-    @State private var lineClearHighlights: Set<GridPosition> = []
     @State private var lineClearAnimationToken: UUID?
     @State private var celebrationMessage: CelebrationMessage?
     @State private var celebrationVisible: Bool = false
@@ -44,8 +43,8 @@ struct DragDropGameView: View {
     
     // MARK: - Initialization
     
-    init() {
-        let gameEngine = GameEngine()
+    init(gameMode: GameMode = .grid10x10) {
+        let gameEngine = GameEngine(gameMode: gameMode)
         let deviceManager = DeviceManager()
         
         _gameEngine = StateObject(wrappedValue: gameEngine)
@@ -126,35 +125,13 @@ struct DragDropGameView: View {
 
                 spawnFragments(from: clears)
 
-                let highlights = Set(clears.flatMap { $0.positions })
-                guard !highlights.isEmpty else { return }
-
                 let token = UUID()
                 lineClearAnimationToken = token
 
-                // Start the enhanced line clear animation with ProMotion optimization
-                withAnimation(.spring(
-                    response: isProMotionDevice ? 0.2 : 0.4,
-                    dampingFraction: 0.7,
-                    blendDuration: 0
-                )) {
-                    lineClearHighlights = highlights
-                }
-
-                // Optimized timing for different refresh rates
-                let fadeDelay: TimeInterval = isProMotionDevice ? 0.6 : 0.8
-                DispatchQueue.main.asyncAfter(deadline: .now() + fadeDelay) {
+                let clearDelay: TimeInterval = isProMotionDevice ? 0.20 : 0.26
+                DispatchQueue.main.asyncAfter(deadline: .now() + clearDelay) {
                     guard lineClearAnimationToken == token else { return }
-                    withAnimation(.easeOut(duration: self.isProMotionDevice ? 0.3 : 0.4)) {
-                        lineClearHighlights = []
-                    }
-
-                    // Clear the lines after animation completes
-                    let clearDelay: TimeInterval = self.isProMotionDevice ? 0.3 : 0.4
-                    DispatchQueue.main.asyncAfter(deadline: .now() + clearDelay) {
-                        guard lineClearAnimationToken == token else { return }
-                        gameEngine.clearActiveLineClears()
-                    }
+                    gameEngine.clearActiveLineClears()
                 }
             }
             .onChange(of: gameEngine.lastScoreEvent?.newTotal) { _, _ in
@@ -262,8 +239,7 @@ struct DragDropGameView: View {
                 gameEngine: gameEngine,
                 dragController: dragController,
                 cellSize: gridCellSize,
-                gridSpacing: gridSpacing,
-                highlightedPositions: lineClearHighlights
+                gridSpacing: gridSpacing
             )
             .background(
                 GeometryReader { gridGeometry in
@@ -360,13 +336,13 @@ struct DragDropGameView: View {
 
     private var gridCellSize: CGFloat {
         let usableSize = availableGridLength
-        let totalSpacing = gridSpacing * CGFloat(GameEngine.gridSize + 1)
+        let totalSpacing = gridSpacing * CGFloat(gameEngine.gridSize + 1)
         let effectiveBoard = max(usableSize - totalSpacing, 10)
-        return effectiveBoard / CGFloat(GameEngine.gridSize)
+        return effectiveBoard / CGFloat(gameEngine.gridSize)
     }
 
     private var boardSize: CGFloat {
-        gridCellSize * CGFloat(GameEngine.gridSize) + gridSpacing * CGFloat(GameEngine.gridSize + 1)
+        gridCellSize * CGFloat(gameEngine.gridSize) + gridSpacing * CGFloat(gameEngine.gridSize + 1)
     }
     
     // MARK: - Performance Optimization
@@ -561,7 +537,7 @@ struct DragDropGameView: View {
 
         guard let minRow = placementEngine.previewPositions.map({ $0.row }).min(),
               let minCol = placementEngine.previewPositions.map({ $0.column }).min(),
-              let topLeft = GridPosition(row: minRow, column: minCol) else {
+              let topLeft = GridPosition(row: minRow, column: minCol, gridSize: gameEngine.gridSize) else {
             return nil
         }
 
@@ -729,7 +705,7 @@ struct DragDropGameView: View {
         return CelebrationMessage(title: title, subtitle: subtitle, icon: icon, points: event.totalDelta)
     }
 
-private func announceGameState() {
+    private func announceGameState() {
         let announcement = "Game ready. \(blockFactory.getAvailableBlocks().count) blocks available. Score: \(gameEngine.score)"
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

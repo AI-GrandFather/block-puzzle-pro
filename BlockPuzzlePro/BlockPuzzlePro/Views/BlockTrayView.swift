@@ -47,19 +47,7 @@ struct BlockTrayView: View {
     // MARK: - View Components
     
     private var trayHeader: some View {
-        HStack {
-            Text("Available Blocks")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
-            Spacer()
-            
-            Text("\(blockFactory.availableBlocks.count)")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 8)
+        EmptyView()
     }
     
     private func blockSlot(for blockPattern: BlockPattern?, at index: Int) -> some View {
@@ -159,6 +147,8 @@ struct BlockTrayView: View {
         case .horizontal: return "═"
         case .vertical: return "║"
         case .lineThree: return "≡"
+        case .lineThreeVertical: return "‖"
+        case .lineFourVertical: return "⎮"
         case .square: return "▣"
         case .lShape: return "└"
         case .tShape: return "┴"

@@ -277,172 +277,185 @@ struct FloatingBlockPreview: View {
 
 /// Block tray with integrated drag and drop support
 struct DraggableBlockTrayView: View {
-    
     // MARK: - Properties
-    
     @ObservedObject var blockFactory: BlockFactory
     @ObservedObject var dragController: DragController
-    
+
     let cellSize: CGFloat
+    let paddingFactor: CGFloat
+    let horizontalInset: CGFloat
+    let slotSpacing: CGFloat
     let onBlockDragged: (Int, BlockPattern) -> Void
-    
-    @Environment(\.colorScheme) private var colorScheme
-    
+
+        @Environment(\.colorScheme) private var colorScheme
+
+    init(
+        blockFactory: BlockFactory,
+        dragController: DragController,
+        cellSize: CGFloat,
+        paddingFactor: CGFloat = 0.25,
+        horizontalInset: CGFloat = 16,
+        slotSpacing: CGFloat = 14,
+        onBlockDragged: @escaping (Int, BlockPattern) -> Void
+    ) {
+        _blockFactory = ObservedObject(wrappedValue: blockFactory)
+        _dragController = ObservedObject(wrappedValue: dragController)
+        self.cellSize = cellSize
+        self.paddingFactor = paddingFactor
+        self.horizontalInset = horizontalInset
+        self.slotSpacing = slotSpacing
+        self.onBlockDragged = onBlockDragged
+    }
+
     // MARK: - Body
-    
+
     var body: some View {
         VStack(spacing: 0) {
-            // Tray header
-            trayHeader
-            
-            // Main tray container with draggable blocks
-            HStack(spacing: 0) {
+            HStack(spacing: slotSpacing) {
                 ForEach(Array(blockFactory.getTraySlots().enumerated()), id: \.offset) { index, blockPattern in
-                    draggableBlockSlot(for: blockPattern, at: index)
+                    traySlot(for: blockPattern, index: index)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, horizontalInset)
+            .padding(.vertical, 14)
             .background(trayBackground)
-            .cornerRadius(12)
-            .shadow(color: shadowColor, radius: 4, x: 0, y: 2)
-            .coordinateSpace(name: "TraySpace") // Named coordinate space for reliable drag gestures
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(trayBorderColor, lineWidth: 1)
+            )
+            .shadow(color: trayShadowColor, radius: 10, x: 0, y: 6)
         }
-        .onAppear {
-            setupDragCallbacks()
-        }
+        .onAppear(perform: setupDragCallbacks)
     }
-    
-    // MARK: - View Components
-    
-    private var trayHeader: some View {
-        HStack {
-            Text("Block Tray")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
-            Spacer()
-            
-            Text("\(blockFactory.availableBlocks.count)")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 8)
-    }
-    
-    private func draggableBlockSlot(for blockPattern: BlockPattern?, at index: Int) -> some View {
-        let blockSize = calculateBlockSlotSize()
+
+    // MARK: - Slot Composition
+
+    private func traySlot(for blockPattern: BlockPattern?, index: Int) -> some View {
+        let blockSize = blockExtent(for: blockPattern)
+        let padding = blockPadding(for: blockPattern)
+        let slotSize = CGSize(
+            width: blockSize.width + padding * 2,
+            height: blockSize.height + padding * 2
+        )
+
         let isDragged = dragController.isBlockDragged(index)
 
-        return VStack(spacing: 8) {
-            // Block slot container
-            ZStack {
-                // Slot background (remains visible when block is dragged)
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(slotBackgroundColor(isDragged: isDragged))
-                    .frame(width: blockSize.width, height: blockSize.height)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(
-                                slotBorderColor(isDragged: isDragged),
-                                lineWidth: isDragged ? 2 : 1
-                            )
-                    )
+        return ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(slotBackgroundColor(isDragged: isDragged))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(slotBorderColor(isDragged: isDragged), lineWidth: isDragged ? 2 : 1)
+                )
 
-                // Draggable block (kept in hierarchy so gesture can finish reliably)
-                if let pattern = blockPattern {
-                    DraggableBlockView(
-                        blockPattern: pattern,
-                        blockIndex: index,
-                        cellSize: cellSize,
-                        dragController: dragController
-                    )
-                    .opacity(isDragged ? 0.0001 : 1.0)
-                    .allowsHitTesting(!isDragged || dragController.draggedBlockIndex == index)
-                } else {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.white.opacity(0.25))
-                }
+            if let pattern = blockPattern {
+                DraggableBlockView(
+                    blockPattern: pattern,
+                    blockIndex: index,
+                    cellSize: cellSize,
+                    dragController: dragController
+                )
+                .padding(padding)
+                .opacity(isDragged ? 0.25 : 1.0)
+            } else {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.white.opacity(0.18))
+                    .padding(padding)
             }
-            .frame(width: blockSize.width, height: blockSize.height)
-            .contentShape(Rectangle())
-
-            // Block type indicator
-            Text(blockTypeIndicator(for: blockPattern?.type))
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .opacity(isDragged ? 0.5 : 0.8)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 8)
+        .frame(width: slotSize.width, height: slotSize.height, alignment: .topLeading)
+        .animation(.easeInOut(duration: 0.15), value: isDragged)
+        .accessibilityLabel(slotAccessibilityLabel(for: blockPattern, index: index))
     }
-    
+
+    // MARK: - Helpers
+
+    private func blockExtent(for blockPattern: BlockPattern?) -> CGSize {
+        guard let pattern = blockPattern else {
+            return CGSize(width: cellSize * 2, height: cellSize * 2)
+        }
+
+        return CGSize(
+            width: CGFloat(pattern.size.width) * cellSize,
+            height: CGFloat(pattern.size.height) * cellSize
+        )
+    }
+
+    private func blockPadding(for blockPattern: BlockPattern?) -> CGFloat {
+        // Smaller patterns get a little extra breathing room
+        let basePadding = cellSize * paddingFactor
+        guard let pattern = blockPattern else { return basePadding }
+        let maxDimension = max(pattern.size.width, pattern.size.height)
+        let scaleReducer = max(1.0, CGFloat(maxDimension))
+        return max(basePadding * 0.75, basePadding / scaleReducer + 4)
+    }
+
     private var trayBackground: Color {
-        colorScheme == .dark ?
-            Color(UIColor.systemGray6) :
-            Color(UIColor.systemGray4).opacity(0.6)
+        colorScheme == .dark ? Color(UIColor.systemGray5).opacity(0.65) : Color.white.opacity(0.92)
     }
-    
-    private var shadowColor: Color {
-        colorScheme == .dark ?
-            Color.black.opacity(0.3) :
-            Color.gray.opacity(0.2)
+
+    private var trayBorderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.18) : Color(UIColor.systemGray3).opacity(0.45)
     }
-    
+
+    private var trayShadowColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.35) : Color.black.opacity(0.12)
+    }
+
     private func slotBackgroundColor(isDragged: Bool) -> Color {
         if isDragged {
-            return Color.white.opacity(0.35)
-        } else {
-            return Color.white.opacity(0.18)
+            return Color.accentColor.opacity(0.25)
         }
+        return colorScheme == .dark ? Color.white.opacity(0.16) : Color(UIColor.systemGray6)
     }
 
     private func slotBorderColor(isDragged: Bool) -> Color {
         if isDragged {
-            return Color.accentColor.opacity(0.45)
-        } else {
-            return Color.white.opacity(0.22)
+            return Color.accentColor.opacity(0.55)
         }
-    }
-    
-    // MARK: - Helper Methods
-    
-    private func calculateBlockSlotSize() -> CGSize {
-        let maxBlockWidth: CGFloat = 3 * cellSize + 6
-        let maxBlockHeight: CGFloat = 3 * cellSize + 6
-        let padding: CGFloat = 16
-
-        return CGSize(
-            width: maxBlockWidth + padding,
-            height: maxBlockHeight + padding
-        )
+        return Color.white.opacity(colorScheme == .dark ? 0.35 : 0.28)
     }
 
-    private func blockTypeIndicator(for blockType: BlockType?) -> String {
-        guard let blockType = blockType else { return "" }
-
-        switch blockType {
-        case .single: return "•"
-        case .horizontal: return "═"
-        case .vertical: return "║"
-        case .lineThree: return "≡"
-        case .square: return "▣"
-        case .lShape: return "└"
-        case .tShape: return "┴"
-        case .zigZag: return "≈"
-        case .plus: return "✛"
+    private func slotAccessibilityLabel(for blockPattern: BlockPattern?, index: Int) -> String {
+        guard let blockPattern else {
+            return "Tray slot \(index + 1), empty"
         }
+        return "Tray slot \(index + 1), \(blockPattern.type.displayName)"
     }
 
     private func setupDragCallbacks() {
-        dragController.onDragBegan = { (blockIndex: Int, blockPattern: BlockPattern, position: CGPoint) in
+        dragController.onDragBegan = { blockIndex, blockPattern, _ in
             onBlockDragged(blockIndex, blockPattern)
         }
     }
 }
 
 // MARK: - Preview
+
+#Preview {
+    let factory = BlockFactory()
+    let controller = DragController()
+
+    return VStack {
+        Spacer()
+
+        DraggableBlockTrayView(
+            blockFactory: factory,
+            dragController: controller,
+            cellSize: 36,
+            paddingFactor: 0.25,
+            horizontalInset: 16,
+            slotSpacing: 14
+        ) { index, pattern in
+            print("Block \(index) drag started: \(pattern.type)")
+        }
+        .padding()
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color(UIColor.systemBackground))
+}
+
 
 #Preview {
     let _ = BlockFactory() // Unused for now until preview is fully implemented

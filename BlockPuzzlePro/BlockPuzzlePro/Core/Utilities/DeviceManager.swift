@@ -202,10 +202,10 @@ final class DeviceManager: ObservableObject, @unchecked Sendable {
     }
 
     /// Get optimal grid cell size for game board
-    func getOptimalGridCellSize() -> CGFloat {
+    func getOptimalGridCellSize(for gridSize: Int = VisualConstants.Grid.defaultSize) -> CGFloat {
         let availableWidth = screenSize.width - (getOptimalTraySpacing() * 2)
-        let gridSize: CGFloat = 10.0 // 10x10 grid
-        let cellSize = availableWidth / (gridSize + 1) // Add some padding
+        let cellsPerSide = CGFloat(gridSize)
+        let cellSize = availableWidth / (cellsPerSide + 1) // Add some padding
         
         switch deviceType {
         case .iPhone:
