@@ -105,6 +105,11 @@ final class DeviceManager: ObservableObject, @unchecked Sendable {
     
     /// Preferred cell size for blocks based on device
     @Published private(set) var preferredCellSize: CGFloat = 30.0
+
+    // Haptic feedback caches to avoid allocation cost during gameplay
+    private var impactGenerators: [UIImpactFeedbackGenerator.FeedbackStyle: UIImpactFeedbackGenerator] = [:]
+    private var notificationGenerator: UINotificationFeedbackGenerator?
+    private var hasRegisteredOrientationObserver = false
     
     // MARK: - Initialization
     
@@ -221,23 +226,45 @@ final class DeviceManager: ObservableObject, @unchecked Sendable {
     
     // MARK: - Haptic Feedback
     
-    /// Provide haptic feedback if supported
+    /// Provide haptic feedback if supported, reusing cached generators to avoid jank
     func provideHapticFeedback(style: UIImpactFeedbackGenerator.FeedbackStyle) {
         guard supportsHapticFeedback else { return }
-        
+
         Task { @MainActor in
-            let generator = UIImpactFeedbackGenerator(style: style)
+            let generator: UIImpactFeedbackGenerator
+
+            if let cached = impactGenerators[style] {
+                generator = cached
+            } else {
+                let newGenerator = UIImpactFeedbackGenerator(style: style)
+                newGenerator.prepare()
+                impactGenerators[style] = newGenerator
+                generator = newGenerator
+            }
+
             generator.impactOccurred()
+            generator.prepare()
         }
     }
-    
+
     /// Provide notification haptic feedback
     func provideNotificationFeedback(type: UINotificationFeedbackGenerator.FeedbackType) {
         guard supportsHapticFeedback else { return }
         
         Task { @MainActor in
-            let generator = UINotificationFeedbackGenerator()
+            let generator: UINotificationFeedbackGenerator
+
+            if let cached = notificationGenerator {
+                generator = cached
+            } else {
+                let newGenerator = UINotificationFeedbackGenerator()
+                newGenerator.prepare()
+                notificationGenerator = newGenerator
+                generator = newGenerator
+            }
+
             generator.notificationOccurred(type)
+            generator.prepare()
         }
     }
     
@@ -245,6 +272,8 @@ final class DeviceManager: ObservableObject, @unchecked Sendable {
     
     @MainActor
     private func setupDeviceObservation() {
+        guard !hasRegisteredOrientationObserver else { return }
+        hasRegisteredOrientationObserver = true
         NotificationCenter.default.addObserver(
             forName: UIDevice.orientationDidChangeNotification,
             object: nil,

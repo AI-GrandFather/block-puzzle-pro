@@ -102,7 +102,9 @@ class DragController: ObservableObject {
     // MARK: - Instrumentation and Debug Logging
 
     private let logger = Logger(subsystem: "com.example.BlockPuzzlePro", category: "DragController")
+#if DEBUG
     private let signpostLog = OSLog(subsystem: "com.example.BlockPuzzlePro", category: "DragPerformance")
+#endif
 
     /// State transition logging
     private func logStateTransition(from: DragState, to: DragState) {
@@ -169,7 +171,9 @@ class DragController: ObservableObject {
         }
 
         // Begin signpost for performance tracking
+#if DEBUG
         os_signpost(.begin, log: signpostLog, name: "DragSequence", "blockIndex=%d", blockIndex)
+#endif
 
         // Transition directly to dragging state (no async delay)
         dragState = .dragging(blockIndex: blockIndex, blockPattern: blockPattern, startPosition: position, touchOffset: touchOffset)
@@ -191,7 +195,7 @@ class DragController: ObservableObject {
         // Start visual feedback immediately
         let springResponse = isProMotionDisplay ? 0.15 : 0.2
         withAnimation(.interactiveSpring(response: springResponse, dampingFraction: 0.8)) {
-            dragScale = 1.1
+            dragScale = 1.0
             shadowOffset = CGSize(width: 3, height: 6)
         }
 
@@ -226,7 +230,9 @@ class DragController: ObservableObject {
         }
 
         // Performance signpost for tracking
+#if DEBUG
         os_signpost(.event, log: signpostLog, name: "DragUpdate")
+#endif
 
         // Update position immediately for smooth preview
         currentDragPosition = CGPoint(
@@ -350,7 +356,9 @@ class DragController: ObservableObject {
         let oldState = dragState
 
         // End performance signpost
+#if DEBUG
         os_signpost(.end, log: signpostLog, name: "DragSequence")
+#endif
 
         // Transition to snapped state briefly before going idle
         dragState = .snapped(blockIndex: blockIndex, blockPattern: blockPattern, finalPosition: dropPosition)
@@ -377,7 +385,9 @@ class DragController: ObservableObject {
         logger.debug("🔄 transitionToIdleImmediately called, current state: \(String(describing: oldState))")
 
         // End performance signpost
+#if DEBUG
         os_signpost(.end, log: signpostLog, name: "DragSequence")
+#endif
 
         // Transition directly to idle state (no async delay)
         dragState = .idle

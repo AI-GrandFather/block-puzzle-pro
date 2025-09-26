@@ -209,7 +209,9 @@ final class PlacementEngine: ObservableObject {
         previewPositions.removeAll()
         isCurrentPreviewValid = false
 
+#if DEBUG
         logger.debug("updatePreview origin=(x:\(blockOrigin.x, privacy: .public), y:\(blockOrigin.y, privacy: .public)) touch=(x:\(touchPoint.x, privacy: .public), y:\(touchPoint.y, privacy: .public)) offset=(dx:\(touchOffset.width, privacy: .public), dy:\(touchOffset.height, privacy: .public)) grid=(x:\(gridFrame.origin.x, privacy: .public), y:\(gridFrame.origin.y, privacy: .public), w:\(gridFrame.size.width, privacy: .public), h:\(gridFrame.size.height, privacy: .public))")
+#endif
 
         let anchorBasedPosition = fallbackGridPosition(
             for: blockPattern,
@@ -232,7 +234,9 @@ final class PlacementEngine: ObservableObject {
         )
 
         guard let baseGridPosition = anchorBasedPosition ?? projectedPosition else {
+#if DEBUG
             logger.debug("Preview rejected: origin=(\(blockOrigin.x), \(blockOrigin.y)), touch=(\(touchPoint.x), \(touchPoint.y)), frame=(\(gridFrame.origin.x), \(gridFrame.origin.y), \(gridFrame.size.width), \(gridFrame.size.height))")
+#endif
             lastBaseGridPosition = nil
             return
         }
@@ -244,10 +248,14 @@ final class PlacementEngine: ObservableObject {
             previewPositions = positions
             isCurrentPreviewValid = true
             gameEngine.setPreview(at: positions, color: blockPattern.color)
+#if DEBUG
             logger.debug("Preview valid: base=\(baseGridPosition) positions=\(positions)")
+#endif
         case .invalid(let reason):
             isCurrentPreviewValid = false
+#if DEBUG
             logger.debug("Placement invalid: reason=\(reason) origin=(\(blockOrigin.x), \(blockOrigin.y)) base=\(baseGridPosition)")
+#endif
         }
     }
 

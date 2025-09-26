@@ -211,7 +211,7 @@ struct GameModeSelectionView: View {
 
 private struct AnimatedBackdrop: View {
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 45)) { timeline in
+        TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
             let time = timeline.date.timeIntervalSinceReferenceDate
             let rotation = Angle.degrees((time.truncatingRemainder(dividingBy: 18)) / 18 * 360)
 

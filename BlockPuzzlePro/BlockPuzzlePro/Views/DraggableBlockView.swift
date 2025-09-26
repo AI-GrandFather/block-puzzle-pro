@@ -4,164 +4,205 @@ import SwiftUI
 
 /// SwiftUI view that makes blocks draggable with smooth animations
 struct DraggableBlockView: View {
-    
+
     // MARK: - Properties
-    
+
     let blockPattern: BlockPattern
     let blockIndex: Int
     let cellSize: CGFloat
-    
+    let restingScale: CGFloat
+    let containerSize: CGFloat
+
     @ObservedObject var dragController: DragController
     @Environment(\.colorScheme) private var colorScheme
-    // Removed: @Environment(\.deviceManager) private var deviceManager
-    
+
     // MARK: - State
 
     @State private var isPressed: Bool = false
     @State private var didSendDragBegan: Bool = false
     @State private var blockFrame: CGRect = .zero
-    @State private var dragGestureID: UUID = UUID() // Unique ID for each gesture to prevent conflicts
-    
+    @State private var containerFrame: CGRect = .zero
+    @State private var dragGestureID: UUID = UUID()
+
     // MARK: - Computed Properties
-    
+
     private var isDragged: Bool {
         dragController.isBlockDragged(blockIndex)
     }
-    
+
     private var dragOffset: CGSize {
         isDragged ? dragController.dragOffset : .zero
     }
-    
-    private var dragScale: CGFloat {
-        isDragged ? dragController.dragScale : (isPressed ? 0.95 : 1.0)
+
+    private var blockScale: CGFloat {
+        if isDragged {
+            return dragController.dragScale
+        }
+
+        let baseScale = restingScale
+        return isPressed ? baseScale * 0.95 : baseScale
     }
-    
+
     private var dragRotation: Double {
         isDragged ? dragController.dragRotation : 0.0
     }
-    
+
     private var shadowOffset: CGSize {
         isDragged ? dragController.shadowOffset : (isPressed ? CGSize(width: 1, height: 2) : .zero)
     }
-    
+
+    private var shadowRadius: CGFloat {
+        if isDragged {
+            return 8
+        } else if isPressed {
+            return 4
+        } else {
+            return 0
+        }
+    }
+
+    private var baseBlockSize: CGSize {
+        CGSize(
+            width: CGFloat(blockPattern.size.width) * cellSize,
+            height: CGFloat(blockPattern.size.height) * cellSize
+        )
+    }
+
+    private var displaySize: CGSize {
+        CGSize(
+            width: baseBlockSize.width * blockScale,
+            height: baseBlockSize.height * blockScale
+        )
+    }
+
     // MARK: - Body
-    
+
     var body: some View {
         ZStack {
-            // Main block view
-            BlockView(
-                blockPattern: blockPattern,
-                cellSize: cellSize,
-                isInteractive: true
-            )
-            .background(
-                GeometryReader { proxy in
-                    Color.clear
-                        .onAppear {
-                            blockFrame = proxy.frame(in: .global)
-                        }
-                        .onChange(of: proxy.frame(in: .global)) { _, newValue in
-                            blockFrame = newValue
-                        }
-                }
-            )
-            .scaleEffect(dragScale)
-            .rotationEffect(.degrees(dragRotation))
-            .shadow(
-                color: shadowColor,
-                radius: shadowRadius,
-                x: shadowOffset.width,
-                y: shadowOffset.height
-            )
-            .offset(dragOffset)
-            .zIndex(isDragged ? 1000 : 0) // Bring to front when dragging
-            .animation(.interactiveSpring(response: 0.15, dampingFraction: 0.8, blendDuration: 0), value: isPressed)
-            .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.85, blendDuration: 0), value: dragScale)
-            .animation(.linear(duration: 0.016), value: dragRotation) // ~1 frame at 60Hz
-            .onLongPressGesture(minimumDuration: 0.2) { isPressing in
-                // Handle press feedback with device-optimized animation
-                let animationDuration: Double = 0.15
-                withAnimation(.easeInOut(duration: animationDuration)) {
-                    isPressed = isPressing
-                }
-            } perform: {
-                // Long press not needed for drag, handled by drag gesture
-            }
-            .gesture(
-                // Use global coordinate space so drag math lines up with grid projections
-                DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                    .onChanged { value in
-                        // CRITICAL: Check if ANY drag is already active to prevent multiple simultaneous drags
-                        if !didSendDragBegan && dragController.dragState == .idle {
-                            DebugLog.trace("🎮 Block \(blockIndex): Starting drag, controller state: \(dragController.dragState)")
-                            didSendDragBegan = true
-                            dragGestureID = UUID() // New gesture ID
+            blockContent
 
-                            let touchOffset: CGSize
-                            if blockFrame != .zero {
-                                touchOffset = CGSize(
-                                    width: value.startLocation.x - blockFrame.minX,
-                                    height: value.startLocation.y - blockFrame.minY
-                                )
-                            } else {
-                                touchOffset = .zero
-                            }
-
-                            DebugLog.trace("🧭 Block \(blockIndex): startLocation=\(value.startLocation) blockFrame.origin=\(blockFrame.origin) touchOffset=\(touchOffset)")
-
-                            // Start drag through controller - use coordinates directly from named space
-                            dragController.startDrag(
-                                blockIndex: blockIndex,
-                                blockPattern: blockPattern,
-                                at: value.startLocation,
-                                touchOffset: touchOffset
-                            )
-
-                        } else if !didSendDragBegan {
-                            DebugLog.trace("🚫 Block \(blockIndex): Cannot start drag, controller state: \(dragController.dragState)")
-                        }
-
-                        // Only update drag if this is the actively dragged block
-                        if dragController.isBlockDragged(blockIndex) {
-                            dragController.updateDrag(to: value.location)
-                            DebugLog.trace("📍 Block \(blockIndex): updateDrag location=\(value.location) currentDragPosition=\(dragController.currentDragPosition) touch=\(dragController.currentTouchLocation)")
-                        }
-                    }
-                    .onEnded { value in
-                        DebugLog.trace("🏁 Block \(blockIndex): Gesture ended, isBlockDragged: \(dragController.isBlockDragged(blockIndex))")
-
-                        // Only end drag if this is the actively dragged block
-                        if dragController.isBlockDragged(blockIndex) {
-                            DebugLog.trace("📍 Block \(blockIndex): Calling endDrag")
-                            dragController.endDrag(at: value.location)
-                        } else {
-                            DebugLog.trace("⏭️ Block \(blockIndex): Skipping endDrag - not actively dragged")
-                        }
-
-                        // Reset gesture state
-                        didSendDragBegan = false
-                        dragGestureID = UUID()
-
-                        // Reset visual state
-                        withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.8)) {
-                            isPressed = false
-                        }
-                    }
-            )
-            
-            // Dragged state overlay
             if isDragged {
                 dragOverlay
             }
         }
+        .frame(width: containerSize, height: containerSize)
+        .shadow(
+            color: shadowColor,
+            radius: shadowRadius,
+            x: shadowOffset.width,
+            y: shadowOffset.height
+        )
+        .offset(dragOffset)
+        .zIndex(isDragged ? 1000 : 0)
+        .animation(.interactiveSpring(response: 0.15, dampingFraction: 0.8, blendDuration: 0), value: isPressed)
+        .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.85, blendDuration: 0), value: blockScale)
+        .animation(.linear(duration: 0.016), value: dragRotation)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint("Drag to place this block on the game board")
         .accessibilityAddTraits(.allowsDirectInteraction)
+        .onChange(of: dragController.dragScale) { _, _ in
+            refreshBlockFrame()
+        }
+        .onChange(of: isPressed) { _, _ in
+            refreshBlockFrame()
+        }
+        .onChange(of: dragController.dragState) { _, _ in
+            refreshBlockFrame()
+        }
     }
-    
-    // MARK: - View Components
-    
+
+    // MARK: - Building Blocks
+
+    private var blockContent: some View {
+        BlockView(
+            blockPattern: blockPattern,
+            cellSize: cellSize,
+            isInteractive: true
+        )
+        .frame(width: baseBlockSize.width, height: baseBlockSize.height, alignment: .topLeading)
+        .scaleEffect(blockScale, anchor: .center)
+        .rotationEffect(.degrees(dragRotation))
+        .frame(width: containerSize, height: containerSize, alignment: .center)
+        .background(containerGeometry)
+        .onLongPressGesture(minimumDuration: 0.2) { isPressing in
+            let animationDuration: Double = 0.15
+            withAnimation(.easeInOut(duration: animationDuration)) {
+                isPressed = isPressing
+            }
+        } perform: {}
+        .gesture(dragGesture)
+    }
+
+    private var containerGeometry: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .onAppear {
+                    containerFrame = proxy.frame(in: .global)
+                    refreshBlockFrame()
+                }
+                .onChange(of: proxy.frame(in: .global)) { _, newValue in
+                    containerFrame = newValue
+                    refreshBlockFrame()
+                }
+        }
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 1, coordinateSpace: .global)
+            .onChanged { value in
+                if !didSendDragBegan && dragController.dragState == .idle {
+                    DebugLog.trace("🎮 Block \(blockIndex): Starting drag, controller state: \(dragController.dragState)")
+                    didSendDragBegan = true
+                    dragGestureID = UUID()
+
+                    let touchOffset: CGSize
+                    if blockFrame != .zero {
+                        touchOffset = CGSize(
+                            width: value.startLocation.x - blockFrame.minX,
+                            height: value.startLocation.y - blockFrame.minY
+                        )
+                    } else {
+                        touchOffset = .zero
+                    }
+
+                    DebugLog.trace("🧭 Block \(blockIndex): startLocation=\(value.startLocation) blockFrame.origin=\(blockFrame.origin) touchOffset=\(touchOffset)")
+
+                    dragController.startDrag(
+                        blockIndex: blockIndex,
+                        blockPattern: blockPattern,
+                        at: value.startLocation,
+                        touchOffset: touchOffset
+                    )
+
+                } else if !didSendDragBegan {
+                    DebugLog.trace("🚫 Block \(blockIndex): Cannot start drag, controller state: \(dragController.dragState)")
+                }
+
+                if dragController.isBlockDragged(blockIndex) {
+                    dragController.updateDrag(to: value.location)
+                    DebugLog.trace("📍 Block \(blockIndex): updateDrag location=\(value.location) currentDragPosition=\(dragController.currentDragPosition) touch=\(dragController.currentTouchLocation)")
+                }
+            }
+            .onEnded { value in
+                DebugLog.trace("🏁 Block \(blockIndex): Gesture ended, isBlockDragged: \(dragController.isBlockDragged(blockIndex))")
+
+                if dragController.isBlockDragged(blockIndex) {
+                    DebugLog.trace("📍 Block \(blockIndex): Calling endDrag")
+                    dragController.endDrag(at: value.location)
+                } else {
+                    DebugLog.trace("⏭️ Block \(blockIndex): Skipping endDrag - not actively dragged")
+                }
+
+                didSendDragBegan = false
+                dragGestureID = UUID()
+
+                withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.8)) {
+                    isPressed = false
+                }
+            }
+    }
+
     private var dragOverlay: some View {
         RoundedRectangle(cornerRadius: 6)
             .stroke(
@@ -177,11 +218,12 @@ struct DraggableBlockView: View {
                     .fill(Color.white.opacity(0.1))
             )
             .frame(
-                width: blockPattern.size.width * cellSize + 8,
-                height: blockPattern.size.height * cellSize + 8
+                width: displaySize.width + 8,
+                height: displaySize.height + 8
             )
+            .position(x: containerSize / 2, y: containerSize / 2)
     }
-    
+
     private var shadowColor: Color {
         if isDragged {
             return Color.black.opacity(0.3)
@@ -191,21 +233,7 @@ struct DraggableBlockView: View {
             return Color.clear
         }
     }
-    
-    private var shadowRadius: CGFloat {
-        if isDragged {
-            return 8
-        } else if isPressed {
-            return 4
-        } else {
-            return 0
-        }
-    }
-    
-    // Removed the unused dragGesture property
-    
-    // MARK: - Accessibility
-    
+
     private var accessibilityLabel: String {
         let typeDescription = blockPattern.type.displayName
         let colorDescription = blockPattern.color.accessibilityDescription
@@ -215,6 +243,20 @@ struct DraggableBlockView: View {
         return "\(colorDescription) \(typeDescription), \(sizeDescription), \(dragState)"
     }
 
+    // MARK: - Helpers
+
+    private func refreshBlockFrame() {
+        guard containerFrame != .zero else { return }
+
+        let offsetX = (containerSize - displaySize.width) / 2
+        let offsetY = (containerSize - displaySize.height) / 2
+        let origin = CGPoint(
+            x: containerFrame.origin.x + offsetX,
+            y: containerFrame.origin.y + offsetY
+        )
+
+        blockFrame = CGRect(origin: origin, size: displaySize)
+    }
 }
 
 // MARK: - Floating Drag Preview
@@ -282,26 +324,26 @@ struct DraggableBlockTrayView: View {
     @ObservedObject var dragController: DragController
 
     let cellSize: CGFloat
-    let paddingFactor: CGFloat
+    let slotSize: CGFloat
     let horizontalInset: CGFloat
     let slotSpacing: CGFloat
     let onBlockDragged: (Int, BlockPattern) -> Void
 
-        @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorScheme) private var colorScheme
 
     init(
         blockFactory: BlockFactory,
         dragController: DragController,
         cellSize: CGFloat,
-        paddingFactor: CGFloat = 0.25,
-        horizontalInset: CGFloat = 16,
-        slotSpacing: CGFloat = 14,
+        slotSize: CGFloat,
+        horizontalInset: CGFloat,
+        slotSpacing: CGFloat,
         onBlockDragged: @escaping (Int, BlockPattern) -> Void
     ) {
         _blockFactory = ObservedObject(wrappedValue: blockFactory)
         _dragController = ObservedObject(wrappedValue: dragController)
         self.cellSize = cellSize
-        self.paddingFactor = paddingFactor
+        self.slotSize = slotSize
         self.horizontalInset = horizontalInset
         self.slotSpacing = slotSpacing
         self.onBlockDragged = onBlockDragged
@@ -318,6 +360,7 @@ struct DraggableBlockTrayView: View {
             }
             .padding(.horizontal, horizontalInset)
             .padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
             .background(trayBackground)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
@@ -332,63 +375,49 @@ struct DraggableBlockTrayView: View {
     // MARK: - Slot Composition
 
     private func traySlot(for blockPattern: BlockPattern?, index: Int) -> some View {
-        let blockSize = blockExtent(for: blockPattern)
-        let padding = blockPadding(for: blockPattern)
-        let slotSize = CGSize(
-            width: blockSize.width + padding * 2,
-            height: blockSize.height + padding * 2
-        )
-
         let isDragged = dragController.isBlockDragged(index)
+        let restingScale = displayScale(for: blockPattern)
 
-        return ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(slotBackgroundColor(isDragged: isDragged))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(slotBorderColor(isDragged: isDragged), lineWidth: isDragged ? 2 : 1)
-                )
-
+        return ZStack {
             if let pattern = blockPattern {
                 DraggableBlockView(
                     blockPattern: pattern,
                     blockIndex: index,
                     cellSize: cellSize,
+                    restingScale: restingScale,
+                    containerSize: slotSize,
                     dragController: dragController
                 )
-                .padding(padding)
                 .opacity(isDragged ? 0.25 : 1.0)
             } else {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(0.18))
-                    .padding(padding)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.18 : 0.28), style: StrokeStyle(lineWidth: 1, dash: [4, 6]))
+                    .frame(width: slotSize * 0.72, height: slotSize * 0.72)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.white.opacity(colorScheme == .dark ? 0.05 : 0.08))
+                    )
             }
         }
-        .frame(width: slotSize.width, height: slotSize.height, alignment: .topLeading)
+        .frame(width: slotSize, height: slotSize)
         .animation(.easeInOut(duration: 0.15), value: isDragged)
         .accessibilityLabel(slotAccessibilityLabel(for: blockPattern, index: index))
     }
 
     // MARK: - Helpers
 
-    private func blockExtent(for blockPattern: BlockPattern?) -> CGSize {
-        guard let pattern = blockPattern else {
-            return CGSize(width: cellSize * 2, height: cellSize * 2)
-        }
-
-        return CGSize(
-            width: CGFloat(pattern.size.width) * cellSize,
-            height: CGFloat(pattern.size.height) * cellSize
-        )
+    private func displayScale(for blockPattern: BlockPattern?) -> CGFloat {
+        guard let pattern = blockPattern else { return 1.0 }
+        return displayScale(for: pattern)
     }
 
-    private func blockPadding(for blockPattern: BlockPattern?) -> CGFloat {
-        // Smaller patterns get a little extra breathing room
-        let basePadding = cellSize * paddingFactor
-        guard let pattern = blockPattern else { return basePadding }
-        let maxDimension = max(pattern.size.width, pattern.size.height)
-        let scaleReducer = max(1.0, CGFloat(maxDimension))
-        return max(basePadding * 0.75, basePadding / scaleReducer + 4)
+    private func displayScale(for blockPattern: BlockPattern) -> CGFloat {
+        let width = CGFloat(blockPattern.size.width) * cellSize
+        let height = CGFloat(blockPattern.size.height) * cellSize
+        let maxDimension = max(width, height)
+        guard maxDimension > 0 else { return 1.0 }
+        let availableSpan = slotSize * 0.88
+        return min(1.0, availableSpan / maxDimension)
     }
 
     private var trayBackground: Color {
@@ -396,25 +425,11 @@ struct DraggableBlockTrayView: View {
     }
 
     private var trayBorderColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.18) : Color(UIColor.systemGray3).opacity(0.45)
+        colorScheme == .dark ? Color.white.opacity(0.18) : Color(UIColor.systemGray3).opacity(0.35)
     }
 
     private var trayShadowColor: Color {
         colorScheme == .dark ? Color.black.opacity(0.35) : Color.black.opacity(0.12)
-    }
-
-    private func slotBackgroundColor(isDragged: Bool) -> Color {
-        if isDragged {
-            return Color.accentColor.opacity(0.25)
-        }
-        return colorScheme == .dark ? Color.white.opacity(0.16) : Color(UIColor.systemGray6)
-    }
-
-    private func slotBorderColor(isDragged: Bool) -> Color {
-        if isDragged {
-            return Color.accentColor.opacity(0.55)
-        }
-        return Color.white.opacity(colorScheme == .dark ? 0.35 : 0.28)
     }
 
     private func slotAccessibilityLabel(for blockPattern: BlockPattern?, index: Int) -> String {
@@ -444,7 +459,7 @@ struct DraggableBlockTrayView: View {
             blockFactory: factory,
             dragController: controller,
             cellSize: 36,
-            paddingFactor: 0.25,
+            slotSize: 88,
             horizontalInset: 16,
             slotSpacing: 14
         ) { index, pattern in

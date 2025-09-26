@@ -18,6 +18,7 @@ struct DragDropGameView: View {
     @StateObject private var placementEngine: PlacementEngine
     
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dismiss) private var dismissView
     
     // MARK: - State
     
@@ -73,7 +74,10 @@ struct DragDropGameView: View {
                             .clipped()
 
                         // Tray container
-                        trayView(safeArea: geometry.safeAreaInsets.bottom)
+                        trayView(
+                            viewWidth: geometry.size.width,
+                            safeArea: geometry.safeAreaInsets.bottom
+                        )
                             .frame(maxWidth: geometry.size.width - 48, alignment: .center)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -108,7 +112,8 @@ struct DragDropGameView: View {
         .sheet(isPresented: $isSettingsPresented) {
             SettingsSheet(
                 debugLoggingEnabled: $debugLoggingEnabled,
-                onRestart: { restartFromSettings() }
+                onRestart: { restartFromSettings() },
+                onExitToMenu: { exitToMainMenu() }
             )
             .presentationDetents([.medium])
         }
@@ -206,7 +211,7 @@ struct DragDropGameView: View {
 
     private var settingsButton: some View {
         Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            deviceManager.provideHapticFeedback(style: .light)
             isSettingsPresented = true
         } label: {
             Image(systemName: "gearshape.fill")
@@ -285,16 +290,32 @@ struct DragDropGameView: View {
         }
     }
 
-    private func trayView(safeArea: CGFloat) -> some View {
-        DraggableBlockTrayView(
+    private func trayView(viewWidth: CGFloat, safeArea: CGFloat) -> some View {
+        let slotCount = max(1, CGFloat(blockFactory.getTraySlots().count))
+        let horizontalInset: CGFloat = 18
+        let slotSpacing = deviceManager.getOptimalTraySpacing()
+        let clampedWidth = max(240, viewWidth - 48)
+        let availableContentWidth = clampedWidth - horizontalInset * 2
+        let totalSpacing = slotSpacing * max(slotCount - 1, 0)
+        let rawSlotSize = (availableContentWidth - totalSpacing) / slotCount
+        let sanitizedRaw = max(36, rawSlotSize)
+        var slotSize = min(128, sanitizedRaw)
+        let projectedWidth = slotSize * slotCount + totalSpacing + horizontalInset * 2
+        if projectedWidth > clampedWidth {
+            slotSize = max(32, rawSlotSize)
+        }
+
+        return DraggableBlockTrayView(
             blockFactory: blockFactory,
             dragController: dragController,
-            cellSize: gridCellSize
+            cellSize: gridCellSize,
+            slotSize: slotSize,
+            horizontalInset: horizontalInset,
+            slotSpacing: slotSpacing
         ) { blockIndex, blockPattern in
             handleBlockDragStarted(blockIndex: blockIndex, blockPattern: blockPattern)
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, max(safeArea + 16, 32))
+        .padding(.bottom, max(safeArea + 12, 26))
     }
 
     @ViewBuilder
@@ -437,13 +458,21 @@ struct DragDropGameView: View {
         }
     }
 
+    private func exitToMainMenu() {
+        isSettingsPresented = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            deviceManager.provideHapticFeedback(style: .medium)
+            dismissView()
+        }
+    }
+
     private func restartFromGameOver() {
         performRestart(triggerHaptics: true)
     }
 
     private func performRestart(triggerHaptics: Bool) {
         if triggerHaptics {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            deviceManager.provideHapticFeedback(style: .medium)
         }
 
         placementEngine.clearPreview()
@@ -505,7 +534,7 @@ struct DragDropGameView: View {
     private func handleValidPlacement(blockIndex: Int, blockPattern: BlockPattern, position: CGPoint) {
         DebugLog.trace("✅ PLACEMENT SUCCESS: Block \(blockIndex) placed successfully")
 
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        deviceManager.provideNotificationFeedback(type: .success)
         UIAccessibility.post(notification: .announcement, argument: "Placed block successfully")
 
         UIAccessibility.post(notification: .announcement, argument: "Lines cleared if any")
@@ -555,7 +584,7 @@ struct DragDropGameView: View {
     }
     
     private func handleInvalidPlacement(blockIndex: Int, blockPattern: BlockPattern, position: CGPoint) {
-        UINotificationFeedbackGenerator().notificationOccurred(.error)
+        deviceManager.provideNotificationFeedback(type: .error)
         UIAccessibility.post(notification: .announcement, argument: "Invalid placement")
 
         // Clear preview (drag controller handles its own cleanup)
@@ -606,7 +635,17 @@ struct DragDropGameView: View {
             }
         }
 
-        fragmentEffects.append(contentsOf: newEffects)
+        let maxNewEffects = 64
+        if newEffects.count > maxNewEffects {
+            fragmentEffects.append(contentsOf: newEffects.prefix(maxNewEffects))
+        } else {
+            fragmentEffects.append(contentsOf: newEffects)
+        }
+
+        let totalLimit = 120
+        if fragmentEffects.count > totalLimit {
+            fragmentEffects.removeFirst(fragmentEffects.count - totalLimit)
+        }
 
         if !fragmentCleanupQueue.isEmpty {
             fragmentEffects.removeAll { fragmentCleanupQueue.contains($0.id) }
@@ -920,11 +959,22 @@ private struct SettingsSheet: View {
 
     @Binding var debugLoggingEnabled: Bool
     let onRestart: () -> Void
+    let onExitToMenu: () -> Void
 
     var body: some View {
         NavigationStack {
             List {
                 Section("Session") {
+                    Button {
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                            onExitToMenu()
+                        }
+                    } label: {
+                        Label("Return to Main Menu", systemImage: "house.fill")
+                            .font(.headline)
+                    }
+
                     Button {
                         onRestart()
                         dismiss()
