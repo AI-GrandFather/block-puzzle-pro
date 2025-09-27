@@ -33,6 +33,11 @@ struct ScoreTracker {
         totalScore = 0
     }
 
+    mutating func restore(totalScore: Int, bestScore: Int) {
+        self.totalScore = max(0, totalScore)
+        self.bestScore = max(self.totalScore, bestScore)
+    }
+
     mutating func recordPlacement(placedCells: Int, linesCleared: Int) -> ScoreBreakdown {
         let placementPoints = max(0, placedCells)
         let lineClearBonus = bonus(for: linesCleared)

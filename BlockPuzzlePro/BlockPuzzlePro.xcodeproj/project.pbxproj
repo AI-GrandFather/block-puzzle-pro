@@ -25,6 +25,13 @@
 		8F27CB592E75E17F004E6A4C /* BlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB4E2E75E17F004E6A4C /* BlockView.swift */; };
 		8F27CB5D2E769512004E6A4C /* DragController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F27CB5C2E769512004E6A4C /* DragController.swift */; };
 		8F9999F12E75E999004E6A4C /* PlacementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9999F02E75E999004E6A4C /* PlacementEngine.swift */; };
+		8FBD84CD2E87C35200225962 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FBD84CC2E87C35200225962 /* SupabaseConfig.swift */; };
+		8FBD84D52E87C8B600225962 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FBD84D42E87C8B600225962 /* SupabaseService.swift */; };
+		8FBD84D72E87C8B600225962 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FBD84D62E87C8B600225962 /* AuthViewModel.swift */; };
+		8FBD84E32E87D00000225962 /* CloudSaveStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FBD84E02E87D00000225962 /* CloudSaveStore.swift */; };
+		8FBD84E42E87D00000225962 /* GameSavePayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FBD84E12E87D00000225962 /* GameSavePayload.swift */; };
+		8FBD84E52E87D00000225962 /* GameSavePayload+Conversions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FBD84E22E87D00000225962 /* GameSavePayload+Conversions.swift */; };
+		8FBD84DA2E87C91E00225962 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 8FBD84D92E87C8F400225962 /* Supabase */; };
 		8FF31A332E830F2800B882EE /* GameMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FF31A322E830F2800B882EE /* GameMode.swift */; };
 		A50001F72C8A1234000123AB /* BlockPuzzleProApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50001F62C8A1234000123AB /* BlockPuzzleProApp.swift */; };
 		A50001F92C8A1234000123AB /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = A50001F82C8A1234000123AB /* GameScene.sks */; };
@@ -57,6 +64,13 @@
 		8F27CB522E75E17F004E6A4C /* GridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridView.swift; sourceTree = "<group>"; };
 		8F27CB5C2E769512004E6A4C /* DragController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragController.swift; sourceTree = "<group>"; };
 		8F9999F02E75E999004E6A4C /* PlacementEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementEngine.swift; sourceTree = "<group>"; };
+		8FBD84C92E87BD0B00225962 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		8FBD84CC2E87C35200225962 /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
+		8FBD84D42E87C8B600225962 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
+		8FBD84D62E87C8B600225962 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		8FBD84E02E87D00000225962 /* CloudSaveStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSaveStore.swift; sourceTree = "<group>"; };
+		8FBD84E12E87D00000225962 /* GameSavePayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSavePayload.swift; sourceTree = "<group>"; };
+		8FBD84E22E87D00000225962 /* GameSavePayload+Conversions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameSavePayload+Conversions.swift"; sourceTree = "<group>"; };
 		8FE754852E7AD76A0067A8D3 /* GameEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngineTests.swift; sourceTree = "<group>"; };
 		8FE754862E7AE26F0067A8D3 /* DragController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragController.swift; sourceTree = "<group>"; };
 		8FE754872E7AE4FD0067A8D3 /* DragController 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DragController 2.swift"; sourceTree = "<group>"; };
@@ -80,6 +94,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8FBD84DA2E87C91E00225962 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +127,7 @@
 				8F27CB3B2E75E170004E6A4C /* AdTestViewController.swift */,
 				8F27CB3C2E75E170004E6A4C /* ATTManager.swift */,
 				8F27CB3D2E75E170004E6A4C /* GameAdIntegration.swift */,
+				8FBD84D42E87C8B600225962 /* SupabaseService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -159,6 +175,14 @@
 			path = Game;
 			sourceTree = "<group>";
 		};
+		8FBD84CB2E87C26600225962 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				8FBD84CC2E87C35200225962 /* SupabaseConfig.swift */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		A50001EA2C8A1234000123AB = {
 			isa = PBXGroup;
 			children = (
@@ -179,13 +203,35 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		8FBD84D82E87C8C300225962 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				8FBD84D62E87C8B600225962 /* AuthViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		8FBD84DF2E87D00000225962 /* Cloud */ = {
+			isa = PBXGroup;
+			children = (
+				8FBD84E12E87D00000225962 /* GameSavePayload.swift */,
+				8FBD84E22E87D00000225962 /* GameSavePayload+Conversions.swift */,
+				8FBD84E02E87D00000225962 /* CloudSaveStore.swift */,
+			);
+			path = Cloud;
+			sourceTree = "<group>";
+		};
 		A50001F52C8A1234000123AB /* BlockPuzzlePro */ = {
 			isa = PBXGroup;
 			children = (
+				8FBD84CB2E87C26600225962 /* Config */,
+				8FBD84C92E87BD0B00225962 /* Info.plist */,
 				8F27CB5C2E769512004E6A4C /* DragController.swift */,
 				8F27CB532E75E17F004E6A4C /* Views */,
 				8F27CB422E75E170004E6A4C /* Core */,
 				8F9999F22E75E999004E6A4C /* Game */,
+				8FBD84DF2E87D00000225962 /* Cloud */,
+				8FBD84D82E87C8C300225962 /* ViewModels */,
 				A50001F62C8A1234000123AB /* BlockPuzzleProApp.swift */,
 				A50001F82C8A1234000123AB /* GameScene.sks */,
 				A50001FA2C8A1234000123AB /* Actions.sks */,
@@ -212,6 +258,9 @@
 			buildRules = (
 			);
 			dependencies = (
+			);
+			packageProductDependencies = (
+				8FBD84D92E87C8F400225962 /* Supabase */,
 			);
 			name = BlockPuzzlePro;
 			productName = BlockPuzzlePro;
@@ -242,6 +291,9 @@
 				Base,
 			);
 			mainGroup = A50001EA2C8A1234000123AB;
+			packageReferences = (
+				8FBD84CA2E87C21B00225962 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			productRefGroup = A50001F42C8A1234000123AB /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -285,6 +337,12 @@
 				8F27CB482E75E170004E6A4C /* GridCell.swift in Sources */,
 				8F27CB492E75E170004E6A4C /* ATTManager.swift in Sources */,
 				8F27CB4A2E75E170004E6A4C /* AdMobConfig.swift in Sources */,
+				8FBD84CD2E87C35200225962 /* SupabaseConfig.swift in Sources */,
+				8FBD84D52E87C8B600225962 /* SupabaseService.swift in Sources */,
+				8FBD84D72E87C8B600225962 /* AuthViewModel.swift in Sources */,
+				8FBD84E42E87D00000225962 /* GameSavePayload.swift in Sources */,
+				8FBD84E52E87D00000225962 /* GameSavePayload+Conversions.swift in Sources */,
+				8FBD84E32E87D00000225962 /* CloudSaveStore.swift in Sources */,
 				8F27CB542E75E17F004E6A4C /* DraggableBlockView.swift in Sources */,
 				8F27CB552E75E17F004E6A4C /* GridView.swift in Sources */,
 				8F27CB562E75E17F004E6A4C /* BlockTrayView.swift in Sources */,
@@ -453,6 +511,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BlockPuzzlePro/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
@@ -485,6 +544,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BlockPuzzlePro/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
@@ -531,6 +591,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		8FBD84CA2E87C21B00225962 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase-community/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8FBD84D92E87C8F400225962 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8FBD84CA2E87C21B00225962 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A50001EB2C8A1234000123AB /* Project object */;
 }

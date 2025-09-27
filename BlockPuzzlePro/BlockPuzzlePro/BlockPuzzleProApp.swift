@@ -1,25 +1,38 @@
 import SwiftUI
+import UIKit
 import os.log
 
 @main
 struct BlockPuzzleProApp: App {
     private let logger = Logger(subsystem: "com.example.BlockPuzzlePro", category: "AppLifecycle")
+    @StateObject private var cloudSaveStore: CloudSaveStore
+    @StateObject private var authViewModel: AuthViewModel
+
+    init() {
+        logger.info("BlockPuzzlePro app initializing")
+
+        let cloudStore = CloudSaveStore()
+        _cloudSaveStore = StateObject(wrappedValue: cloudStore)
+        _authViewModel = StateObject(wrappedValue: AuthViewModel(cloudStore: cloudStore))
+
+        setupAppLifecycleObservers()
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(authViewModel)
+                .environmentObject(cloudSaveStore)
                 .onAppear {
                     logger.info("BlockPuzzlePro app launched successfully")
+                }
+                .onOpenURL { url in
+                    Task { await authViewModel.handleRedirect(url: url) }
                 }
         }
         .backgroundTask(.appRefresh("com.example.BlockPuzzlePro.refresh")) {
             logger.info("App background refresh task executed")
         }
-    }
-
-    init() {
-        logger.info("BlockPuzzlePro app initializing")
-        setupAppLifecycleObservers()
     }
 
     private func setupAppLifecycleObservers() {
@@ -58,10 +71,73 @@ struct BlockPuzzleProApp: App {
 }
 
 struct ContentView: View {
+    @EnvironmentObject private var authViewModel: AuthViewModel
+
     var body: some View {
         GameModeSelectionView()
             .statusBarHidden()
             .preferredColorScheme(.light)
+            .overlay(alignment: .topTrailing) {
+                AuthBadge()
+                    .padding(.top, 24)
+                    .padding(.trailing, 24)
+            }
+            .alert("Sign-in error", isPresented: errorBinding) {
+                Button("OK", role: .cancel) {
+                    authViewModel.clearError()
+                }
+            } message: {
+                Text(authViewModel.lastError ?? "Unknown error")
+            }
+    }
+
+    private var errorBinding: Binding<Bool> {
+        Binding(
+            get: { authViewModel.lastError != nil },
+            set: { hasError in
+                if !hasError {
+                    authViewModel.clearError()
+                }
+            }
+        )
+    }
+}
+
+private struct AuthBadge: View {
+    @EnvironmentObject private var authViewModel: AuthViewModel
+
+    var body: some View {
+        Group {
+            if authViewModel.isAuthenticating {
+                ProgressView()
+                    .progressViewStyle(.circular)
+            } else if let email = authViewModel.userEmail {
+                Menu {
+                    Button("Sign out", role: .destructive) {
+                        Task { await authViewModel.signOut() }
+                    }
+                } label: {
+                    Label(email, systemImage: "person.crop.circle.fill")
+                        .labelStyle(.titleAndIcon)
+                        .font(.callout.weight(.semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
+            } else {
+                Button {
+                    Task { await authViewModel.signInWithGoogle() }
+                } label: {
+                    Label("Sign in", systemImage: "person.crop.circle.badge.plus")
+                        .labelStyle(.titleAndIcon)
+                        .font(.callout.weight(.semibold))
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
+            }
+        }
+        .foregroundStyle(Color.primary)
     }
 }
 

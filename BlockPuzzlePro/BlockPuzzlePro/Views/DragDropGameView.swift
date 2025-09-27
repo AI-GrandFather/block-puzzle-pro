@@ -19,6 +19,9 @@ struct DragDropGameView: View {
     
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismissView
+    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var authViewModel: AuthViewModel
+    @EnvironmentObject private var cloudSaveStore: CloudSaveStore
     
     // MARK: - State
     
@@ -34,6 +37,8 @@ struct DragDropGameView: View {
     @State private var debugLoggingEnabled: Bool = false
     @State private var fragmentEffects: [FragmentEffect] = []
     @State private var fragmentCleanupQueue: Set<UUID> = []
+    @State private var hasAppliedCloudSnapshot = false
+    @State private var didObserveCloudSaves = false
 
     // Performance optimization properties
     @State private var lastUpdateTime: TimeInterval = 0
@@ -121,6 +126,7 @@ struct DragDropGameView: View {
             setupGameView(screenSize: geometry.size)
             setupPerformanceOptimizations()
             debugLoggingEnabled = DebugLog.isLoggingEnabled
+            applyCloudSnapshotIfAvailable(force: true)
         }
         .onChange(of: geometry.size) { _, newValue in
                 updateScreenSize(newValue)
@@ -147,6 +153,19 @@ struct DragDropGameView: View {
             }
             .onChange(of: debugLoggingEnabled) { _, value in
                 DebugLog.setEnabled(value)
+            }
+            .onReceive(cloudSaveStore.$saves) { _ in
+                didObserveCloudSaves = true
+                applyCloudSnapshotIfAvailable()
+            }
+            .onReceive(authViewModel.$session) { _ in
+                didObserveCloudSaves = false
+                hasAppliedCloudSnapshot = false
+                applyCloudSnapshotIfAvailable()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase != .active else { return }
+                saveProgressSnapshot()
             }
         }
         .environmentObject(deviceManager)
@@ -397,6 +416,7 @@ struct DragDropGameView: View {
 
         DispatchQueue.main.async {
             evaluateGameOver()
+            saveProgressSnapshot()
         }
 
         // Mark as ready respecting Reduce Motion accessibility setting
@@ -412,7 +432,54 @@ struct DragDropGameView: View {
     private func updateScreenSize(_ newSize: CGSize) {
         screenSize = newSize
     }
-    
+
+    // MARK: - Cloud Sync
+
+    private func applyCloudSnapshotIfAvailable(force: Bool = false) {
+        guard authViewModel.session != nil else { return }
+        if force {
+            hasAppliedCloudSnapshot = false
+        }
+
+        if !hasAppliedCloudSnapshot,
+           let payload = cloudSaveStore.saves[gameEngine.gameMode] {
+            restoreGameState(from: payload)
+            hasAppliedCloudSnapshot = true
+        } else if didObserveCloudSaves && !hasAppliedCloudSnapshot {
+            hasAppliedCloudSnapshot = true
+            saveProgressSnapshot()
+        }
+    }
+
+    private func restoreGameState(from payload: GameSavePayload) {
+        gameEngine.restoreGrid(from: payload.grid)
+        gameEngine.restoreScore(total: payload.score, best: payload.highScore)
+        gameEngine.markActiveState(payload.isGameActive)
+        blockFactory.restoreTray(from: payload.tray)
+        isGameOver = !payload.isGameActive
+        isGameReady = true
+    }
+
+    private func makeSavePayload() -> GameSavePayload {
+        GameSavePayload(
+            version: 1,
+            timestamp: Date(),
+            score: gameEngine.score,
+            highScore: gameEngine.highScore,
+            isGameActive: !isGameOver && gameEngine.isGameActive,
+            grid: gameEngine.exportGrid(),
+            tray: blockFactory.exportTray()
+        )
+    }
+
+    private func saveProgressSnapshot() {
+        guard authViewModel.session != nil else { return }
+        let payload = makeSavePayload()
+        Task {
+            await cloudSaveStore.save(payload: payload, mode: gameEngine.gameMode)
+        }
+    }
+
     private func setupDragCallbacks() {
         // Drag began callback
         dragController.onDragBegan = { blockIndex, blockPattern, position in
@@ -460,6 +527,7 @@ struct DragDropGameView: View {
 
     private func exitToMainMenu() {
         isSettingsPresented = false
+        saveProgressSnapshot()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             deviceManager.provideHapticFeedback(style: .medium)
             dismissView()
@@ -488,6 +556,7 @@ struct DragDropGameView: View {
 
         DispatchQueue.main.async {
             evaluateGameOver()
+            saveProgressSnapshot()
         }
     }
     

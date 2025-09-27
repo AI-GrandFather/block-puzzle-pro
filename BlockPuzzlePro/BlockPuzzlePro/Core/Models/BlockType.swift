@@ -303,4 +303,33 @@ class BlockFactory: ObservableObject {
         let color = BlockColor.allCases.randomElement(using: &generator) ?? .blue
         return BlockPattern(type: type, color: color)
     }
+
+    func exportTray() -> [BlockPatternPayload?] {
+        traySlots.map { pattern in
+            pattern.map { BlockPatternPayload(from: $0) }
+        }
+    }
+
+    func restoreTray(from payloads: [BlockPatternPayload?]) {
+        guard payloads.count == traySize else {
+            resetTray()
+            return
+        }
+
+        var restored: [BlockPattern?] = []
+        var newTypes: Set<BlockType> = []
+
+        for payload in payloads {
+            if let payload,
+               let pattern = BlockPattern(payload: payload) {
+                restored.append(pattern)
+                newTypes.insert(pattern.type)
+            } else {
+                restored.append(nil)
+            }
+        }
+
+        traySlots = restored
+        lastTrayTypes = newTypes
+    }
 }

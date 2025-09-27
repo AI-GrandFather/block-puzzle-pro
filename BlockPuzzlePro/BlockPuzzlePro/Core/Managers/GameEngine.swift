@@ -185,7 +185,7 @@ class GameEngine: ObservableObject {
         
         return emptyPositions
     }
-    
+
     /// Clear all preview cells from the grid
     func clearPreviews() {
         for row in 0..<self.gridSize {
@@ -197,7 +197,35 @@ class GameEngine: ObservableObject {
             }
         }
     }
-    
+
+    func exportGrid() -> [[GridCellPayload]] {
+        gameGrid.map { row in
+            row.map { GridCellPayload(from: $0) }
+        }
+    }
+
+    func restoreGrid(from payload: [[GridCellPayload]]) {
+        guard payload.count == gridSize else { return }
+        var restored: [[GridCell]] = []
+        for row in payload {
+            guard row.count == gridSize else { return }
+            restored.append(row.map { GridCell(from: $0) })
+        }
+        gameGrid = restored
+    }
+
+    func restoreScore(total: Int, best: Int) {
+        scoreTracker.restore(totalScore: total, bestScore: best)
+        score = scoreTracker.totalScore
+        highScore = max(highScore, scoreTracker.bestScore)
+        lastScoreEvent = nil
+        activeLineClears = []
+    }
+
+    func markActiveState(_ isActive: Bool) {
+        isGameActive = isActive
+    }
+
     /// Set preview for multiple positions
     func setPreview(at positions: [GridPosition], color: BlockColor) {
         for position in positions {
