@@ -72,23 +72,28 @@ struct BlockPuzzleProApp: App {
 
 struct ContentView: View {
     @EnvironmentObject private var authViewModel: AuthViewModel
+    @State private var showSplash = true
 
     var body: some View {
-        GameModeSelectionView()
-            .statusBarHidden()
-            .preferredColorScheme(.light)
-            .overlay(alignment: .topTrailing) {
-                AuthBadge()
-                    .padding(.top, 24)
-                    .padding(.trailing, 24)
+        ZStack {
+            LandingView()
+                .opacity(showSplash ? 0 : 1)
+
+            if showSplash {
+                SplashView()
+                    .transition(.scale.combined(with: .opacity))
             }
-            .alert("Sign-in error", isPresented: errorBinding) {
-                Button("OK", role: .cancel) {
-                    authViewModel.clearError()
-                }
-            } message: {
-                Text(authViewModel.lastError ?? "Unknown error")
+        }
+        .preferredColorScheme(.light)
+        .statusBarHidden()
+        .alert("Sign-in error", isPresented: errorBinding) {
+            Button("OK", role: .cancel) {
+                authViewModel.clearError()
             }
+        } message: {
+            Text(authViewModel.lastError ?? "Unknown error")
+        }
+        .onAppear { scheduleSplashDismiss() }
     }
 
     private var errorBinding: Binding<Bool> {
@@ -101,208 +106,565 @@ struct ContentView: View {
             }
         )
     }
+
+    private func scheduleSplashDismiss() {
+        guard showSplash else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            withAnimation(.easeInOut(duration: 0.55)) {
+                showSplash = false
+            }
+        }
+    }
 }
 
-private struct AuthBadge: View {
+private enum LandingDestination: Hashable {
+    case playSetup
+    case game(GameMode)
+    case account
+}
+
+private struct LandingView: View {
     @EnvironmentObject private var authViewModel: AuthViewModel
+    @EnvironmentObject private var cloudSaveStore: CloudSaveStore
+
+    @State private var path: [LandingDestination] = []
+
+    private var isLoading: Bool {
+        authViewModel.isAuthenticating || cloudSaveStore.isSyncing
+    }
 
     var body: some View {
-        Group {
-            if authViewModel.isAuthenticating {
-                ProgressView()
-                    .progressViewStyle(.circular)
-            } else if let email = authViewModel.userEmail {
-                Menu {
-                    Button("Sign out", role: .destructive) {
-                        Task { await authViewModel.signOut() }
+        NavigationStack(path: $path) {
+            ZStack {
+                LandingBackground()
+                    .ignoresSafeArea()
+
+                VStack(spacing: 40) {
+                    Spacer(minLength: 40)
+
+                    LandingBrand()
+                        .padding(.horizontal, 36)
+
+                    if isLoading {
+                        AnimatedBlockLoader()
+                            .transition(.opacity)
+                    } else {
+                        Text("Spin the pieces, chase combos, and relax into the flow.")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(Color.white.opacity(0.88))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                            .transition(.opacity)
                     }
-                } label: {
-                    Label(email, systemImage: "person.crop.circle.fill")
-                        .labelStyle(.titleAndIcon)
-                        .font(.callout.weight(.semibold))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(.ultraThinMaterial, in: Capsule())
+
+                    Spacer()
+
+                    VStack(spacing: 20) {
+                        Button {
+                            path.append(.playSetup)
+                        } label: {
+                            Text("Play")
+                        }
+                        .buttonStyle(
+                            BubbleButtonStyle(
+                                gradient: LinearGradient(
+                                    colors: [
+                                        Color(red: 1.0, green: 0.58, blue: 0.42),
+                                        Color(red: 0.94, green: 0.33, blue: 0.64)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                foreground: .white,
+                                shadowOpacity: 0.28
+                            )
+                        )
+
+                        Button {
+                            path.append(.account)
+                        } label: {
+                            Text("My Account")
+                        }
+                        .buttonStyle(
+                            BubbleButtonStyle(
+                                gradient: LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.28),
+                                        Color.white.opacity(0.14)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                foreground: .white,
+                                shadowOpacity: 0.12,
+                                borderColor: Color.white.opacity(0.35)
+                            )
+                        )
+                    }
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 56)
                 }
-            } else {
-                Button {
-                    Task { await authViewModel.signInWithGoogle() }
-                } label: {
-                    Label("Sign in", systemImage: "person.crop.circle.badge.plus")
-                        .labelStyle(.titleAndIcon)
-                        .font(.callout.weight(.semibold))
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 10)
-                        .background(.ultraThinMaterial, in: Capsule())
+            }
+            .navigationDestination(for: LandingDestination.self) { destination in
+                switch destination {
+                case .playSetup:
+                    PlaySetupView { mode in
+                        if !path.isEmpty {
+                            path.removeLast()
+                        }
+                        path.append(.game(mode))
+                    }
+                case .game(let mode):
+                    DragDropGameView(gameMode: mode)
+                        .navigationBarBackButtonHidden()
+                case .account:
+                    AccountView()
                 }
             }
         }
-        .foregroundStyle(Color.primary)
     }
 }
 
-struct GameModeSelectionView: View {
+private struct LandingBackground: View {
     var body: some View {
-        NavigationStack {
-            ZStack {
-                animatedBackground
-
-                VStack(spacing: 32) {
-                    heroCard
-
-                    VStack(spacing: 18) {
-                        ForEach(GameMode.allCases) { mode in
-                            NavigationLink(value: mode) {
-                                modeCard(for: mode)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-
-                    Spacer(minLength: 24)
-
-                    gameFacts
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 52)
-                .padding(.bottom, 36)
-            }
-            .navigationDestination(for: GameMode.self) { mode in
-                DragDropGameView(gameMode: mode)
-                    .navigationBarBackButtonHidden()
-            }
-        }
-    }
-
-    private var animatedBackground: some View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color(red: 0.96, green: 0.87, blue: 1.0),
-                    Color(red: 0.78, green: 0.9, blue: 1.0)
+                    Color(red: 0.11, green: 0.16, blue: 0.31),
+                    Color(red: 0.18, green: 0.26, blue: 0.54),
+                    Color(red: 0.34, green: 0.26, blue: 0.58)
                 ],
-                startPoint: .top,
+                startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
 
             AnimatedBackdrop()
-                .blendMode(.plusLighter)
-                .opacity(0.55)
-        }
-        .ignoresSafeArea()
-    }
+                .opacity(0.45)
 
-    private var heroCard: some View {
-        VStack(spacing: 20) {
+            ForEach(0..<6) { index in
+                SplashBlock(index: index)
+            }
+        }
+    }
+}
+
+private struct LandingBrand: View {
+    var body: some View {
+        VStack(spacing: 28) {
             ZStack {
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [Color(red: 0.99, green: 0.85, blue: 0.72),
-                                     Color(red: 1.0, green: 0.72, blue: 0.77)],
+                            colors: [
+                                Color(red: 0.99, green: 0.73, blue: 0.47),
+                                Color(red: 0.97, green: 0.47, blue: 0.63)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 88, height: 88)
-                    .shadow(color: Color.orange.opacity(0.25), radius: 12, x: 0, y: 8)
+                    .frame(width: 160, height: 160)
+                    .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 12)
 
-                Image(systemName: "square.grid.3x3.fill")
-                    .font(.system(size: 34, weight: .bold))
-                    .foregroundStyle(Color(UIColor.systemBackground))
+                AnimatedBlockSymbol()
+                    .frame(width: 94, height: 94)
             }
 
-            Text("Block Puzzle Pro")
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
-                .foregroundColor(Color(UIColor.label))
-                .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+            Text("Block Scramble")
+                .font(.system(size: 40, weight: .heavy, design: .rounded))
+                .foregroundStyle(Color.white)
+                .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 6)
         }
-        .padding(28)
-        .frame(maxWidth: .infinity)
+        .padding(32)
         .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.white.opacity(0.78))
-                .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: 12)
+            RoundedRectangle(cornerRadius: 36, style: .continuous)
+                .fill(Color.white.opacity(0.12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 36, style: .continuous)
+                        .stroke(Color.white.opacity(0.28), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct AnimatedBlockSymbol: View {
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate
+            let progress = (time.truncatingRemainder(dividingBy: 2.6)) / 2.6
+            let rotation = Angle.degrees(progress * 360)
+            let scale = 0.82 + 0.18 * sin(progress * .pi * 2)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.white.opacity(0.18))
+                    .frame(width: 96, height: 96)
+                    .shadow(color: Color.black.opacity(0.15), radius: 16, x: 0, y: 8)
+
+                ForEach(0..<4) { index in
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(blockColor(for: index))
+                        .frame(width: 26, height: 26)
+                        .offset(blockOffset(for: index))
+                        .rotationEffect(rotation)
+                        .scaleEffect(scale)
+                        .shadow(color: blockColor(for: index).opacity(0.45), radius: 8, x: 0, y: 4)
+                }
+            }
+        }
+    }
+
+    private func blockColor(for index: Int) -> Color {
+        switch index {
+        case 0: return Color(red: 0.98, green: 0.46, blue: 0.64)
+        case 1: return Color(red: 0.46, green: 0.78, blue: 0.98)
+        case 2: return Color(red: 0.57, green: 0.88, blue: 0.62)
+        default: return Color(red: 0.98, green: 0.68, blue: 0.39)
+        }
+    }
+
+    private func blockOffset(for index: Int) -> CGSize {
+        switch index {
+        case 0: return CGSize(width: -20, height: -14)
+        case 1: return CGSize(width: 22, height: -8)
+        case 2: return CGSize(width: -10, height: 22)
+        default: return CGSize(width: 18, height: 18)
+        }
+    }
+}
+
+private struct AnimatedBlockLoader: View {
+    var body: some View {
+        HStack(spacing: 20) {
+            ForEach(0..<3) { index in
+                LoaderBlock(index: index)
+            }
+        }
+        .padding(.horizontal, 26)
+        .padding(.vertical, 16)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.16))
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                )
         )
     }
 
-    private func modeCard(for mode: GameMode) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(mode.displayName)
-                    .font(.title2.weight(.semibold))
-                Spacer()
-                Image(systemName: mode == .grid8x8 ? "sparkles" : "crown.fill")
-                    .font(.title3.weight(.bold))
-            }
+    private struct LoaderBlock: View {
+        let index: Int
 
-            Text(mode == .grid8x8 ?
-                 "Short bursts with larger tiles. Perfect for quick sessions." :
-                 "Classic challenge with precision scoring and marathon combos.")
-            .font(.subheadline)
-            .foregroundStyle(Color.white.opacity(0.85))
+        var body: some View {
+            TimelineView(.animation(minimumInterval: 1 / 45)) { timeline in
+                let time = timeline.date.timeIntervalSinceReferenceDate + Double(index) * 0.25
+                let wave = 0.68 + 0.32 * CGFloat(sin(time * 2.6 * .pi))
+                let rotation = Angle.degrees(Double(wave) * 180)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    Label("ProMotion Ready", systemImage: "bolt.fill")
-                    Label("Dynamic Grid", systemImage: "square.grid.2x2")
-                    Label("Daily Streaks", systemImage: "flame.fill")
-                }
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.white.opacity(0.9))
-                .symbolVariant(.fill)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(loaderColor)
+                    .frame(width: 50, height: 50)
+                    .scaleEffect(wave)
+                    .rotationEffect(rotation)
+                    .shadow(color: loaderColor.opacity(0.45), radius: 10, x: 0, y: 5)
             }
-            .scrollDisabled(true)
         }
-        .padding(.vertical, 20)
-        .padding(.horizontal, 22)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: mode == .grid8x8 ?
-                    [Color(red: 0.37, green: 0.64, blue: 0.99), Color(red: 0.18, green: 0.44, blue: 0.93)] :
-                    [Color(red: 0.32, green: 0.78, blue: 0.56), Color(red: 0.13, green: 0.58, blue: 0.43)],
+
+        private var loaderColor: Color {
+            switch index {
+            case 0: return Color(red: 0.99, green: 0.65, blue: 0.41)
+            case 1: return Color(red: 0.47, green: 0.75, blue: 0.98)
+            default: return Color(red: 0.57, green: 0.87, blue: 0.76)
+            }
+        }
+    }
+}
+
+private struct BubbleButtonStyle: ButtonStyle {
+    let gradient: LinearGradient
+    let foreground: Color
+    let shadowOpacity: Double
+    let borderColor: Color?
+
+    init(gradient: LinearGradient, foreground: Color = .white, shadowOpacity: Double = 0.2, borderColor: Color? = nil) {
+        self.gradient = gradient
+        self.foreground = foreground
+        self.shadowOpacity = shadowOpacity
+        self.borderColor = borderColor
+    }
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title2.weight(.bold))
+            .textCase(.uppercase)
+            .tracking(0.8)
+            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity)
+            .foregroundStyle(foreground.opacity(configuration.isPressed ? 0.9 : 1))
+            .background(
+                Capsule()
+                    .fill(gradient)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(borderColor ?? .clear, lineWidth: borderColor == nil ? 0 : 1)
+            )
+            .shadow(color: Color.black.opacity(shadowOpacity), radius: configuration.isPressed ? 12 : 22, x: 0, y: configuration.isPressed ? 6 : 14)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.spring(response: 0.32, dampingFraction: 0.78), value: configuration.isPressed)
+    }
+}
+
+private struct PlaySetupView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let startGame: (GameMode) -> Void
+
+    var body: some View {
+        VStack(spacing: 28) {
+            VStack(spacing: 10) {
+                Text("Pick a mode")
+                    .font(.largeTitle.weight(.bold))
+                Text("Tap a bubble to jump straight into the puzzle.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.secondary)
+            }
+            .padding(.top, 20)
+
+            VStack(spacing: 16) {
+                ForEach(GameMode.allCases) { mode in
+                    Button {
+                        startGame(mode)
+                    } label: {
+                        ModeBubble(mode: mode)
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+
+            Spacer()
+        }
+        .padding(.bottom, 24)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Close") { dismiss() }
+            }
+        }
+    }
+}
+
+private struct ModeBubble: View {
+    let mode: GameMode
+
+    private var title: String {
+        switch mode {
+        case .grid8x8: return "8×8 Mode"
+        case .grid10x10: return "10×10 Mode"
+        }
+    }
+
+    private var gradient: LinearGradient {
+        switch mode {
+        case .grid8x8:
+            return LinearGradient(
+                colors: [
+                    Color(red: 0.45, green: 0.73, blue: 0.99),
+                    Color(red: 0.26, green: 0.49, blue: 0.94)
+                ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 12)
+        case .grid10x10:
+            return LinearGradient(
+                colors: [
+                    Color(red: 0.41, green: 0.85, blue: 0.64),
+                    Color(red: 0.19, green: 0.64, blue: 0.47)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
     }
 
-    private var gameFacts: some View {
-        VStack(spacing: 10) {
-            Text("Ultra-low latency drag & drop • Adaptive haptics • Cloud sync ready")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Color.white.opacity(0.9))
-                .multilineTextAlignment(.center)
+    var body: some View {
+        Text(title)
+            .font(.title3.weight(.bold))
+            .textCase(.uppercase)
+            .tracking(0.8)
+            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity)
+            .foregroundStyle(Color.white)
+            .background(
+                Capsule()
+                    .fill(gradient)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.2), radius: 16, x: 0, y: 10)
+    }
+}
 
-            Text("Optimized for iOS 26 and ProMotion up to 120Hz.")
-                .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.8))
+private struct AccountView: View {
+    @EnvironmentObject private var authViewModel: AuthViewModel
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 28) {
+                header
+
+                if let email = authViewModel.userEmail {
+                    signedInSection(email: email)
+                } else {
+                    signInOptions
+                }
+
+                Spacer(minLength: 24)
+            }
+            .padding(24)
         }
-        .padding(.horizontal, 12)
+        .background(Color(UIColor.systemGroupedBackground))
+        .navigationTitle("My Account")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var header: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "person.crop.square")
+                .font(.system(size: 54, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .padding(20)
+                .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+            Text("Manage your profile")
+                .font(.title2.weight(.bold))
+            Text("Sign in or link an account so we can keep your scores safe in the cloud.")
+                .font(.subheadline)
+                .foregroundStyle(Color.secondary)
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    private func signedInSection(email: String) -> some View {
+        VStack(spacing: 20) {
+            VStack(spacing: 6) {
+                Text("Signed in as")
+                    .font(.callout)
+                    .foregroundStyle(Color.secondary)
+                Text(email)
+                    .font(.headline.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color(UIColor.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+
+            Button(role: .destructive) {
+                Task { await authViewModel.signOut() }
+            } label: {
+                Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                    .font(.body.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Color.red.opacity(0.85))
+        }
+    }
+
+    private var signInOptions: some View {
+        VStack(spacing: 18) {
+            Button {
+                Task { await authViewModel.signInWithGoogle() }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "g.circle.fill")
+                    Text("Continue with Google")
+                        .font(.body.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Color(red: 0.31, green: 0.55, blue: 0.97))
+
+            Button {
+                // Placeholder for future Sign in with Apple implementation
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "apple.logo")
+                    Text("Continue with Apple (coming soon)")
+                        .font(.body.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(Color.primary)
+            .disabled(true)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(style: StrokeStyle(lineWidth: 1, dash: [6]))
+                    .foregroundStyle(Color.gray.opacity(0.4))
+            )
+        }
     }
 }
 
 private struct AnimatedBackdrop: View {
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
+        TimelineView(.animation(minimumInterval: 1 / 40)) { timeline in
             let time = timeline.date.timeIntervalSinceReferenceDate
-            let rotation = Angle.degrees((time.truncatingRemainder(dividingBy: 18)) / 18 * 360)
+            let rotation = Angle.degrees((time.truncatingRemainder(dividingBy: 16)) / 16 * 360)
 
-            AngularGradient(
+            RadialGradient(
                 colors: [
-                    Color.pink.opacity(0.8),
-                    Color.blue.opacity(0.7),
-                    Color.purple.opacity(0.9),
-                    Color.orange.opacity(0.75)
+                    Color.white.opacity(0.32),
+                    Color.white.opacity(0.02)
                 ],
                 center: .center,
-                angle: rotation
+                startRadius: 40,
+                endRadius: 460
             )
+            .rotationEffect(rotation)
             .blur(radius: 120)
-            .scaleEffect(1.3)
+            .scaleEffect(1.25)
+        }
+    }
+}
+
+private struct SplashView: View {
+    var body: some View {
+        ZStack {
+            LandingBackground()
+                .ignoresSafeArea()
+
+            VStack(spacing: 32) {
+                LandingBrand()
+
+                AnimatedBlockLoader()
+
+                Text("Loading…")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Color.white.opacity(0.85))
+            }
+            .padding(40)
+        }
+    }
+}
+
+private struct SplashBlock: View {
+    let index: Int
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 50)) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate + Double(index) * 0.4
+            let oscillation = sin(time * 1.6) * 40
+            let baseSize: CGFloat = 160 + CGFloat(index * 22)
+
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1.5)
+                .frame(width: baseSize, height: baseSize)
+                .rotationEffect(.degrees(Double(time * 18).truncatingRemainder(dividingBy: 360)))
+                .offset(x: CGFloat(oscillation), y: CGFloat(-oscillation / 2))
         }
     }
 }

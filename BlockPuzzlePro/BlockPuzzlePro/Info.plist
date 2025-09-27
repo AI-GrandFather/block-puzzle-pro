@@ -2,16 +2,23 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- AdMob Configuration -->
-	<!-- Production AdMob App ID -->
+	<key>CFBundleDisplayName</key>
+	<string>Block Scramble</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.example.BlockPuzzlePro</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.1087199046721-0lp3ti614fjajahbvv9di94fss2su6sr</string>
+			</array>
+		</dict>
+	</array>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-9658051267955550~6177451298</string>
-	
-	<!-- App Tracking Transparency -->
-	<key>NSUserTrackingUsageDescription</key>
-	<string>This app would like to use your advertising identifier to show you personalized ads and support the free gameplay experience.</string>
-	
-	<!-- AdMob requires this for iOS 9+ -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -21,8 +28,8 @@
 		<key>NSAllowsArbitraryLoadsInWebContent</key>
 		<true/>
 	</dict>
-	
-	<!-- Required for proper ad serving -->
+	<key>NSUserTrackingUsageDescription</key>
+	<string>This app would like to use your advertising identifier to show you personalized ads and support the free gameplay experience.</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>
@@ -44,21 +51,6 @@
 		<dict>
 			<key>SKAdNetworkIdentifier</key>
 			<string>5a6flpkh64.skadnetwork</string>
-		</dict>
-	</array>
-
-	<!-- Supabase / Google OAuth redirect -->
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLName</key>
-			<string>com.example.BlockPuzzlePro</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.1087199046721-0lp3ti614fjajahbvv9di94fss2su6sr</string>
-			</array>
 		</dict>
 	</array>
 </dict>

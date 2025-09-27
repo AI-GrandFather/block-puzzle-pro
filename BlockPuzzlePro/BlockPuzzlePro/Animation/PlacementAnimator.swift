@@ -338,14 +338,17 @@ class PlacementAnimator: ObservableObject {
     /// Get optimal animation timing for block type
     func getOptimalTiming(for blockType: BlockType) -> TimeInterval {
         let baseTiming = deviceManager.getDragAnimationConfig().duration
-        
-        switch blockType {
-        case .single:
-            return baseTiming * 0.8 // Faster for simple blocks
-        case .horizontal:
+        let cellCount = blockType.cellCount
+
+        switch cellCount {
+        case 1:
+            return baseTiming * 0.8
+        case 2...3:
             return baseTiming
-        case .lShape:
-            return baseTiming * 1.2 // Slightly slower for complex blocks
+        case 4...6:
+            return baseTiming * 1.1
+        default:
+            return baseTiming * 1.25
         }
     }
     

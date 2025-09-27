@@ -12,6 +12,9 @@ enum BlockType: String, CaseIterable, Identifiable {
     case lineThreeVertical = "lineThreeVertical" // 3x1 vertical bar
     case lineFourVertical = "lineFourVertical"   // 4x1 vertical bar
     case square = "square"                 // 2x2 square
+    case squareThree = "squareThree"       // 3x3 square
+    case rectangleTwoByThree = "rectangleTwoByThree" // 2x3 rectangle
+    case rectangleThreeByTwo = "rectangleThreeByTwo" // 3x2 rectangle
     case lShape = "lShape"                 // Classic corner piece
     case tShape = "tShape"                 // T-shaped piece
     case zigZag = "zigZag"                 // Z-shaped piece
@@ -38,6 +41,12 @@ enum BlockType: String, CaseIterable, Identifiable {
             return "L-Shape Block"
         case .square:
             return "Square"
+        case .squareThree:
+            return "Mega Square"
+        case .rectangleTwoByThree:
+            return "Tall Rectangle"
+        case .rectangleThreeByTwo:
+            return "Wide Rectangle"
         case .tShape:
             return "T-Shape"
         case .zigZag:
@@ -76,6 +85,23 @@ enum BlockType: String, CaseIterable, Identifiable {
             ]
         case .square:
             return [
+                [true, true],
+                [true, true]
+            ]
+        case .squareThree:
+            return [
+                [true, true, true],
+                [true, true, true],
+                [true, true, true]
+            ]
+        case .rectangleTwoByThree:
+            return [
+                [true, true, true],
+                [true, true, true]
+            ]
+        case .rectangleThreeByTwo:
+            return [
+                [true, true],
                 [true, true],
                 [true, true]
             ]
