@@ -18,7 +18,6 @@ struct DragDropGameView: View {
     @StateObject private var placementEngine: PlacementEngine
     
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.dismiss) private var dismissView
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var authViewModel: AuthViewModel
     @EnvironmentObject private var cloudSaveStore: CloudSaveStore
@@ -39,6 +38,8 @@ struct DragDropGameView: View {
     @State private var fragmentCleanupQueue: Set<UUID> = []
     @State private var hasAppliedCloudSnapshot = false
     @State private var didObserveCloudSaves = false
+    @State private var timerRemaining: Int = 0
+    @State private var timerActive: Bool = false
 
     // Performance optimization properties
     @State private var lastUpdateTime: TimeInterval = 0
@@ -46,10 +47,18 @@ struct DragDropGameView: View {
     @State private var isProMotionDevice: Bool = false
 
     private let gridSpacing: CGFloat = 2
+    private let timerPublisher = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    private let onReturnHome: () -> Void
+    private let onReturnModeSelect: () -> Void
     
     // MARK: - Initialization
     
-    init(gameMode: GameMode = .grid10x10) {
+    init(
+        gameMode: GameMode = .grid10x10,
+        onReturnHome: @escaping () -> Void = {},
+        onReturnModeSelect: @escaping () -> Void = {}
+    ) {
         let gameEngine = GameEngine(gameMode: gameMode)
         let deviceManager = DeviceManager()
         
@@ -57,6 +66,8 @@ struct DragDropGameView: View {
         _deviceManager = StateObject(wrappedValue: deviceManager)
         _dragController = StateObject(wrappedValue: DragController(deviceManager: deviceManager))
         _placementEngine = StateObject(wrappedValue: PlacementEngine(gameEngine: gameEngine))
+        self.onReturnHome = onReturnHome
+        self.onReturnModeSelect = onReturnModeSelect
     }
     
     // MARK: - Body
@@ -75,15 +86,17 @@ struct DragDropGameView: View {
                         // Grid container with explicit centering and size constraints
                         gridView
                             .frame(width: boardSize, height: boardSize)
-                            .frame(maxWidth: geometry.size.width - 48, alignment: .center)
                             .clipped()
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.horizontal, 32)
 
                         // Tray container
                         trayView(
                             viewWidth: geometry.size.width,
                             safeArea: geometry.safeAreaInsets.bottom
                         )
-                            .frame(maxWidth: geometry.size.width - 48, alignment: .center)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.horizontal, 32)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .allowsHitTesting(!isGameOver)
@@ -118,7 +131,8 @@ struct DragDropGameView: View {
             SettingsSheet(
                 debugLoggingEnabled: $debugLoggingEnabled,
                 onRestart: { restartFromSettings() },
-                onExitToMenu: { exitToMainMenu() }
+                onExitToMenu: { exitToMainMenu() },
+                onReturnToModeSelect: { returnToModeSelection() }
             )
             .presentationDetents([.medium])
         }
@@ -163,11 +177,23 @@ struct DragDropGameView: View {
                 hasAppliedCloudSnapshot = false
                 applyCloudSnapshotIfAvailable()
             }
+            .onReceive(timerPublisher) { _ in
+                guard gameEngine.gameMode.isTimed, timerActive, gameEngine.isGameActive else { return }
+                guard timerRemaining > 0 else {
+                    handleTimerExpired()
+                    return
+                }
+                timerRemaining -= 1
+                if timerRemaining <= 0 {
+                    handleTimerExpired()
+                }
+            }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase != .active else { return }
                 saveProgressSnapshot()
             }
         }
+        .onDisappear { stopTimer() }
         .environmentObject(deviceManager)
         // Removed .onChange(of: dragController.isDragging) due to non-existent property
     }
@@ -209,20 +235,28 @@ struct DragDropGameView: View {
     }
     
     private func header(in geometry: GeometryProxy) -> some View {
-        HStack(alignment: .center, spacing: 16) {
-            HighScoreBadge(highScore: gameEngine.highScore)
+        VStack(spacing: 12) {
+            HStack(alignment: .center, spacing: 16) {
+                HighScoreBadge(highScore: gameEngine.highScore)
 
-            Spacer(minLength: 12)
+                Spacer(minLength: 12)
 
-            ScoreView(
-                score: gameEngine.score,
-                lastEvent: gameEngine.lastScoreEvent
-            )
-            .frame(maxWidth: .infinity)
+                ScoreView(
+                    score: gameEngine.score,
+                    lastEvent: gameEngine.lastScoreEvent
+                )
+                .frame(maxWidth: .infinity)
 
-            Spacer(minLength: 12)
+                Spacer(minLength: 12)
 
-            settingsButton
+                settingsButton
+            }
+
+            if gameEngine.gameMode.isTimed {
+                TimerBadge(timeRemaining: timerRemaining, isCountingDown: timerActive && gameEngine.isGameActive)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .transition(.opacity)
+            }
         }
         .padding(.horizontal, 24)
         .padding(.top, geometry.safeAreaInsets.top + 12)
@@ -313,7 +347,7 @@ struct DragDropGameView: View {
         let slotCount = max(1, CGFloat(blockFactory.getTraySlots().count))
         let horizontalInset: CGFloat = 18
         let slotSpacing = deviceManager.getOptimalTraySpacing()
-        let clampedWidth = max(240, viewWidth - 48)
+        let clampedWidth = max(240, viewWidth - 64)
         let availableContentWidth = clampedWidth - horizontalInset * 2
         let totalSpacing = slotSpacing * max(slotCount - 1, 0)
         let rawSlotSize = (availableContentWidth - totalSpacing) / slotCount
@@ -413,6 +447,7 @@ struct DragDropGameView: View {
         // Start new game
         gameEngine.startNewGame()
         blockFactory.resetTray()
+        initializeTimer()
 
         DispatchQueue.main.async {
             evaluateGameOver()
@@ -452,6 +487,16 @@ struct DragDropGameView: View {
     }
 
     private func restoreGameState(from payload: GameSavePayload) {
+        if gameEngine.gameMode.isTimed {
+            gameEngine.restoreScore(total: 0, best: payload.highScore)
+            blockFactory.resetTray()
+            initializeTimer()
+            isGameOver = false
+            isGameReady = true
+            return
+        }
+
+        stopTimer()
         gameEngine.restoreGrid(from: payload.grid)
         gameEngine.restoreScore(total: payload.score, best: payload.highScore)
         gameEngine.markActiveState(payload.isGameActive)
@@ -478,6 +523,30 @@ struct DragDropGameView: View {
         Task {
             await cloudSaveStore.save(payload: payload, mode: gameEngine.gameMode)
         }
+    }
+
+    private func initializeTimer() {
+        if gameEngine.gameMode.isTimed {
+            timerRemaining = Int(gameEngine.gameMode.timerDuration ?? 0)
+            timerActive = true
+        } else {
+            stopTimer()
+        }
+    }
+
+    private func stopTimer() {
+        timerActive = false
+        timerRemaining = 0
+    }
+
+    private func handleTimerExpired() {
+        guard gameEngine.gameMode.isTimed else { return }
+        guard !isGameOver else { return }
+        timerActive = false
+        timerRemaining = 0
+        deviceManager.provideNotificationFeedback(type: .warning)
+        updateGameOverState(true)
+        saveProgressSnapshot()
     }
 
     private func setupDragCallbacks() {
@@ -527,10 +596,21 @@ struct DragDropGameView: View {
 
     private func exitToMainMenu() {
         isSettingsPresented = false
+        stopTimer()
         saveProgressSnapshot()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             deviceManager.provideHapticFeedback(style: .medium)
-            dismissView()
+            onReturnHome()
+        }
+    }
+
+    private func returnToModeSelection() {
+        isSettingsPresented = false
+        stopTimer()
+        saveProgressSnapshot()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            deviceManager.provideNotificationFeedback(type: .warning)
+            onReturnModeSelect()
         }
     }
 
@@ -553,6 +633,7 @@ struct DragDropGameView: View {
         }
 
         lastGameOverScore = 0
+        initializeTimer()
 
         DispatchQueue.main.async {
             evaluateGameOver()
@@ -744,6 +825,9 @@ struct DragDropGameView: View {
         if shouldShow {
             guard !isGameOver else { return }
             lastGameOverScore = gameEngine.score
+            if gameEngine.gameMode.isTimed {
+                stopTimer()
+            }
             gameEngine.endGame()
             placementEngine.clearPreview()
             dragController.reset()
@@ -1029,6 +1113,7 @@ private struct SettingsSheet: View {
     @Binding var debugLoggingEnabled: Bool
     let onRestart: () -> Void
     let onExitToMenu: () -> Void
+    let onReturnToModeSelect: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -1041,6 +1126,16 @@ private struct SettingsSheet: View {
                         }
                     } label: {
                         Label("Return to Main Menu", systemImage: "house.fill")
+                            .font(.headline)
+                    }
+
+                    Button {
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                            onReturnToModeSelect()
+                        }
+                    } label: {
+                        Label("Choose Game Mode", systemImage: "square.grid.2x2")
                             .font(.headline)
                     }
 
@@ -1069,6 +1164,42 @@ private struct SettingsSheet: View {
                 }
             }
         }
+    }
+}
+
+private struct TimerBadge: View {
+    let timeRemaining: Int
+    let isCountingDown: Bool
+
+    private var formatted: String {
+        let clamped = max(0, timeRemaining)
+        let minutes = clamped / 60
+        let seconds = clamped % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: isCountingDown ? "timer" : "timer.square")
+                .font(.headline.weight(.semibold))
+            Text(formatted)
+                .font(.headline.monospacedDigit())
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .foregroundStyle(Color.white)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.16))
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                )
+        )
+        .shadow(color: Color.black.opacity(0.22), radius: 12, x: 0, y: 8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Timer")
+        .accessibilityValue(formatted)
     }
 }
 
