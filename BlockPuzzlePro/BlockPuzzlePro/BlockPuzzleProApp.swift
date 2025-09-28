@@ -215,8 +215,16 @@ private struct LandingView: View {
                         path.append(.game(mode))
                     }
                 case .game(let mode):
-                    DragDropGameView(gameMode: mode)
-                        .navigationBarBackButtonHidden()
+                    DragDropGameView(
+                        gameMode: mode,
+                        onReturnHome: {
+                            path.removeAll()
+                        },
+                        onReturnModeSelect: {
+                            path = [.playSetup]
+                        }
+                    )
+                    .navigationBarBackButtonHidden()
                 case .account:
                     AccountView()
                 }
@@ -458,10 +466,7 @@ private struct ModeBubble: View {
     let mode: GameMode
 
     private var title: String {
-        switch mode {
-        case .grid8x8: return "8×8 Mode"
-        case .grid10x10: return "10×10 Mode"
-        }
+        mode.displayName
     }
 
     private var gradient: LinearGradient {
@@ -480,6 +485,15 @@ private struct ModeBubble: View {
                 colors: [
                     Color(red: 0.41, green: 0.85, blue: 0.64),
                     Color(red: 0.19, green: 0.64, blue: 0.47)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .timedThreeMinutes, .timedFiveMinutes, .timedSevenMinutes:
+            return LinearGradient(
+                colors: [
+                    Color(red: 1.0, green: 0.5, blue: 0.3),
+                    Color(red: 0.8, green: 0.2, blue: 0.2)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
