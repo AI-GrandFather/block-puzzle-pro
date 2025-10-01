@@ -56,6 +56,7 @@ struct UITouchBlockTrayView: UIViewRepresentable {
         // Block layout data
         private var blockFrames: [Int: CGRect] = [:]
         private var blockPatterns: [Int: BlockPattern] = [:]
+        private var blockCellSizes: [Int: CGFloat] = [:]
         private var vicinityRadius: CGFloat = 80.0
 
         // Touch tracking
@@ -77,6 +78,7 @@ struct UITouchBlockTrayView: UIViewRepresentable {
             self.vicinityRadius = vicinityRadius
             blockFrames.removeAll()
             blockPatterns.removeAll()
+            blockCellSizes.removeAll()
 
             // Calculate frame for each block slot
             let totalSpacing = slotSpacing * CGFloat(blocks.count - 1)
@@ -89,13 +91,36 @@ struct UITouchBlockTrayView: UIViewRepresentable {
                 let x = startX + CGFloat(index) * (slotSize + slotSpacing)
                 let y: CGFloat = 14 // Vertical padding
 
+                // Calculate actual rendered block size similar to SwiftUI tray
+                let rawWidth = CGFloat(pattern.size.width) * cellSize
+                let rawHeight = CGFloat(pattern.size.height) * cellSize
+                let maxDimension = max(rawWidth, rawHeight)
+                let scale: CGFloat
+                if maxDimension > 0 {
+                    let availableSpan = slotSize * 0.88
+                    scale = min(1.0, availableSpan / maxDimension)
+                } else {
+                    scale = 1.0
+                }
+
+                let displayWidth = rawWidth * scale
+                let displayHeight = rawHeight * scale
+                let insetX = (slotSize - displayWidth) / 2.0
+                let insetY = (slotSize - displayHeight) / 2.0
+
                 blockFrames[index] = CGRect(
-                    x: x,
-                    y: y,
-                    width: slotSize,
-                    height: slotSize
+                    x: x + insetX,
+                    y: y + insetY,
+                    width: displayWidth,
+                    height: displayHeight
                 )
                 blockPatterns[index] = pattern
+
+                if pattern.size.width > 0 {
+                    blockCellSizes[index] = displayWidth / CGFloat(pattern.size.width)
+                } else {
+                    blockCellSizes[index] = 0
+                }
             }
         }
 
@@ -132,7 +157,8 @@ struct UITouchBlockTrayView: UIViewRepresentable {
                     blockIndex: blockIndex,
                     blockPattern: blockPattern,
                     at: globalLocation,
-                    touchOffset: touchOffset
+                    touchOffset: touchOffset,
+                    sourceCellSize: blockCellSizes[blockIndex] ?? 0
                 )
 
                 DebugLog.trace("✅ UITouch: Started drag for block \(blockIndex) at \(location)")

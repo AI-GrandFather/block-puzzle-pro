@@ -42,7 +42,8 @@ struct UITouchBlockTrayView: UIViewRepresentable {
             slotSize: slotSize,
             slotSpacing: slotSpacing,
             horizontalInset: horizontalInset,
-            vicinityRadius: vicinityRadius
+            vicinityRadius: vicinityRadius,
+            cellSize: cellSize
         )
     }
 
@@ -56,7 +57,9 @@ struct UITouchBlockTrayView: UIViewRepresentable {
 
         private var blockFrames: [Int: CGRect] = [:]
         private var blockPatterns: [Int: BlockPattern] = [:]
+        private var blockCellSizes: [Int: CGFloat] = [:]
         private var vicinityRadius: CGFloat = 80.0
+        private var cellSize: CGFloat = 0.0
 
         private var activeTouch: UITouch?
         private var activeDragBlockIndex: Int?
@@ -66,17 +69,50 @@ struct UITouchBlockTrayView: UIViewRepresentable {
             self.onBlockDragged = onBlockDragged
         }
 
-        func updateBlockData(blocks: [BlockPattern?], slotSize: CGFloat, slotSpacing: CGFloat, horizontalInset: CGFloat, vicinityRadius: CGFloat) {
+        func updateBlockData(blocks: [BlockPattern?], slotSize: CGFloat, slotSpacing: CGFloat, horizontalInset: CGFloat, vicinityRadius: CGFloat, cellSize: CGFloat) {
             self.vicinityRadius = vicinityRadius
+            self.cellSize = cellSize
             blockFrames.removeAll()
             blockPatterns.removeAll()
+            blockCellSizes.removeAll()
 
             let startX = horizontalInset
             for (index, blockPattern) in blocks.enumerated() {
                 guard let pattern = blockPattern else { continue }
                 let x = startX + CGFloat(index) * (slotSize + slotSpacing)
-                blockFrames[index] = CGRect(x: x, y: 14, width: slotSize, height: slotSize)
+
+                // Calculate actual rendered block size so touch offsets align with the drawn block
+                let rawWidth = CGFloat(pattern.size.width) * cellSize
+                let rawHeight = CGFloat(pattern.size.height) * cellSize
+                let maxDimension = max(rawWidth, rawHeight)
+                let scale: CGFloat
+                if maxDimension > 0 {
+                    let availableSpan = slotSize * 0.88
+                    scale = min(1.0, availableSpan / maxDimension)
+                } else {
+                    scale = 1.0
+                }
+
+                let displayWidth = rawWidth * scale
+                let displayHeight = rawHeight * scale
+                let insetX = (slotSize - displayWidth) / 2.0
+                let insetY = (slotSize - displayHeight) / 2.0
+
+                let frame = CGRect(
+                    x: x + insetX,
+                    y: 14 + insetY,
+                    width: displayWidth,
+                    height: displayHeight
+                )
+
+                blockFrames[index] = frame
                 blockPatterns[index] = pattern
+
+                if pattern.size.width > 0 {
+                    blockCellSizes[index] = displayWidth / CGFloat(pattern.size.width)
+                } else {
+                    blockCellSizes[index] = 0
+                }
             }
         }
 
@@ -103,7 +139,14 @@ struct UITouchBlockTrayView: UIViewRepresentable {
 
                 let globalLocation = view.convert(location, to: nil)
                 onBlockDragged(blockIndex, blockPattern)
-                dragController.startDrag(blockIndex: blockIndex, blockPattern: blockPattern, at: globalLocation, touchOffset: touchOffset)
+                let sourceCellSize = blockCellSizes[blockIndex] ?? 0
+                dragController.startDrag(
+                    blockIndex: blockIndex,
+                    blockPattern: blockPattern,
+                    at: globalLocation,
+                    touchOffset: touchOffset,
+                    sourceCellSize: sourceCellSize
+                )
                 DebugLog.trace("✅ UITouch: Started drag block \(blockIndex) at global: \(globalLocation)")
             } else {
                 DebugLog.trace("❌ UITouch: No block found near touch \(location)")
@@ -388,7 +431,8 @@ struct DraggableBlockView: View {
                         blockIndex: blockIndex,
                         blockPattern: blockPattern,
                         at: value.startLocation,
-                        touchOffset: touchOffset
+                        touchOffset: touchOffset,
+                        sourceCellSize: blockPattern.size.width > 0 ? (blockFrame.width / CGFloat(blockPattern.size.width)) : 0
                     )
 
                 } else if !didSendDragBegan {

@@ -207,12 +207,13 @@ struct BlockPuzzleProApp: App {
                     logger.info("BlockPuzzlePro app launched successfully")
 
                     // Enable 120Hz ProMotion for enhanced performance
-                    if #available(iOS 15.0, *) {
-                        let maxRefreshRate = UIScreen.main.maximumFramesPerSecond
-                        if maxRefreshRate >= 120 {
-                            logger.info("🚀 ProMotion (120Hz) display detected and enabled")
+                    Task { @MainActor in
+                        FrameRateConfigurator.configurePreferredFrameRate()
+                        let info = FrameRateConfigurator.currentDisplayInfo()
+                        if info.maxRefreshRate >= 120 {
+                            logger.info("🚀 ProMotion display detected (preferred=\(info.preferredRefreshRate)Hz, max=\(info.maxRefreshRate)Hz)")
                         } else {
-                            logger.info("📱 Standard \(maxRefreshRate)Hz display detected")
+                            logger.info("📱 Standard display detected (preferred=\(info.preferredRefreshRate)Hz, max=\(info.maxRefreshRate)Hz)")
                         }
                     }
                 }

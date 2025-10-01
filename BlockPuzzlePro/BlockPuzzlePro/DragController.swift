@@ -69,6 +69,9 @@ class DragController: ObservableObject {
     /// Offset from the user's touch point to the block's top-left in screen space
     @Published var dragTouchOffset: CGSize = .zero
 
+    /// Size of a single block cell in the source coordinate space (used to normalize offsets)
+    @Published var dragSourceCellSize: CGFloat = 0.0
+
     /// Currently dragged block pattern (if any)
     @Published var draggedBlockPattern: BlockPattern? = nil
 
@@ -138,8 +141,10 @@ class DragController: ObservableObject {
         self.deviceManager = deviceManager
 
         // Detect ProMotion display capability
-        let refreshRate = Double(UIScreen.main.maximumFramesPerSecond)
-        self.isProMotionDisplay = refreshRate >= 120.0
+        let displayInfo = FrameRateConfigurator.currentDisplayInfo()
+        let preferredRefresh = displayInfo.preferredRefreshRate > 0 ? Double(displayInfo.preferredRefreshRate) : 0
+        let refreshRate = preferredRefresh > 0 ? preferredRefresh : Double(displayInfo.maxRefreshRate)
+        self.isProMotionDisplay = Double(displayInfo.maxRefreshRate) >= 120.0
 
         // Optimize update interval for 120Hz ProMotion displays
         if let interval = deviceManager?.idealDragUpdateInterval() {
@@ -160,7 +165,7 @@ class DragController: ObservableObject {
     // MARK: - Drag Management
     
     /// Start a drag operation with deterministic state transitions
-    func startDrag(blockIndex: Int, blockPattern: BlockPattern, at position: CGPoint, touchOffset: CGSize) {
+    func startDrag(blockIndex: Int, blockPattern: BlockPattern, at position: CGPoint, touchOffset: CGSize, sourceCellSize: CGFloat = 0.0) {
         let oldState = dragState
         logger.debug("🚀 startDrag called for block \(blockIndex), current state: \(String(describing: self.dragState)), isDragging: \(self.isDragging)")
 
@@ -182,6 +187,7 @@ class DragController: ObservableObject {
         // Set up drag state atomically
         isDragging = true // Set immediately to prevent race conditions
         dragTouchOffset = touchOffset
+        dragSourceCellSize = sourceCellSize
         draggedBlockPattern = blockPattern
         currentBlockIndex = blockIndex
         draggedIndices.insert(blockIndex)
@@ -317,6 +323,7 @@ class DragController: ObservableObject {
         // This prevents the green outline from persisting while animations complete
         draggedBlockPattern = nil
         currentBlockIndex = nil
+        dragSourceCellSize = 0.0
 
         // CRITICAL FIX: Complete state transition immediately instead of waiting for animation
         // The async animation was causing the drag controller to stay in 'settling' state
@@ -397,6 +404,7 @@ class DragController: ObservableObject {
         isDragging = false
         dragTouchOffset = .zero
         draggedIndices.removeAll()
+        dragSourceCellSize = 0.0
         // Note: draggedBlockPattern and currentBlockIndex already cleared above
 
         logger.debug("✅ State transition complete, dragState=\(String(describing: self.dragState)), isDragging=\(self.isDragging)")
@@ -609,6 +617,7 @@ class DragController: ObservableObject {
         draggedBlockPattern = nil
         currentBlockIndex = nil
         draggedIndices.removeAll()
+        dragSourceCellSize = 0.0
 
         // Reset performance tracking
         lastUpdateTime = 0

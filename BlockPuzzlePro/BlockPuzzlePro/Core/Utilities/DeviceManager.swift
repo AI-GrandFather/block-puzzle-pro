@@ -1,5 +1,98 @@
 import UIKit
 import SwiftUI
+import QuartzCore
+import os.log
+
+struct FrameRateInfo {
+    let maxRefreshRate: Int
+    let preferredRefreshRate: Int
+}
+
+enum FrameRateConfigurator {
+    private static let logger = Logger(subsystem: "com.example.BlockPuzzlePro", category: "FrameRate")
+    @MainActor private static var monitor = FrameRateMonitor()
+
+    @MainActor
+    static func configurePreferredFrameRate() {
+        logger.info("Starting frame rate monitor")
+        monitor.start()
+    }
+
+    @MainActor
+    static func currentDisplayInfo() -> FrameRateInfo {
+        return FrameRateInfo(
+            maxRefreshRate: monitor.maxRefreshRate,
+            preferredRefreshRate: monitor.measuredRefreshRate
+        )
+    }
+
+    @MainActor
+    private final class FrameRateMonitor: NSObject {
+        private(set) var measuredRefreshRate: Int
+        private(set) var maxRefreshRate: Int
+
+        private var displayLink: CADisplayLink?
+        private var lastTimestamp: CFTimeInterval = 0
+        private var samples: [Double] = []
+        private let maxSamples = 12
+
+        override init() {
+            let detected = UIScreen.main.maximumFramesPerSecond
+            let fallback = detected > 0 ? detected : 60
+            self.maxRefreshRate = fallback
+            self.measuredRefreshRate = fallback
+        }
+
+        @MainActor
+        func start() {
+            guard displayLink == nil else { return }
+
+            let detected = UIScreen.main.maximumFramesPerSecond
+            if detected > 0 {
+                maxRefreshRate = detected
+                measuredRefreshRate = detected
+            }
+
+            let link = CADisplayLink(target: self, selector: #selector(handleTick(_:)))
+
+            if #available(iOS 15.0, *) {
+                link.preferredFrameRateRange = CAFrameRateRange(
+                    minimum: Float(maxRefreshRate),
+                    maximum: Float(maxRefreshRate),
+                    preferred: Float(maxRefreshRate)
+                )
+            } else {
+                link.preferredFramesPerSecond = maxRefreshRate
+            }
+
+            link.add(to: .main, forMode: .common)
+            displayLink = link
+        }
+
+        @objc private func handleTick(_ link: CADisplayLink) {
+            let timestamp = link.timestamp
+
+            if lastTimestamp == 0 {
+                lastTimestamp = timestamp
+                return
+            }
+
+            let delta = timestamp - lastTimestamp
+            lastTimestamp = timestamp
+            guard delta > 0 else { return }
+
+            let instantaneousRate = min(Double(maxRefreshRate), 1.0 / delta)
+
+            samples.append(instantaneousRate)
+            if samples.count > maxSamples {
+                samples.removeFirst()
+            }
+
+            let average = samples.reduce(0, +) / Double(samples.count)
+            measuredRefreshRate = Int(round(average))
+        }
+    }
+}
 
 // MARK: - Device Type
 
@@ -201,7 +294,10 @@ final class DeviceManager: ObservableObject, @unchecked Sendable {
     /// Ideal drag update interval aligned with the device refresh rate
     @MainActor
     func idealDragUpdateInterval() -> TimeInterval {
-        let refreshRate = Double(UIScreen.main.maximumFramesPerSecond)
+        let displayInfo = FrameRateConfigurator.currentDisplayInfo()
+        let preferred = displayInfo.preferredRefreshRate > 0 ? Double(displayInfo.preferredRefreshRate) : 0
+        let maxRate = Double(displayInfo.maxRefreshRate)
+        let refreshRate = preferred > 0 ? preferred : maxRate
         let resolvedRate = refreshRate > 0 ? refreshRate : 60.0
         return 1.0 / resolvedRate
     }

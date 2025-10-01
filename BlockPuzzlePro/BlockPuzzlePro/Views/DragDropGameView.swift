@@ -43,6 +43,9 @@ struct DragDropGameView: View {
     @State private var timerActive: Bool = false
     @State private var currentTheme: Theme = Theme.current
 
+    // Visual lift applied to the floating block preview so pieces hover above the finger
+    private let dragPreviewLift: CGFloat = 100.0
+
     // Performance optimization properties
     @State private var lastUpdateTime: TimeInterval = 0
     @State private var frameSkipCounter: Int = 0
@@ -108,23 +111,23 @@ struct DragDropGameView: View {
                     // Floating drag preview - ONLY show when actually dragging (not just pressed)
                     if !isGameOver,
                        let draggedPattern = dragController.draggedBlockPattern,
-                       case .dragging = dragController.dragState {
+                       case .dragging = dragController.dragState,
+                       let previewOrigin = currentPreviewOrigin() {
                         let rootOrigin = geometry.frame(in: .global).origin
 
-                        // No offset - block follows cursor exactly for accurate placement
                         let cursorPosition = CGPoint(
-                            x: dragController.currentDragPosition.x - rootOrigin.x,
-                            y: dragController.currentDragPosition.y - rootOrigin.y
+                            x: previewOrigin.x - rootOrigin.x,
+                            y: previewOrigin.y - rootOrigin.y
                         )
 
                         FloatingBlockPreview(
                             blockPattern: draggedPattern,
                             cellSize: gridCellSize,
                             position: cursorPosition,
-                            isValid: true  // Always true since preview system disabled
+                            isValid: true
                         )
                         .allowsHitTesting(false)
-                        .opacity(1.0)  // Full opacity - keep original vibrant color
+                        .opacity(1.0)
                         .zIndex(1000)
                     }
                 } else {
@@ -420,12 +423,16 @@ struct DragDropGameView: View {
     // MARK: - Performance Optimization
 
     private func setupPerformanceOptimizations() {
-        // Detect ProMotion capability
-        isProMotionDevice = UIScreen.main.maximumFramesPerSecond >= 120
+        Task { @MainActor in
+            FrameRateConfigurator.configurePreferredFrameRate()
+            let displayInfo = FrameRateConfigurator.currentDisplayInfo()
+            isProMotionDevice = displayInfo.maxRefreshRate >= 120
 
-        DebugLog.trace("🚀 Performance optimizations enabled")
-        DebugLog.trace("📱 Device max refresh rate: \(UIScreen.main.maximumFramesPerSecond)Hz")
-        DebugLog.trace("⚡ ProMotion support: \(isProMotionDevice ? "YES" : "NO")")
+            DebugLog.trace("🚀 Performance optimizations enabled")
+            DebugLog.trace("📱 Device max refresh rate: \(displayInfo.maxRefreshRate)Hz")
+            DebugLog.trace("🎯 Preferred frame rate: \(displayInfo.preferredRefreshRate)Hz")
+            DebugLog.trace("⚡ ProMotion support: \(isProMotionDevice ? "YES" : "NO")")
+        }
     }
 
     // MARK: - Game Logic
@@ -556,9 +563,10 @@ struct DragDropGameView: View {
         
         // Drag changed callback
         dragController.onDragChanged = { blockIndex, blockPattern, position in
-            // Update placement preview using the controller's computed origin
-            DebugLog.trace("🔄 onDragChanged blockIndex=\(blockIndex) reportedPosition=\(position) currentDragPosition=\(self.dragController.currentDragPosition)")
-            self.updatePlacementPreview(blockPattern: blockPattern, blockOrigin: self.dragController.currentDragPosition)
+            // Update placement preview using the visual origin shown on screen
+            let previewOrigin = self.currentPreviewOrigin() ?? self.dragController.currentDragPosition
+            DebugLog.trace("🔄 onDragChanged blockIndex=\(blockIndex) reportedPosition=\(position) previewOrigin=\(previewOrigin)")
+            self.updatePlacementPreview(blockPattern: blockPattern, blockOrigin: previewOrigin)
         }
 
         // Drag ended callback
@@ -571,11 +579,16 @@ struct DragDropGameView: View {
                 return
             }
 
+            let previewOrigin = self.currentPreviewOrigin() ?? self.dragController.currentDragPosition
+            let adjustedTouchPoint = self.previewTouchPoint()
+
+            DebugLog.trace("📍 PLACEMENT: touch=\(self.dragController.currentTouchLocation) adjustedTouch=\(adjustedTouchPoint) origin=\(previewOrigin)")
+
             let placementSuccess = self.placementEngine.placeBlockDirectly(
                 blockPattern: blockPattern,
-                blockOrigin: self.dragController.currentDragPosition,
-                touchPoint: self.dragController.currentTouchLocation,
-                touchOffset: self.dragController.dragTouchOffset,
+                blockOrigin: previewOrigin,
+                touchPoint: adjustedTouchPoint,
+                touchOffset: self.scaledTouchOffset(),
                 gridFrame: self.gridFrame,
                 cellSize: self.gridCellSize,
                 gridSpacing: self.gridSpacing
@@ -678,6 +691,36 @@ struct DragDropGameView: View {
         // DISABLED: Preview system removed - returning to original snap-to-grid functionality
         // guard gridFrame != .zero else { return }
         // placementEngine.updatePreview(...)
+    }
+
+    private func currentPreviewOrigin() -> CGPoint? {
+        guard dragController.draggedBlockPattern != nil else { return nil }
+
+        let touchLocation = dragController.currentTouchLocation
+        let touchOffset = scaledTouchOffset()
+
+        guard touchLocation != .zero || touchOffset != .zero else { return nil }
+
+        let originX = touchLocation.x - touchOffset.width
+        let originY = touchLocation.y - touchOffset.height - dragPreviewLift
+
+        return CGPoint(x: originX, y: originY)
+    }
+
+    private func previewTouchPoint() -> CGPoint {
+        CGPoint(
+            x: dragController.currentTouchLocation.x,
+            y: dragController.currentTouchLocation.y - dragPreviewLift
+        )
+    }
+
+    private func scaledTouchOffset() -> CGSize {
+        let offset = dragController.dragTouchOffset
+        let sourceCellSize = dragController.dragSourceCellSize
+        guard sourceCellSize > 0, gridCellSize > 0 else { return offset }
+
+        let scale = gridCellSize / sourceCellSize
+        return CGSize(width: offset.width * scale, height: offset.height * scale)
     }
     
     private func handleValidPlacement(blockIndex: Int, blockPattern: BlockPattern, position: CGPoint) {
