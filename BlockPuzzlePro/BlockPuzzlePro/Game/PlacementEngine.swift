@@ -311,6 +311,69 @@ final class PlacementEngine: ObservableObject {
         return success
     }
 
+    /// Direct placement without preview - calculates grid position and places block in one step
+    func placeBlockDirectly(
+        blockPattern: BlockPattern,
+        blockOrigin: CGPoint,
+        touchPoint: CGPoint,
+        touchOffset: CGSize,
+        gridFrame: CGRect,
+        cellSize: CGFloat,
+        gridSpacing: CGFloat
+    ) -> Bool {
+        guard let gameEngine = gameEngine else { return false }
+
+        // Calculate grid position
+        let anchorBasedPosition = fallbackGridPosition(
+            for: blockPattern,
+            touchPoint: touchPoint,
+            touchOffset: touchOffset,
+            gridFrame: gridFrame,
+            cellSize: cellSize,
+            gridSpacing: gridSpacing,
+            blockCellSpacing: 0
+        )
+
+        let projectedPosition = projectedBaseGridPosition(
+            for: blockPattern,
+            blockOrigin: blockOrigin,
+            touchPoint: touchPoint,
+            touchOffset: touchOffset,
+            gridFrame: gridFrame,
+            cellSize: cellSize,
+            gridSpacing: gridSpacing
+        )
+
+        guard let baseGridPosition = anchorBasedPosition ?? projectedPosition else {
+            logger.debug("Direct placement rejected: no valid grid position found")
+            return false
+        }
+
+        // Validate and get positions
+        switch validatePlacement(blockPattern: blockPattern, at: baseGridPosition) {
+        case .valid(let positions):
+            // Place blocks immediately
+            let success = gameEngine.placeBlocks(at: positions, color: blockPattern.color)
+
+            if success {
+                logger.info("Direct placement success: \(blockPattern.type.displayName) at base=\(baseGridPosition)")
+                let lineClearResult = gameEngine.processCompletedLines()
+                if !lineClearResult.isEmpty {
+                    logger.info("Line clear triggered: rows=\(lineClearResult.rows) columns=\(lineClearResult.columns)")
+                }
+                if let scoreEvent = gameEngine.applyScore(placedCells: positions.count, lineClearResult: lineClearResult) {
+                    logger.info("Placement score event: +\(scoreEvent.totalDelta) -> total \(scoreEvent.newTotal)")
+                }
+            }
+
+            return success
+
+        case .invalid(let reason):
+            logger.debug("Direct placement invalid: reason=\(reason) at base=\(baseGridPosition)")
+            return false
+        }
+    }
+
     // MARK: - Helper Methods
 
     private func projectedBaseGridPosition(

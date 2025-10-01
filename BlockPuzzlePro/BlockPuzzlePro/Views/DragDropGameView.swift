@@ -3,6 +3,7 @@ import Foundation
 import CoreGraphics
 import Combine
 import QuartzCore
+import UIKit
 
 // MARK: - Drag Drop Game View
 
@@ -40,6 +41,7 @@ struct DragDropGameView: View {
     @State private var didObserveCloudSaves = false
     @State private var timerRemaining: Int = 0
     @State private var timerActive: Bool = false
+    @State private var currentTheme: Theme = Theme.current
 
     // Performance optimization properties
     @State private var lastUpdateTime: TimeInterval = 0
@@ -80,15 +82,18 @@ struct DragDropGameView: View {
                     .ignoresSafeArea()
                 
                 if isGameReady {
-                    VStack(spacing: 20) {
+                    VStack(spacing: 15) { // Reduced from 20 to 15 (25% reduction)
                         header(in: geometry)
+
+                        Spacer(minLength: 0)
 
                         // Grid container with explicit centering and size constraints
                         gridView
                             .frame(width: boardSize, height: boardSize)
                             .clipped()
                             .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.horizontal, 32)
+
+                        Spacer(minLength: 0)
 
                         // Tray container
                         trayView(
@@ -96,29 +101,31 @@ struct DragDropGameView: View {
                             safeArea: geometry.safeAreaInsets.bottom
                         )
                         .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.horizontal, 32)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .allowsHitTesting(!isGameOver)
                     
-                    // Floating drag preview overlay
-                    if !isGameOver, let draggedPattern = dragController.draggedBlockPattern {
+                    // Floating drag preview - ONLY show when actually dragging (not just pressed)
+                    if !isGameOver,
+                       let draggedPattern = dragController.draggedBlockPattern,
+                       case .dragging = dragController.dragState {
                         let rootOrigin = geometry.frame(in: .global).origin
 
-                        let previewOriginGlobal = (placementEngine.isCurrentPreviewValid ? snappedPreviewOrigin() : nil) ?? dragController.currentDragPosition
-
-                        let localDragPosition = CGPoint(
-                            x: previewOriginGlobal.x - rootOrigin.x,
-                            y: previewOriginGlobal.y - rootOrigin.y
+                        // No offset - block follows cursor exactly for accurate placement
+                        let cursorPosition = CGPoint(
+                            x: dragController.currentDragPosition.x - rootOrigin.x,
+                            y: dragController.currentDragPosition.y - rootOrigin.y
                         )
 
                         FloatingBlockPreview(
                             blockPattern: draggedPattern,
                             cellSize: gridCellSize,
-                            position: localDragPosition,
-                            isValid: placementEngine.isCurrentPreviewValid
+                            position: cursorPosition,
+                            isValid: true  // Always true since preview system disabled
                         )
                         .allowsHitTesting(false)
+                        .opacity(1.0)  // Full opacity - keep original vibrant color
+                        .zIndex(1000)
                     }
                 } else {
                     // Loading state
@@ -188,6 +195,11 @@ struct DragDropGameView: View {
                     handleTimerExpired()
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .themeDidChange)) { notification in
+                if let newTheme = notification.object as? Theme {
+                    currentTheme = newTheme
+                }
+            }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase != .active else { return }
                 saveProgressSnapshot()
@@ -201,28 +213,8 @@ struct DragDropGameView: View {
     // MARK: - View Components
     
     private var backgroundColor: some View {
-        let aurora = LinearGradient(
-            colors: [
-                Color(red: 0.11, green: 0.16, blue: 0.34),
-                Color(red: 0.05, green: 0.29, blue: 0.49),
-                Color(red: 0.15, green: 0.06, blue: 0.35)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-
-        let sunrise = LinearGradient(
-            colors: [
-                Color(red: 0.96, green: 0.77, blue: 0.36).opacity(0.55),
-                Color(red: 0.69, green: 0.51, blue: 0.91).opacity(0.7),
-                Color(UIColor.systemBackground)
-            ],
-            startPoint: .top,
-            endPoint: .bottomTrailing
-        )
-
-        return ZStack {
-            (colorScheme == .dark ? aurora : sunrise)
+        ZStack {
+            Color(currentTheme.backgroundColor)
 
             RadialGradient(
                 colors: [Color.white.opacity(colorScheme == .dark ? 0.1 : 0.25), Color.clear],
@@ -231,7 +223,6 @@ struct DragDropGameView: View {
                 endRadius: 420
             )
         }
-        .ignoresSafeArea()
     }
     
     private func header(in geometry: GeometryProxy) -> some View {
@@ -361,7 +352,7 @@ struct DragDropGameView: View {
         return DraggableBlockTrayView(
             blockFactory: blockFactory,
             dragController: dragController,
-            cellSize: gridCellSize,
+            cellSize: gridCellSize * 1.15, // Make tray blocks 15% larger for better visibility
             slotSize: slotSize,
             horizontalInset: horizontalInset,
             slotSpacing: slotSpacing
@@ -398,12 +389,18 @@ struct DragDropGameView: View {
     private var availableGridLength: CGFloat {
         guard screenSize != .zero else { return 320 }
 
-        // Use more conservative padding to ensure grid fits properly
-        let horizontalPadding: CGFloat = 64  // Increased from 48 to give more margin
+        // Conservative padding to ensure everything fits
+        let horizontalPadding: CGFloat = 64
         let widthLimit = max(240, screenSize.width - horizontalPadding)
 
-        // Height calculation with more conservative ratio
-        let heightLimit = max(240, screenSize.height * 0.5)  // Reduced from 0.55
+        // Calculate available height accounting for header and tray
+        let headerHeight: CGFloat = 120 // Approximate header + spacing
+        let trayHeight: CGFloat = 140    // Approximate tray height
+        let verticalSpacing: CGFloat = 30 // VStack spacing
+        let safeAreaEstimate: CGFloat = 100 // Top and bottom safe areas
+
+        let availableHeight = screenSize.height - headerHeight - trayHeight - verticalSpacing - safeAreaEstimate
+        let heightLimit = max(240, availableHeight)
 
         return min(widthLimit, heightLimit)
     }
@@ -412,6 +409,7 @@ struct DragDropGameView: View {
         let usableSize = availableGridLength
         let totalSpacing = gridSpacing * CGFloat(gameEngine.gridSize + 1)
         let effectiveBoard = max(usableSize - totalSpacing, 10)
+        // No multiplication - keep cells at optimal size to fit screen
         return effectiveBoard / CGFloat(gameEngine.gridSize)
     }
 
@@ -566,8 +564,22 @@ struct DragDropGameView: View {
         // Drag ended callback
         dragController.onDragEnded = { blockIndex, blockPattern, position in
             DebugLog.trace("🛑 onDragEnded blockIndex=\(blockIndex) position=\(position) state=\(self.dragController.dragState)")
-            // Commit placement and handle result
-            let placementSuccess = self.placementEngine.commitPlacement(blockPattern: blockPattern)
+
+            // Use direct placement without preview system
+            guard self.gridFrame != .zero else {
+                self.handleInvalidPlacement(blockIndex: blockIndex, blockPattern: blockPattern, position: position)
+                return
+            }
+
+            let placementSuccess = self.placementEngine.placeBlockDirectly(
+                blockPattern: blockPattern,
+                blockOrigin: self.dragController.currentDragPosition,
+                touchPoint: self.dragController.currentTouchLocation,
+                touchOffset: self.dragController.dragTouchOffset,
+                gridFrame: self.gridFrame,
+                cellSize: self.gridCellSize,
+                gridSpacing: self.gridSpacing
+            )
 
             if placementSuccess {
                 self.handleValidPlacement(blockIndex: blockIndex, blockPattern: blockPattern, position: position)
@@ -663,22 +675,9 @@ struct DragDropGameView: View {
     // MARK: - Placement Engine Integration
     
     private func updatePlacementPreview(blockPattern: BlockPattern, blockOrigin: CGPoint) {
-        // Use the actual grid frame from GeometryReader
-        guard gridFrame != .zero else { return }
-
-        placementEngine.updatePreview(
-            blockPattern: blockPattern,
-            blockOrigin: blockOrigin,
-            touchPoint: dragController.currentTouchLocation,
-            touchOffset: dragController.dragTouchOffset,
-            gridFrame: gridFrame,
-            cellSize: gridCellSize,
-            gridSpacing: gridSpacing
-        )
-        DebugLog.trace("🧮 updatePlacementPreview blockIndex=\(dragController.currentBlockIndex ?? -1) origin=\(blockOrigin) touch=\(dragController.currentTouchLocation) touchOffset=\(dragController.dragTouchOffset) gridFrame=\(gridFrame)")
-        
-        // Removed the following line as per instructions:
-        // dragController.setDropValidity(placementEngine.isCurrentPreviewValid)
+        // DISABLED: Preview system removed - returning to original snap-to-grid functionality
+        // guard gridFrame != .zero else { return }
+        // placementEngine.updatePreview(...)
     }
     
     private func handleValidPlacement(blockIndex: Int, blockPattern: BlockPattern, position: CGPoint) {
@@ -1111,6 +1110,8 @@ private struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @Binding var debugLoggingEnabled: Bool
+    @State private var selectedTheme: Theme = Theme.current
+
     let onRestart: () -> Void
     let onExitToMenu: () -> Void
     let onReturnToModeSelect: () -> Void
@@ -1118,6 +1119,65 @@ private struct SettingsSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Available Themes")
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(Color.primary)
+                            .padding(.bottom, 4)
+
+                        // Dark Themes
+                        Text("Dark Themes")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.secondary)
+                            .padding(.top, 4)
+
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                            ThemeBubble(theme: .classicDark, isSelected: selectedTheme == .classicDark) {
+                                selectTheme(.classicDark)
+                            }
+                            ThemeBubble(theme: .neonCyberpunk, isSelected: selectedTheme == .neonCyberpunk) {
+                                selectTheme(.neonCyberpunk)
+                            }
+                            ThemeBubble(theme: .midnightBlue, isSelected: selectedTheme == .midnightBlue) {
+                                selectTheme(.midnightBlue)
+                            }
+                            ThemeBubble(theme: .diabloMaroon, isSelected: selectedTheme == .diabloMaroon) {
+                                selectTheme(.diabloMaroon)
+                            }
+                            ThemeBubble(theme: .forestNight, isSelected: selectedTheme == .forestNight) {
+                                selectTheme(.forestNight)
+                            }
+                            ThemeBubble(theme: .purpleDreams, isSelected: selectedTheme == .purpleDreams) {
+                                selectTheme(.purpleDreams)
+                            }
+                            ThemeBubble(theme: .retroArcade, isSelected: selectedTheme == .retroArcade) {
+                                selectTheme(.retroArcade)
+                            }
+                        }
+
+                        // Light Themes
+                        Text("Light Themes")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.secondary)
+                            .padding(.top, 8)
+
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                            ThemeBubble(theme: .oceanBreeze, isSelected: selectedTheme == .oceanBreeze) {
+                                selectTheme(.oceanBreeze)
+                            }
+                            ThemeBubble(theme: .sunsetGlow, isSelected: selectedTheme == .sunsetGlow) {
+                                selectTheme(.sunsetGlow)
+                            }
+                            ThemeBubble(theme: .cherryBlossom, isSelected: selectedTheme == .cherryBlossom) {
+                                selectTheme(.cherryBlossom)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+
                 Section("Session") {
                     Button {
                         dismiss()
@@ -1164,6 +1224,97 @@ private struct SettingsSheet: View {
                 }
             }
         }
+        .onAppear {
+            selectedTheme = Theme.current
+        }
+    }
+
+    private func selectTheme(_ theme: Theme) {
+        selectedTheme = theme
+        Theme.current = theme
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+    }
+}
+
+private struct ThemeBubble: View {
+    let theme: Theme
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 10) {
+                // Color preview circle with glow effect
+                ZStack {
+                    // Outer glow ring for selected state
+                    if isSelected {
+                        Circle()
+                            .fill(Color(theme.blockColor).opacity(0.3))
+                            .frame(width: 58, height: 58)
+                            .blur(radius: 8)
+                    }
+
+                    // Main color circle
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(theme.blockColor),
+                                    Color(theme.blockColor).opacity(0.85)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 48, height: 48)
+                        .overlay(
+                            Circle()
+                                .stroke(
+                                    isSelected ? Color.white : Color.white.opacity(0.3),
+                                    lineWidth: isSelected ? 3.5 : 1.5
+                                )
+                        )
+                        .shadow(color: Color(theme.blockColor).opacity(0.5), radius: isSelected ? 12 : 6, x: 0, y: isSelected ? 6 : 3)
+
+                    // Checkmark for selected state
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(Color.white)
+                    }
+                }
+
+                // Theme name
+                Text(theme.displayName)
+                    .font(.system(size: 11, weight: isSelected ? .bold : .semibold, design: .rounded))
+                    .foregroundStyle(isSelected ? Color(theme.blockColor) : Color.primary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(
+                        isSelected
+                        ? Color(theme.blockColor).opacity(0.12)
+                        : Color(UIColor.secondarySystemGroupedBackground)
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(
+                        isSelected ? Color(theme.blockColor).opacity(0.4) : Color.clear,
+                        lineWidth: isSelected ? 2 : 0
+                    )
+            )
+            .scaleEffect(isSelected ? 1.03 : 1.0)
+            .animation(.spring(response: 0.35, dampingFraction: 0.65), value: isSelected)
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -8,6 +8,9 @@ struct GridView: View {
     let cellSize: CGFloat
     let gridSpacing: CGFloat
 
+    @State private var currentTheme: Theme = Theme.current
+    @Environment(\.colorScheme) private var colorScheme
+
     init(
         gameEngine: GameEngine,
         dragController: DragController,
@@ -35,18 +38,27 @@ struct GridView: View {
 
                 GridCellView(
                     cell: gameEngine.cell(at: position) ?? .empty,
-                    cellSize: cellSize
+                    cellSize: cellSize,
+                    theme: currentTheme
                 )
             }
         }
         .frame(width: contentSide, height: contentSide)
         .padding(gridSpacing)
+        .onReceive(NotificationCenter.default.publisher(for: .themeDidChange)) { notification in
+            if let newTheme = notification.object as? Theme {
+                currentTheme = newTheme
+            }
+        }
     }
 }
 
 private struct GridCellView: View {
     let cell: GridCell
     let cellSize: CGFloat
+    let theme: Theme
+
+    @State private var pulseAnimation: Bool = false
 
     var body: some View {
         Rectangle()
@@ -54,23 +66,40 @@ private struct GridCellView: View {
             .frame(width: cellSize, height: cellSize)
             .overlay(
                 Rectangle()
-                    .stroke(cellBorder, lineWidth: 0.7)
+                    .stroke(cellBorder, lineWidth: isPreview ? 0 : 0.7)  // NO border on preview
             )
+            .shadow(
+                color: Color.clear,  // NO shadow
+                radius: 0,
+                x: 0,
+                y: 0
+            )
+    }
+
+    private var isPreview: Bool {
+        if case .preview = cell {
+            return true
+        }
+        return false
     }
 
     private var cellColor: Color {
         switch cell {
-        case .empty:
-            return Color.white.opacity(0.85)
+        case .empty, .preview:
+            // Use theme-aware empty cell color (treat preview as empty)
+            if theme.isDarkTheme {
+                return Color(theme.backgroundColor).opacity(0.3)
+            } else {
+                return Color.white.opacity(0.85)
+            }
         case .occupied(let blockColor):
             return Color(blockColor.uiColor)
-        case .preview(let blockColor):
-            return Color(blockColor.uiColor).opacity(0.5)
         }
     }
 
     private var cellBorder: Color {
-        Color(white: 1.0).opacity(0.55)
+        // Theme-aware grid lines for all cells
+        return Color(theme.gridLineColor)
     }
 }
 
