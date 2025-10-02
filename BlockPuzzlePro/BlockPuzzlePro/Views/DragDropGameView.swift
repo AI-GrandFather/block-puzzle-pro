@@ -35,6 +35,16 @@ struct DragDropGameView: View {
     @State private var lastGameOverScore: Int = 0
     @State private var isSettingsPresented: Bool = false
     @State private var debugLoggingEnabled: Bool = false
+    @State private var isGameOverThemePalettePresented: Bool = false
+    @State private var isGameOverAccountPresented: Bool = false
+    @State private var isScoreHighlightActive: Bool = false
+    @State private var lastClearTimestamp: TimeInterval? = nil
+    @State private var activeStreakCount: Int = 0
+    @State private var scoreHighlightToken: UUID? = nil
+    @State private var lastBoardClearScore: Int? = nil
+    @State private var boardClearCelebrationActive: Bool = false
+    @State private var boardClearCelebrationToken: UUID? = nil
+    @State private var streakMessageToggle: Bool = false
     @State private var fragmentEffects: [FragmentEffect] = []
     @State private var fragmentCleanupQueue: Set<UUID> = []
     @State private var hasAppliedCloudSnapshot = false
@@ -42,6 +52,7 @@ struct DragDropGameView: View {
     @State private var timerRemaining: Int = 0
     @State private var timerActive: Bool = false
     @State private var currentTheme: Theme = Theme.current
+    @State private var previewColor: BlockColor? = nil
 
     // Visual lift applied to the floating block preview so pieces hover above the finger
     private let dragPreviewLift: CGFloat = 100.0
@@ -51,7 +62,9 @@ struct DragDropGameView: View {
     @State private var frameSkipCounter: Int = 0
     @State private var isProMotionDevice: Bool = false
 
-    private let gridSpacing: CGFloat = 2
+    private let gridSpacing: CGFloat = 1
+    private let gridSizingSafetyFactor: CGFloat = 0.99
+    private let pieceSizeRatio: CGFloat = 0.9
     private let timerPublisher = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private let onReturnHome: () -> Void
@@ -120,11 +133,15 @@ struct DragDropGameView: View {
                             y: previewOrigin.y - rootOrigin.y
                         )
 
+                        let snapScale = gridCellSize > 0 ? (gridCellSize / max(pieceCellSize, 1)) : 1
+                        let previewScale = placementEngine.isCurrentPreviewValid && !placementEngine.previewPositions.isEmpty ? snapScale : dragController.dragScale
+
                         FloatingBlockPreview(
                             blockPattern: draggedPattern,
-                            cellSize: gridCellSize,
+                            cellSize: pieceCellSize,
                             position: cursorPosition,
-                            isValid: true
+                            isValid: placementEngine.isCurrentPreviewValid,
+                            scale: previewScale
                         )
                         .allowsHitTesting(false)
                         .opacity(1.0)
@@ -145,6 +162,22 @@ struct DragDropGameView: View {
                 onReturnToModeSelect: { returnToModeSelection() }
             )
             .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $isGameOverThemePalettePresented) {
+            ThemePaletteSheet(theme: currentTheme)
+        }
+        .sheet(isPresented: $isGameOverAccountPresented) {
+            NavigationStack {
+                AccountView()
+                    .navigationTitle("Account")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") { isGameOverAccountPresented = false }
+                        }
+                    }
+            }
+            .presentationDetents([.large])
         }
         .onAppear {
             setupGameView(screenSize: geometry.size)
@@ -170,7 +203,9 @@ struct DragDropGameView: View {
                 }
             }
             .onChange(of: gameEngine.lastScoreEvent?.newTotal) { _, _ in
-                triggerCelebration(with: gameEngine.lastScoreEvent)
+                guard let event = gameEngine.lastScoreEvent else { return }
+                handleScoreHighlight(for: event)
+                triggerCelebration(with: event)
             }
             .onReceive(blockFactory.$traySlots) { _ in
                 evaluateGameOver()
@@ -237,7 +272,8 @@ struct DragDropGameView: View {
 
                 ScoreView(
                     score: gameEngine.score,
-                    lastEvent: gameEngine.lastScoreEvent
+                    lastEvent: gameEngine.lastScoreEvent,
+                    isHighlighted: isScoreHighlightActive
                 )
                 .frame(maxWidth: .infinity)
 
@@ -305,6 +341,31 @@ struct DragDropGameView: View {
                 }
             )
 
+            PlacementShadowOverlay(
+                previewPositions: placementEngine.previewPositions,
+                cellSize: gridCellSize,
+                gridSpacing: gridSpacing,
+                isValid: placementEngine.isCurrentPreviewValid,
+                theme: currentTheme,
+                color: previewColor.map { Color($0.uiColor) },
+                isDragging: dragController.isDragging
+            )
+            .frame(width: boardSize, height: boardSize, alignment: .topLeading)
+            .clipped()
+            .allowsHitTesting(false)
+
+            if boardClearCelebrationActive {
+                RoundedRectangle(cornerRadius: max(16, gridCellSize * 0.5), style: .continuous)
+                    .stroke(currentTheme.accentColor.opacity(0.55), lineWidth: 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: max(16, gridCellSize * 0.5), style: .continuous)
+                            .fill(currentTheme.accentColor.opacity(0.12))
+                    )
+                    .frame(width: boardSize, height: boardSize, alignment: .topLeading)
+                    .blendMode(.screen)
+                    .transition(.scale.combined(with: .opacity))
+            }
+
             FragmentOverlayView(effects: fragmentEffects) { effectID in
                 fragmentCleanupQueue.insert(effectID)
             }
@@ -355,7 +416,7 @@ struct DragDropGameView: View {
         return DraggableBlockTrayView(
             blockFactory: blockFactory,
             dragController: dragController,
-            cellSize: gridCellSize * 1.15, // Make tray blocks 15% larger for better visibility
+            cellSize: pieceCellSize,
             slotSize: slotSize,
             horizontalInset: horizontalInset,
             slotSpacing: slotSpacing
@@ -365,25 +426,30 @@ struct DragDropGameView: View {
         .padding(.bottom, max(safeArea + 12, 26))
     }
 
-    @ViewBuilder
     private var celebrationOverlay: some View {
-        if let message = celebrationMessage, celebrationVisible {
-            CelebrationBannerView(message: message)
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
-            .transition(.move(edge: .top).combined(with: .opacity))
-            .allowsHitTesting(false)
+        ZStack(alignment: .top) {
+            if let message = celebrationMessage, celebrationVisible {
+                CelebrationToastView(message: message)
+                    .padding(.horizontal, 32)
+                    .padding(.top, 24)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
         }
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
     private var gameOverOverlay: some View {
         if isGameOver {
             GameOverOverlayView(
+                theme: currentTheme,
                 score: lastGameOverScore,
                 highScore: gameEngine.highScore,
                 onRestart: restartFromGameOver,
-                onOpenSettings: { isSettingsPresented = true }
+                onOpenThemes: { isGameOverThemePalettePresented = true },
+                onOpenAccount: { isGameOverAccountPresented = true },
+                onReturnHome: { exitToMainMenu() },
+                onOpenModeSelect: { returnToModeSelection() }
             )
             .transition(.opacity.combined(with: .scale))
         }
@@ -405,7 +471,7 @@ struct DragDropGameView: View {
         let availableHeight = screenSize.height - headerHeight - trayHeight - verticalSpacing - safeAreaEstimate
         let heightLimit = max(240, availableHeight)
 
-        return min(widthLimit, heightLimit)
+        return min(widthLimit, heightLimit) * gridSizingSafetyFactor
     }
 
     private var gridCellSize: CGFloat {
@@ -418,6 +484,10 @@ struct DragDropGameView: View {
 
     private var boardSize: CGFloat {
         gridCellSize * CGFloat(gameEngine.gridSize) + gridSpacing * CGFloat(gameEngine.gridSize + 1)
+    }
+
+    private var pieceCellSize: CGFloat {
+        max(gridCellSize * pieceSizeRatio, 1)
     }
     
     // MARK: - Performance Optimization
@@ -441,10 +511,22 @@ struct DragDropGameView: View {
         self.screenSize = screenSize
 
         // Clear any existing state first
-        placementEngine.clearPreview()
+        clearPlacementPreviewState()
         dragController.reset()
         isGameOver = false
         lastGameOverScore = 0
+        isScoreHighlightActive = false
+        lastClearTimestamp = nil
+        activeStreakCount = 0
+        scoreHighlightToken = nil
+        lastBoardClearScore = nil
+        boardClearCelebrationActive = false
+        boardClearCelebrationToken = nil
+        celebrationMessage = nil
+        celebrationVisible = false
+        streakMessageToggle = false
+        isGameOverThemePalettePresented = false
+        isGameOverAccountPresented = false
 
         // Setup drag controller callbacks
         setupDragCallbacks()
@@ -573,26 +655,32 @@ struct DragDropGameView: View {
         dragController.onDragEnded = { blockIndex, blockPattern, position in
             DebugLog.trace("🛑 onDragEnded blockIndex=\(blockIndex) position=\(position) state=\(self.dragController.dragState)")
 
-            // Use direct placement without preview system
             guard self.gridFrame != .zero else {
                 self.handleInvalidPlacement(blockIndex: blockIndex, blockPattern: blockPattern, position: position)
                 return
             }
 
-            let previewOrigin = self.currentPreviewOrigin() ?? self.dragController.currentDragPosition
-            let adjustedTouchPoint = self.previewTouchPoint()
+            var placementSuccess = false
 
-            DebugLog.trace("📍 PLACEMENT: touch=\(self.dragController.currentTouchLocation) adjustedTouch=\(adjustedTouchPoint) origin=\(previewOrigin)")
+            if self.placementEngine.isCurrentPreviewValid,
+               self.placementEngine.commitPlacement(blockPattern: blockPattern) {
+                placementSuccess = true
+            } else {
+                let previewOrigin = self.currentPreviewOrigin() ?? self.dragController.currentDragPosition
+                let adjustedTouchPoint = self.previewTouchPoint()
 
-            let placementSuccess = self.placementEngine.placeBlockDirectly(
-                blockPattern: blockPattern,
-                blockOrigin: previewOrigin,
-                touchPoint: adjustedTouchPoint,
-                touchOffset: self.scaledTouchOffset(),
-                gridFrame: self.gridFrame,
-                cellSize: self.gridCellSize,
-                gridSpacing: self.gridSpacing
-            )
+                DebugLog.trace("📍 DIRECT PLACEMENT: touch=\(self.dragController.currentTouchLocation) adjustedTouch=\(adjustedTouchPoint) origin=\(previewOrigin)")
+
+                placementSuccess = self.placementEngine.placeBlockDirectly(
+                    blockPattern: blockPattern,
+                    blockOrigin: previewOrigin,
+                    touchPoint: adjustedTouchPoint,
+                    touchOffset: self.scaledTouchOffset(),
+                    gridFrame: self.gridFrame,
+                    cellSize: self.gridCellSize,
+                    gridSpacing: self.gridSpacing
+                )
+            }
 
             if placementSuccess {
                 self.handleValidPlacement(blockIndex: blockIndex, blockPattern: blockPattern, position: position)
@@ -614,29 +702,25 @@ struct DragDropGameView: View {
 
     private func restartFromSettings() {
         isSettingsPresented = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            performRestart(triggerHaptics: true)
-        }
+        performRestart(triggerHaptics: true)
     }
 
     private func exitToMainMenu() {
         isSettingsPresented = false
         stopTimer()
         saveProgressSnapshot()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            deviceManager.provideHapticFeedback(style: .medium)
-            onReturnHome()
-        }
+        deviceManager.provideHapticFeedback(style: .medium)
+        clearPlacementPreviewState()
+        onReturnHome()
     }
 
     private func returnToModeSelection() {
         isSettingsPresented = false
         stopTimer()
         saveProgressSnapshot()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            deviceManager.provideNotificationFeedback(type: .warning)
-            onReturnModeSelect()
-        }
+        deviceManager.provideNotificationFeedback(type: .warning)
+        clearPlacementPreviewState()
+        onReturnModeSelect()
     }
 
     private func restartFromGameOver() {
@@ -648,7 +732,7 @@ struct DragDropGameView: View {
             deviceManager.provideHapticFeedback(style: .medium)
         }
 
-        placementEngine.clearPreview()
+        clearPlacementPreviewState()
         dragController.reset()
         blockFactory.resetTray()
 
@@ -673,24 +757,40 @@ struct DragDropGameView: View {
     
     private func handleDragBegan(blockIndex: Int, blockPattern: BlockPattern, position: CGPoint) {
         // Clear any existing preview state when a new drag begins
-        placementEngine.clearPreview()
+        clearPlacementPreviewState()
+        previewColor = blockPattern.color
     }
     
     private func handleDragEnded() {
-        placementEngine.clearPreview()
+        clearPlacementPreviewState()
         cancelDragIfNeeded()
     }
     
     private func cancelDragIfNeeded() {
         // Currently nothing additional needed; placeholder for future logic if needed.
     }
-    
+
+    private func clearPlacementPreviewState() {
+        placementEngine.clearPreview()
+        previewColor = nil
+    }
+
     // MARK: - Placement Engine Integration
     
     private func updatePlacementPreview(blockPattern: BlockPattern, blockOrigin: CGPoint) {
-        // DISABLED: Preview system removed - returning to original snap-to-grid functionality
-        // guard gridFrame != .zero else { return }
-        // placementEngine.updatePreview(...)
+        guard gridFrame != .zero else { return }
+
+        previewColor = blockPattern.color
+
+        placementEngine.updatePreview(
+            blockPattern: blockPattern,
+            blockOrigin: blockOrigin,
+            touchPoint: previewTouchPoint(),
+            touchOffset: scaledTouchOffset(),
+            gridFrame: gridFrame,
+            cellSize: gridCellSize,
+            gridSpacing: gridSpacing
+        )
     }
 
     private func currentPreviewOrigin() -> CGPoint? {
@@ -735,7 +835,7 @@ struct DragDropGameView: View {
         blockFactory.consumeBlock(at: blockIndex)
 
         // Clear preview (drag controller handles its own cleanup)
-        placementEngine.clearPreview()
+        clearPlacementPreviewState()
 
         DispatchQueue.main.async {
             evaluateGameOver()
@@ -780,7 +880,7 @@ struct DragDropGameView: View {
         UIAccessibility.post(notification: .announcement, argument: "Invalid placement")
 
         // Clear preview (drag controller handles its own cleanup)
-        placementEngine.clearPreview()
+        clearPlacementPreviewState()
     }
 
     private func spawnFragments(from clears: [LineClear]) {
@@ -871,7 +971,7 @@ struct DragDropGameView: View {
                 stopTimer()
             }
             gameEngine.endGame()
-            placementEngine.clearPreview()
+            clearPlacementPreviewState()
             dragController.reset()
 
             withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
@@ -887,20 +987,41 @@ struct DragDropGameView: View {
     
     // MARK: - Accessibility
     
-    private func triggerCelebration(with event: ScoreEvent?) {
-        guard let event = event, let message = makeCelebrationMessage(from: event) else {
-            return
-        }
-
-        celebrationMessage = message
+    private func triggerCelebration(with event: ScoreEvent) {
+        let boardCleared = gameEngine.isBoardCompletelyEmpty()
         let responseMultiplier: Double = isProMotionDevice ? 0.7 : 1.0
 
-        withAnimation(.spring(response: 0.35 * responseMultiplier, dampingFraction: 0.7)) {
+        let message: CelebrationMessage?
+        if boardCleared, lastBoardClearScore != event.newTotal {
+            message = CelebrationMessage(
+                kind: .boardClear,
+                primaryText: "Unstoppable!",
+                secondaryText: "Board cleared!",
+                accentColor: currentTheme.accentColor
+            )
+            lastBoardClearScore = event.newTotal
+            activateBoardClearCelebration()
+        } else {
+            message = makeStreakMessage(from: event)
+        }
+
+        guard let message = message else { return }
+
+        celebrationMessage = message
+
+        withAnimation(.easeOut(duration: 0.25 * responseMultiplier)) {
             celebrationVisible = true
         }
 
         let token = message.id
-        let displayDuration: TimeInterval = isProMotionDevice ? 1.2 : 1.4
+        let displayDuration: TimeInterval
+        switch message.kind {
+        case .boardClear:
+            displayDuration = isProMotionDevice ? 1.6 : 1.8
+        case .streak:
+            displayDuration = isProMotionDevice ? 1.2 : 1.4
+        }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + displayDuration) {
             guard celebrationMessage?.id == token else { return }
             withAnimation(.easeOut(duration: 0.35 * responseMultiplier)) {
@@ -914,29 +1035,127 @@ struct DragDropGameView: View {
         }
     }
 
-    private func makeCelebrationMessage(from event: ScoreEvent) -> CelebrationMessage? {
+    private func makeStreakMessage(from event: ScoreEvent) -> CelebrationMessage? {
         guard event.linesCleared >= 2 else { return nil }
 
-        let title: String
-        let subtitle: String
-        let icon: String
-
+        let primary: String
         switch event.linesCleared {
         case 2:
-            title = "Twin Streak!"
-            subtitle = "Double clear, double cheers!"
-            icon = "sparkles"
+            primary = "Fantastic!"
         case 3:
-            title = "Triple Cascade!"
-            subtitle = "Three rows swept in one swoop."
-            icon = "flame.fill"
+            primary = streakMessageToggle ? "Amazing!" : "Incredible!"
+            streakMessageToggle.toggle()
         default:
-            title = "Combo Overdrive!"
-            subtitle = "\(event.linesCleared) lines evaporated in style."
-            icon = "burst.fill"
+            primary = "Unbelievable!"
         }
 
-        return CelebrationMessage(title: title, subtitle: subtitle, icon: icon, points: event.totalDelta)
+        let secondary = "\(event.linesCleared) lines cleared!"
+        return CelebrationMessage(
+            kind: .streak(level: event.linesCleared),
+            primaryText: primary,
+            secondaryText: secondary,
+            accentColor: currentTheme.accentColor
+        )
+    }
+
+    private func handleScoreHighlight(for event: ScoreEvent) {
+        guard event.linesCleared > 0 else {
+            activeStreakCount = 0
+            return
+        }
+
+        let now = CACurrentMediaTime()
+        if let last = lastClearTimestamp, now - last <= 2.5 {
+            activeStreakCount += 1
+        } else {
+            activeStreakCount = 1
+        }
+        lastClearTimestamp = now
+
+        if activeStreakCount >= 2 {
+            activateScoreHighlight()
+        }
+    }
+
+    private func activateScoreHighlight() {
+        let token = UUID()
+        scoreHighlightToken = token
+        isScoreHighlightActive = true
+
+        let duration: TimeInterval = isProMotionDevice ? 1.0 : 1.2
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            if self.scoreHighlightToken == token {
+                self.isScoreHighlightActive = false
+            }
+        }
+    }
+
+    private func activateBoardClearCelebration() {
+        let token = UUID()
+        boardClearCelebrationToken = token
+
+        withAnimation(.easeOut(duration: 0.3)) {
+            boardClearCelebrationActive = true
+        }
+
+        spawnBoardClearConfetti()
+
+        let duration: TimeInterval = isProMotionDevice ? 1.4 : 1.6
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            if self.boardClearCelebrationToken == token {
+                withAnimation(.easeOut(duration: 0.35)) {
+                    self.boardClearCelebrationActive = false
+                }
+            }
+        }
+    }
+
+    private func spawnBoardClearConfetti() {
+        guard gridFrame != .zero else { return }
+
+        let cellSpan = gridCellSize + gridSpacing
+        let strideValue = max(1, gameEngine.gridSize / 4)
+        var newEffects: [FragmentEffect] = []
+
+        for row in stride(from: 0, to: gameEngine.gridSize, by: strideValue) {
+            for column in stride(from: 0, to: gameEngine.gridSize, by: strideValue) {
+                let startPoint = CGPoint(
+                    x: gridSpacing + CGFloat(column) * cellSpan + gridCellSize / 2,
+                    y: gridSpacing + CGFloat(row) * cellSpan + gridCellSize / 2
+                )
+
+                let driftX = CGFloat.random(in: -28...28)
+                let driftY = CGFloat.random(in: -90 ... -48)
+                let delay = Double.random(in: 0...0.12)
+                let duration = Double.random(in: 0.45...0.65)
+                let size = gridCellSize / CGFloat.random(in: 2.8...3.4)
+                let rotation = Double.random(in: -45...45)
+
+                newEffects.append(
+                    FragmentEffect(
+                        color: currentTheme.accentColor,
+                        startPoint: startPoint,
+                        targetOffset: CGSize(width: driftX, height: driftY),
+                        size: size,
+                        delay: delay,
+                        duration: duration,
+                        rotation: rotation
+                    )
+                )
+            }
+        }
+
+        fragmentEffects.append(contentsOf: newEffects)
+
+        let totalLimit = 180
+        if fragmentEffects.count > totalLimit {
+            fragmentEffects.removeFirst(fragmentEffects.count - totalLimit)
+        }
+
+        if !fragmentCleanupQueue.isEmpty {
+            fragmentEffects.removeAll { fragmentCleanupQueue.contains($0.id) }
+            fragmentCleanupQueue.removeAll()
+        }
     }
 
     private func announceGameState() {
@@ -950,202 +1169,365 @@ struct DragDropGameView: View {
 
 // MARK: - Celebration Models
 
-struct CelebrationMessage: Identifiable, Equatable {
+struct CelebrationMessage: Identifiable {
+    enum Kind: Equatable {
+        case streak(level: Int)
+        case boardClear
+    }
+
     let id = UUID()
-    let title: String
-    let subtitle: String
-    let icon: String
-    let points: Int
+    let kind: Kind
+    let primaryText: String
+    let secondaryText: String?
+    let accentColor: Color
 }
 
 private struct CelebrationToastView: View {
     let message: CelebrationMessage
 
     @State private var animateContent = false
-    private let accentGradient = LinearGradient(
-        colors: [
-            Color(red: 0.72, green: 0.45, blue: 0.98),
-            Color(red: 0.44, green: 0.53, blue: 0.99)
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
 
     var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(accentGradient)
-                    .frame(width: 48, height: 48)
-                    .shadow(color: Color.black.opacity(0.25), radius: 8, x: 0, y: 6)
+        VStack(spacing: 6) {
+            Text(message.primaryText)
+                .font(.system(size: 26, weight: .heavy, design: .rounded))
+                .foregroundStyle(Color.white)
+                .shadow(color: message.accentColor.opacity(0.45), radius: 12, x: 0, y: 0)
 
-                Image(systemName: message.icon)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(Color.white)
-                    .scaleEffect(animateContent ? 1.0 : 0.82)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(message.title)
-                    .font(.system(.headline, design: .rounded))
-                    .fontWeight(.heavy)
-                    .foregroundStyle(Color.primary)
-
-                Text(message.subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.secondary)
-            }
-
-            Spacer(minLength: 8)
-
-            if message.points > 0 {
-                Text("+\(message.points)")
-                    .font(.system(size: 18, weight: .heavy, design: .rounded))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(Color.accentColor.opacity(0.18))
-                    )
-                    .foregroundStyle(Color.accentColor)
-                    .scaleEffect(animateContent ? 1.0 : 0.9)
+            if let secondary = message.secondaryText {
+                Text(secondary)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.92))
             }
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 18)
+        .padding(.horizontal, 24)
         .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(.ultraThinMaterial)
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            message.accentColor.opacity(0.88),
+                            message.accentColor.opacity(0.72)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.22), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 12)
-        .frame(maxWidth: 360)
-        .scaleEffect(animateContent ? 1.0 : 0.94)
-        .opacity(animateContent ? 1.0 : 0.75)
+        .shadow(color: message.accentColor.opacity(0.35), radius: 26, x: 0, y: 18)
+        .scaleEffect(animateContent ? 1.0 : 0.92)
+        .opacity(animateContent ? 1.0 : 0.0)
         .onAppear {
-            let response = UIScreen.main.maximumFramesPerSecond >= 120 ? 0.26 : 0.3
-            withAnimation(.spring(response: response, dampingFraction: 0.82)) {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
                 animateContent = true
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(message.title). \(message.subtitle)")
-        .accessibilityValue(message.points > 0 ? "+\(message.points) points" : "")
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        if let secondary = message.secondaryText {
+            return "\(message.primaryText). \(secondary)"
+        }
+        return message.primaryText
     }
 }
 
 private struct GameOverOverlayView: View {
+    let theme: Theme
     let score: Int
     let highScore: Int
     let onRestart: () -> Void
-    let onOpenSettings: () -> Void
+    let onOpenThemes: () -> Void
+    let onOpenAccount: () -> Void
+    let onReturnHome: () -> Void
+    let onOpenModeSelect: () -> Void
 
-    @State private var showContent = false
+    @State private var animateContent = false
+
+    private static let numberFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 0
+        return formatter
+    }()
 
     private var isNewHighScore: Bool {
         score >= highScore && highScore > 0
     }
 
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.45)
-                .ignoresSafeArea()
-
-            VStack(spacing: 24) {
-                VStack(spacing: 12) {
-                    Image(systemName: "hexagon.fill")
-                        .font(.system(size: 52))
-                        .foregroundStyle(LinearGradient(
-                            colors: [Color.accentColor, Color.accentColor.opacity(0.6)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ))
-                        .shadow(color: Color.accentColor.opacity(0.4), radius: 12, x: 0, y: 6)
-
-                    Text("Game Over")
-                        .font(.system(size: 32, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color.white)
-
-                    if isNewHighScore {
-                        Text("New high score!")
-                            .font(.headline)
-                            .foregroundStyle(Color.yellow)
-                    }
-                }
-
-                VStack(spacing: 10) {
-                    scoreRow(label: "Final Score", value: score, color: Color.white)
-                    scoreRow(label: "Best", value: highScore, color: Color.yellow)
-                }
-
-                VStack(spacing: 16) {
-                    Button(action: onRestart) {
-                        Label("Play Again", systemImage: "arrow.counterclockwise")
-                            .font(.headline)
-                            .foregroundStyle(Color.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(RoundedRectangle(cornerRadius: 16).fill(Color.accentColor))
-                    }
-
-                    Button(action: onOpenSettings) {
-                        Label("Settings", systemImage: "gearshape.fill")
-                            .font(.headline)
-                            .foregroundStyle(Color.accentColor)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(Color.accentColor.opacity(0.5), lineWidth: 1.2)
-                            )
-                    }
-                }
-            }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 32)
-            .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                    )
-            )
-            .shadow(color: Color.black.opacity(0.2), radius: 30, x: 0, y: 18)
-            .scaleEffect(showContent ? 1.0 : 0.92)
-            .opacity(showContent ? 1.0 : 0.0)
-            .onAppear {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    showContent = true
-                }
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Game over. Final score: \(score). High score: \(highScore)")
+    private var formattedScore: String {
+        GameOverOverlayView.numberFormatter.string(from: NSNumber(value: score)) ?? "\(score)"
     }
 
-    private func scoreRow(label: String, value: Int, color: Color) -> some View {
-        HStack {
-            Text(label.uppercased())
-                .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.7))
+    private var formattedHighScore: String {
+        GameOverOverlayView.numberFormatter.string(from: NSNumber(value: highScore)) ?? "\(highScore)"
+    }
+
+    private var gapMessage: String {
+        guard !isNewHighScore else {
+            return "Legendary run — you pushed the record higher!"
+        }
+
+        let gap = max(highScore - score, 0)
+        guard gap > 0 else {
+            return "One more move and the record is yours."
+        }
+
+        let gapString = GameOverOverlayView.numberFormatter.string(from: NSNumber(value: gap)) ?? "\(gap)"
+        return "Only \(gapString) points away from the top score."
+    }
+
+    var body: some View {
+        ZStack {
+            background
+
+            VStack(spacing: 28) {
+                Spacer(minLength: 52)
+
+                BlockClusterLogo(theme: theme)
+                    .frame(width: 200, height: 200)
+                    .scaleEffect(animateContent ? 1.0 : 0.92)
+                    .opacity(animateContent ? 1.0 : 0.0)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.75), value: animateContent)
+
+                header
+                    .opacity(animateContent ? 1.0 : 0.0)
+                    .offset(y: animateContent ? 0 : 16)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.82), value: animateContent)
+
+                scoreCard
+                    .opacity(animateContent ? 1.0 : 0.0)
+                    .offset(y: animateContent ? 0 : 20)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: animateContent)
+
+                buttonStack
+                    .opacity(animateContent ? 1.0 : 0.0)
+                    .offset(y: animateContent ? 0 : 26)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.82), value: animateContent)
+
+                secondaryActions
+                    .opacity(animateContent ? 1.0 : 0.0)
+                    .offset(y: animateContent ? 0 : 32)
+                    .animation(.spring(response: 0.55, dampingFraction: 0.85), value: animateContent)
+
+                Spacer(minLength: 36)
+            }
+            .padding(.horizontal, 32)
+            .padding(.bottom, 48)
+        }
+        .background(Color.black.opacity(0.45))
+        .ignoresSafeArea()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Game over. Final score: \(score). High score: \(highScore)")
+        .onAppear {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                animateContent = true
+            }
+        }
+    }
+
+    private var background: some View {
+        ZStack {
+            theme.menuBackgroundGradient
+                .overlay(
+                    RadialGradient(
+                        colors: [
+                            theme.accentColor.opacity(0.3),
+                            theme.accentColor.opacity(0.05)
+                        ],
+                        center: .center,
+                        startRadius: 60,
+                        endRadius: 420
+                    )
+                    .blendMode(.plusLighter)
+                )
+                .ignoresSafeArea()
+
+            BlockGridBackground(color: theme.gridOverlayColor)
+                .ignoresSafeArea()
+        }
+    }
+
+    private var header: some View {
+        VStack(spacing: 10) {
+            Text("Game Over")
+                .font(.system(size: 36, weight: .heavy, design: .rounded))
+                .foregroundStyle(theme.primaryText)
+                .multilineTextAlignment(.center)
+
+            Text(isNewHighScore ? "New personal best. Keep the streak going!" : gapMessage)
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .foregroundStyle(theme.secondaryText)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 12)
+        }
+    }
+
+    private var scoreCard: some View {
+        VStack(spacing: 20) {
+            Text("FINAL SCORE")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(theme.secondaryText)
+
+            Text(formattedScore)
+                .font(.system(size: 56, weight: .heavy, design: .rounded))
+                .foregroundStyle(theme.primaryText)
+
+            if isNewHighScore {
+                newHighBadge
+            }
+
+            Divider()
+                .background(theme.surfaceHighlight.opacity(0.35))
+
+            scorePill(title: "Best", value: formattedHighScore, systemIcon: "crown.fill")
+        }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 32)
+        .background(
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .fill(theme.surfaceBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .stroke(theme.surfaceHighlight.opacity(0.45), lineWidth: 1)
+                )
+        )
+        .shadow(color: theme.accentColor.opacity(0.24), radius: 28, x: 0, y: 20)
+    }
+
+    private var buttonStack: some View {
+        VStack(spacing: 18) {
+            MenuBlockButton(
+                title: "Play Again",
+                iconName: "play.fill",
+                tint: theme.accentColor,
+                theme: theme,
+                action: onRestart
+            )
+
+            MenuBlockButton(
+                title: "Themes",
+                iconName: "paintpalette.fill",
+                tint: theme.surfaceHighlight,
+                theme: theme,
+                action: onOpenThemes
+            )
+
+            MenuBlockButton(
+                title: "Account",
+                iconName: "person.crop.square",
+                tint: theme.surfaceHighlight.opacity(0.85),
+                theme: theme,
+                action: onOpenAccount
+            )
+        }
+    }
+
+    private var secondaryActions: some View {
+        HStack(spacing: 14) {
+            SecondaryActionButton(
+                title: "Main Menu",
+                icon: "house.fill",
+                theme: theme,
+                action: onReturnHome
+            )
+
+            SecondaryActionButton(
+                title: "Mode Select",
+                icon: "square.grid.2x2",
+                theme: theme,
+                action: onOpenModeSelect
+            )
+        }
+    }
+
+    private var newHighBadge: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 15, weight: .bold))
+
+            Text("New High Score")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(theme.accentColor.opacity(0.18))
+                .overlay(
+                    Capsule()
+                        .stroke(theme.accentColor.opacity(0.35), lineWidth: 1)
+                )
+        )
+        .foregroundStyle(theme.accentColor)
+    }
+
+    private func scorePill(title: String, value: String, systemIcon: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemIcon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(theme.accentColor)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title.uppercased())
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(theme.secondaryText)
+                Text(value)
+                    .font(.system(size: 22, weight: .heavy, design: .rounded))
+                    .foregroundStyle(theme.primaryText)
+            }
 
             Spacer()
-
-            Text("\(value)")
-                .font(.system(size: 24, weight: .heavy, design: .rounded))
-                .foregroundStyle(color)
         }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color.white.opacity(0.08))
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(theme.surfaceBackground.opacity(theme.isDarkTheme ? 0.65 : 0.85))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(theme.surfaceHighlight.opacity(0.4), lineWidth: 1)
+                )
         )
+    }
+
+    private struct SecondaryActionButton: View {
+        let title: String
+        let icon: String
+        let theme: Theme
+        let action: () -> Void
+
+        var body: some View {
+            Button(action: action) {
+                HStack(spacing: 8) {
+                    Image(systemName: icon)
+                        .font(.system(size: 15, weight: .semibold))
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(theme.surfaceBackground.opacity(theme.isDarkTheme ? 0.9 : 0.92))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(theme.surfaceHighlight.opacity(0.45), lineWidth: 1)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(theme.primaryText)
+            .shadow(color: theme.accentColor.opacity(0.12), radius: 12, x: 0, y: 6)
+        }
     }
 }
 
@@ -1153,7 +1535,9 @@ private struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @Binding var debugLoggingEnabled: Bool
-    @State private var selectedTheme: Theme = Theme.current
+    @State private var currentTheme: Theme = Theme.current
+    @State private var showThemes = false
+    @State private var deferredAction: (() -> Void)?
 
     let onRestart: () -> Void
     let onExitToMenu: () -> Void
@@ -1161,203 +1545,235 @@ private struct SettingsSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Available Themes")
-                            .font(.headline.weight(.bold))
-                            .foregroundStyle(Color.primary)
-                            .padding(.bottom, 4)
+            ScrollView {
+                VStack(spacing: 24) {
+                    SettingsHero(theme: currentTheme)
 
-                        // Dark Themes
-                        Text("Dark Themes")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.secondary)
-                            .padding(.top, 4)
-
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            ThemeBubble(theme: .classicDark, isSelected: selectedTheme == .classicDark) {
-                                selectTheme(.classicDark)
-                            }
-                            ThemeBubble(theme: .neonCyberpunk, isSelected: selectedTheme == .neonCyberpunk) {
-                                selectTheme(.neonCyberpunk)
-                            }
-                            ThemeBubble(theme: .midnightBlue, isSelected: selectedTheme == .midnightBlue) {
-                                selectTheme(.midnightBlue)
-                            }
-                            ThemeBubble(theme: .diabloMaroon, isSelected: selectedTheme == .diabloMaroon) {
-                                selectTheme(.diabloMaroon)
-                            }
-                            ThemeBubble(theme: .forestNight, isSelected: selectedTheme == .forestNight) {
-                                selectTheme(.forestNight)
-                            }
-                            ThemeBubble(theme: .purpleDreams, isSelected: selectedTheme == .purpleDreams) {
-                                selectTheme(.purpleDreams)
-                            }
-                            ThemeBubble(theme: .retroArcade, isSelected: selectedTheme == .retroArcade) {
-                                selectTheme(.retroArcade)
-                            }
-                        }
-
-                        // Light Themes
-                        Text("Light Themes")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.secondary)
-                            .padding(.top, 8)
-
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            ThemeBubble(theme: .oceanBreeze, isSelected: selectedTheme == .oceanBreeze) {
-                                selectTheme(.oceanBreeze)
-                            }
-                            ThemeBubble(theme: .sunsetGlow, isSelected: selectedTheme == .sunsetGlow) {
-                                selectTheme(.sunsetGlow)
-                            }
-                            ThemeBubble(theme: .cherryBlossom, isSelected: selectedTheme == .cherryBlossom) {
-                                selectTheme(.cherryBlossom)
-                            }
-                        }
+                    GameSettingsOptionButton(
+                        title: "Themes",
+                        subtitle: "Recolor the board",
+                        iconName: "paintpalette.fill",
+                        theme: currentTheme
+                    ) {
+                        showThemes = true
                     }
-                    .padding(.vertical, 8)
+
+                    GameSettingsOptionButton(
+                        title: "Return to Main",
+                        subtitle: "Exit this puzzle",
+                        iconName: "house.fill",
+                        theme: currentTheme
+                    ) {
+                        schedule(action: onExitToMenu)
+                    }
+
+                    GameSettingsOptionButton(
+                        title: "Choose Game Mode",
+                        subtitle: "Switch difficulty",
+                        iconName: "square.grid.2x2",
+                        theme: currentTheme
+                    ) {
+                        schedule(action: onReturnToModeSelect)
+                    }
+
+                    GameSettingsOptionButton(
+                        title: "Restart",
+                        subtitle: "Reset this run",
+                        iconName: "arrow.counterclockwise",
+                        theme: currentTheme
+                    ) {
+                        schedule(action: onRestart)
+                    }
+
+                    #if DEBUG
+                    SettingsToggleRow(
+                        title: "Verbose logging",
+                        subtitle: "Enable tracing output",
+                        isOn: $debugLoggingEnabled,
+                        theme: currentTheme
+                    )
+                    #endif
                 }
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-
-                Section("Session") {
-                    Button {
-                        dismiss()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                            onExitToMenu()
-                        }
-                    } label: {
-                        Label("Return to Main Menu", systemImage: "house.fill")
-                            .font(.headline)
-                    }
-
-                    Button {
-                        dismiss()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                            onReturnToModeSelect()
-                        }
-                    } label: {
-                        Label("Choose Game Mode", systemImage: "square.grid.2x2")
-                            .font(.headline)
-                    }
-
-                    Button {
-                        onRestart()
-                        dismiss()
-                    } label: {
-                        Label("Restart Game", systemImage: "arrow.counterclockwise")
-                            .font(.headline)
-                    }
-                }
-
-                #if DEBUG
-                Section("Debug") {
-                    Toggle(isOn: $debugLoggingEnabled) {
-                        Label("Verbose debug logging", systemImage: "waveform")
-                    }
-                }
-                #endif
+                .padding(24)
             }
-            .listStyle(.insetGrouped)
+            .background(currentTheme.backgroundColorSwift.ignoresSafeArea())
             .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
+                        .tint(currentTheme.accentColor)
                 }
             }
         }
-        .onAppear {
-            selectedTheme = Theme.current
+        .sheet(isPresented: $showThemes) {
+            ThemePaletteSheet(theme: currentTheme)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .themeDidChange)) { notification in
+            guard let newTheme = notification.object as? Theme else { return }
+            currentTheme = newTheme
+        }
+        .onDisappear {
+            if let action = deferredAction {
+                deferredAction = nil
+                action()
+            }
         }
     }
 
-    private func selectTheme(_ theme: Theme) {
-        selectedTheme = theme
-        Theme.current = theme
-        let impact = UIImpactFeedbackGenerator(style: .medium)
-        impact.impactOccurred()
+    private func schedule(action: @escaping () -> Void) {
+        deferredAction = action
+        dismiss()
     }
 }
 
-private struct ThemeBubble: View {
+private struct SettingsHero: View {
     let theme: Theme
-    let isSelected: Bool
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Personalize")
+                .font(.system(size: 28, weight: .heavy, design: .rounded))
+                .foregroundStyle(theme.primaryText)
+            Text("Adjust colors, restart or hop back to the menu.")
+                .font(.subheadline.weight(.semibold))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(theme.secondaryText)
+        }
+        .padding(.vertical, 24)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(theme.surfaceBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(theme.surfaceHighlight.opacity(0.45), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct SettingsToggleRow: View {
+    let title: String
+    let subtitle: String
+    @Binding var isOn: Bool
+    let theme: Theme
+
+    var body: some View {
+        HStack(spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(theme.primaryText)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(theme.secondaryText)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 18)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(theme.surfaceBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(theme.surfaceHighlight.opacity(0.45), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct GameSettingsOptionButton: View {
+    let title: String
+    let subtitle: String
+    let iconName: String
+    let theme: Theme
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 10) {
-                // Color preview circle with glow effect
-                ZStack {
-                    // Outer glow ring for selected state
-                    if isSelected {
-                        Circle()
-                            .fill(Color(theme.blockColor).opacity(0.3))
-                            .frame(width: 58, height: 58)
-                            .blur(radius: 8)
-                    }
-
-                    // Main color circle
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(theme.blockColor),
-                                    Color(theme.blockColor).opacity(0.85)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 48, height: 48)
-                        .overlay(
-                            Circle()
-                                .stroke(
-                                    isSelected ? Color.white : Color.white.opacity(0.3),
-                                    lineWidth: isSelected ? 3.5 : 1.5
-                                )
-                        )
-                        .shadow(color: Color(theme.blockColor).opacity(0.5), radius: isSelected ? 12 : 6, x: 0, y: isSelected ? 6 : 3)
-
-                    // Checkmark for selected state
-                    if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 18, weight: .bold))
+            HStack(spacing: 18) {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(theme.accentColor.opacity(0.85))
+                    .frame(width: 48, height: 48)
+                    .overlay(
+                        Image(systemName: iconName)
+                            .font(.system(size: 22, weight: .bold))
                             .foregroundStyle(Color.white)
-                    }
+                    )
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(theme.primaryText)
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(theme.secondaryText)
                 }
 
-                // Theme name
-                Text(theme.displayName)
-                    .font(.system(size: 11, weight: isSelected ? .bold : .semibold, design: .rounded))
-                    .foregroundStyle(isSelected ? Color(theme.blockColor) : Color.primary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(theme.secondaryText.opacity(0.85))
             }
-            .padding(.vertical, 14)
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 18)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(
-                        isSelected
-                        ? Color(theme.blockColor).opacity(0.12)
-                        : Color(UIColor.secondarySystemGroupedBackground)
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(theme.surfaceBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .stroke(theme.surfaceHighlight.opacity(0.45), lineWidth: 1)
                     )
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(
-                        isSelected ? Color(theme.blockColor).opacity(0.4) : Color.clear,
-                        lineWidth: isSelected ? 2 : 0
-                    )
-            )
-            .scaleEffect(isSelected ? 1.03 : 1.0)
-            .animation(.spring(response: 0.35, dampingFraction: 0.65), value: isSelected)
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct PlacementShadowOverlay: View {
+    let previewPositions: [GridPosition]
+    let cellSize: CGFloat
+    let gridSpacing: CGFloat
+    let isValid: Bool
+    let theme: Theme
+    let color: Color?
+    let isDragging: Bool
+
+    // Mirrors GameConfig.previewAlpha without pulling in that dependency here.
+    private let baseOpacity: Double = 0.2
+
+    private var shouldShowShadow: Bool {
+        isDragging && isValid && !previewPositions.isEmpty
+    }
+
+    private var tint: Color {
+        (color ?? theme.accentColor).opacity(baseOpacity)
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if shouldShowShadow {
+                ForEach(previewPositions, id: \.self) { position in
+                    RoundedRectangle(cornerRadius: max(6, cellSize * 0.28))
+                        .fill(tint)
+                        .frame(width: cellSize, height: cellSize)
+                        .offset(x: offset(for: position.column), y: offset(for: position.row))
+                }
+            }
+        }
+        .animation(.easeOut(duration: 0.12), value: previewPositions)
+        .animation(.easeOut(duration: 0.12), value: shouldShowShadow)
+    }
+
+    private func offset(for index: Int) -> CGFloat {
+        gridSpacing + CGFloat(index) * (cellSize + gridSpacing)
     }
 }
 
@@ -1455,6 +1871,27 @@ private struct FallingFragmentView: View {
     }
 }
 
+private extension Theme {
+    var accentColor: Color { Color(blockColor) }
+    var primaryText: Color { isDarkTheme ? Color.white : Color.black }
+    var secondaryText: Color { primaryText.opacity(0.72) }
+    var surfaceHighlight: Color { isDarkTheme ? Color.white.opacity(0.18) : Color.black.opacity(0.08) }
+    var surfaceBackground: Color { isDarkTheme ? Color.white.opacity(0.12) : Color.white.opacity(0.9) }
+    var gridOverlayColor: Color { isDarkTheme ? Color.white.opacity(0.05) : Color.black.opacity(0.05) }
+    var backgroundColorSwift: Color { Color(backgroundColor) }
+    var menuBackgroundGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                backgroundColorSwift,
+                backgroundColorSwift.opacity(isDarkTheme ? 0.88 : 0.95),
+                accentColor.opacity(isDarkTheme ? 0.45 : 0.32)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+}
+
 // MARK: - Conditional View Extension
 
 extension View {
@@ -1474,48 +1911,4 @@ extension View {
 #Preview("Game - Dark") {
     DragDropGameView()
         .preferredColorScheme(.dark)
-}
-
-
-private struct CelebrationBannerView: View {
-    let message: CelebrationMessage
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: message.icon)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Color.white)
-                .padding(10)
-                .background(
-                    Circle().fill(Color.accentColor.opacity(0.85))
-                )
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(message.title)
-                    .font(.headline.bold())
-                    .foregroundStyle(Color.white)
-                Text(message.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(Color.white.opacity(0.85))
-            }
-
-            if message.points > 0 {
-                Spacer(minLength: 12)
-                Text("+\(message.points)")
-                    .font(.caption.bold())
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule().fill(Color.white.opacity(0.2))
-                    )
-            }
-        }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 16)
-        .background(.ultraThinMaterial)
-        .cornerRadius(18)
-        .shadow(color: Color.black.opacity(0.2), radius: 12, x: 0, y: 6)
-        .transition(.move(edge: .top).combined(with: .opacity))
-    }
 }

@@ -82,7 +82,7 @@ enum BlockColor: String, CaseIterable {
     
     /// Get a preview version of the color (semi-transparent)
     var previewColor: SKColor {
-        return skColor.withAlphaComponent(0.4)
+        return skColor.withAlphaComponent(0.2)
     }
     
     /// Get high contrast version for accessibility

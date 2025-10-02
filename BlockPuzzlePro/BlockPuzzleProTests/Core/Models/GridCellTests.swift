@@ -116,14 +116,14 @@ final class BlockColorTests: XCTestCase {
         let previewColor = color.previewColor
         
         // Then
-        // Preview color should have reduced alpha (0.4)
+        // Preview color should have reduced alpha matching production constant
         let originalComponents = originalColor.cgColor.components ?? []
         let previewComponents = previewColor.cgColor.components ?? []
         
         if originalComponents.count >= 4 && previewComponents.count >= 4 {
             let originalAlpha = originalComponents[3]
             let previewAlpha = previewComponents[3]
-            XCTAssertEqual(previewAlpha, 0.4, accuracy: 0.01)
+            XCTAssertEqual(previewAlpha, 0.2, accuracy: 0.01)
             XCTAssertGreaterThan(originalAlpha, previewAlpha)
         }
     }

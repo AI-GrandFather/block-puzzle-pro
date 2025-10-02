@@ -171,6 +171,13 @@ struct UITouchBlockTrayView: UIViewRepresentable {
 
         private func findBlockNearTouch(at point: CGPoint) -> Int? {
             for (index, frame) in blockFrames.sorted(by: { $0.key < $1.key }) {
+                var expandedFrame = frame.insetBy(dx: -vicinityRadius, dy: -vicinityRadius)
+                let bottomPadding = max(vicinityRadius, frame.height * 0.45)
+                expandedFrame.size.height += bottomPadding
+                if expandedFrame.contains(point) {
+                    return index
+                }
+
                 let distance = hypot(point.x - frame.midX, point.y - frame.midY)
                 if distance <= vicinityRadius {
                     return index
@@ -396,7 +403,7 @@ struct DraggableBlockView: View {
                     let touchOffset: CGSize
 
                     if blockFrame != .zero {
-                        let vicinityRadius: CGFloat = 80.0  // Increased to 80pt for better detection
+                        let vicinityRadius: CGFloat = 100.0  // Wider detection radius for lenient taps
                         let blockCenter = CGPoint(
                             x: blockFrame.midX,
                             y: blockFrame.midY
@@ -530,6 +537,7 @@ struct FloatingBlockPreview: View {
     let cellSize: CGFloat
     let position: CGPoint
     let isValid: Bool
+    let scale: CGFloat
     
     @Environment(\.colorScheme) private var colorScheme
     
@@ -538,6 +546,8 @@ struct FloatingBlockPreview: View {
     var body: some View {
         let blockWidth = blockPattern.size.width * cellSize
         let blockHeight = blockPattern.size.height * cellSize
+        let scaledWidth = blockWidth * scale
+        let scaledHeight = blockHeight * scale
 
         BlockView(
             blockPattern: blockPattern,
@@ -545,11 +555,13 @@ struct FloatingBlockPreview: View {
             isInteractive: false
         )
         .frame(width: blockWidth, height: blockHeight, alignment: .topLeading)
+        .scaleEffect(scale, anchor: .center)
         .shadow(color: shadowColor, radius: 12, x: 0, y: 6)
         .position(
-            x: position.x + blockWidth / 2,
-            y: position.y + blockHeight / 2
+            x: position.x + scaledWidth / 2,
+            y: position.y + scaledHeight / 2
         )
+        .animation(.easeOut(duration: 0.12), value: scale)
         .allowsHitTesting(false)
         .zIndex(999)
     }
@@ -557,7 +569,9 @@ struct FloatingBlockPreview: View {
     // MARK: - View Components
 
     private var shadowColor: Color {
-        return Color.black.opacity(colorScheme == .dark ? 0.5 : 0.3)
+        let baseOpacity = colorScheme == .dark ? 0.5 : 0.3
+        let adjusted = isValid ? baseOpacity * 0.6 : baseOpacity
+        return Color.black.opacity(adjusted)
     }
 }
 
@@ -598,6 +612,8 @@ struct DraggableBlockTrayView: View {
     // MARK: - Body
 
     var body: some View {
+        let trayVicinity = max(slotSize * 0.6, 60)
+
         ZStack {
             // Visual layer: SwiftUI blocks for rendering
             VStack(spacing: 0) {
@@ -620,7 +636,7 @@ struct DraggableBlockTrayView: View {
                 slotSize: slotSize,
                 horizontalInset: horizontalInset,
                 slotSpacing: slotSpacing,
-                vicinityRadius: 80.0,  // 80pt radius for generous touch detection
+                vicinityRadius: trayVicinity,
                 onBlockDragged: onBlockDragged
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)

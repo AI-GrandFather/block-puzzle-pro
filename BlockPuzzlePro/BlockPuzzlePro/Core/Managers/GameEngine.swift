@@ -398,6 +398,18 @@ class GameEngine: ObservableObject {
         activeLineClears = []
     }
 
+    /// Determine if the board currently has no occupied cells.
+    func isBoardCompletelyEmpty() -> Bool {
+        for row in gameGrid {
+            for cell in row {
+                if !cell.isEmpty {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
     /// Predict which lines would clear if the supplied positions became occupied.
     /// This is used for pre-placement highlighting without mutating grid state.
     func predictedLineClears(for positions: [GridPosition]) -> [LineClear.Kind] {

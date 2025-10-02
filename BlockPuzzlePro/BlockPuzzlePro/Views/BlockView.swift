@@ -27,9 +27,9 @@ struct BlockView: View {
     // MARK: - Body
     
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: max(cellSize * 0.03, 0.6)) {
             ForEach(0..<blockPattern.cells.count, id: \.self) { row in
-                HStack(spacing: 2) {
+                HStack(spacing: max(cellSize * 0.03, 0.6)) {
                     ForEach(0..<blockPattern.cells[row].count, id: \.self) { col in
                         if blockPattern.cells[row][col] {
                             blockCell
@@ -51,22 +51,22 @@ struct BlockView: View {
     private var blockCell: some View {
         ZStack {
             // Main cell background
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: cellCornerRadius)
                 .fill(cellColor)
                 .frame(width: cellSize, height: cellSize)
             
             // Subtle border for definition
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: cellCornerRadius)
                 .strokeBorder(borderColor, lineWidth: 1)
                 .frame(width: cellSize, height: cellSize)
             
-            // Accessibility pattern overlay (for colorblind users)
-            if differentiateWithoutColor || colorScheme == .dark {
+            // Accessibility pattern overlay (opt-in via system accessibility)
+            if differentiateWithoutColor {
                 accessibilityOverlay
             }
             
             // Subtle highlight for depth
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: cellCornerRadius)
                 .fill(
                     LinearGradient(
                         colors: [
@@ -81,17 +81,18 @@ struct BlockView: View {
                 .frame(width: cellSize, height: cellSize)
         }
     }
-    
-    private var cellColor: Color {
-        if colorScheme == .dark || differentiateWithoutColor {
-            return Color(blockPattern.color.highContrastColor)
-        } else {
-            return Color(blockPattern.color.skColor)
-        }
+
+    private var cellCornerRadius: CGFloat {
+        max(4, cellSize * 0.22)
     }
     
+    private var cellColor: Color {
+        Color(blockPattern.color.uiColor)
+    }
+
     private var borderColor: Color {
-        return cellColor.opacity(0.8)
+        let baseOpacity: Double = colorScheme == .dark ? 0.55 : 0.7
+        return cellColor.opacity(baseOpacity)
     }
     
     @ViewBuilder

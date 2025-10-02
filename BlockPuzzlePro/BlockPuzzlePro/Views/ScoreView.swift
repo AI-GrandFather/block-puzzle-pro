@@ -4,16 +4,24 @@ import SwiftUI
 struct ScoreView: View {
     let score: Int
     let lastEvent: ScoreEvent?
+    let isHighlighted: Bool
 
     @State private var scale: CGFloat = 1.0
     @State private var deltaOpacity: Double = 0.0
     @State private var deltaOffset: CGFloat = 4.0
+    @State private var highlightScale: CGFloat = 1.0
+    @State private var highlightGlow: Double = 0.0
 
     var body: some View {
         scoreStack
             .onAppear { scale = 1.0 }
             .onChange(of: score) { _, _ in animateScore() }
             .onChange(of: lastEvent?.newTotal) { _, _ in animateDeltaIfNeeded() }
+            .onChange(of: isHighlighted) { _, newValue in
+                if newValue {
+                    animateHighlight()
+                }
+            }
     }
 
     private var scoreStack: some View {
@@ -24,7 +32,8 @@ struct ScoreView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .multilineTextAlignment(.center)
-                .scaleEffect(scale)
+                .scaleEffect(scale * highlightScale)
+                .shadow(color: Color.accentColor.opacity(highlightGlow), radius: highlightGlow * 36, x: 0, y: 0)
                 .accessibilityLabel("Current score \(score)")
 
             if let deltaText = deltaText {
@@ -91,6 +100,22 @@ struct ScoreView: View {
             deltaOpacity = 0.0
         }
     }
+
+    private func animateHighlight() {
+        let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
+        let response = isProMotion ? 0.24 : 0.3
+        let recovery = isProMotion ? 0.42 : 0.5
+
+        withAnimation(.spring(response: response, dampingFraction: 0.55)) {
+            highlightScale = 1.18
+            highlightGlow = 0.65
+        }
+
+        withAnimation(.spring(response: recovery, dampingFraction: 0.8).delay(response * 0.8)) {
+            highlightScale = 1.0
+            highlightGlow = 0.0
+        }
+    }
 }
 
 struct HighScoreBadge: View {
@@ -130,7 +155,7 @@ struct HighScoreBadge: View {
             newTotal: 1280,
             highScore: 2000,
             isNewHighScore: false
-        ))
+        ), isHighlighted: true)
         .preferredColorScheme(.dark)
     }
     .padding()

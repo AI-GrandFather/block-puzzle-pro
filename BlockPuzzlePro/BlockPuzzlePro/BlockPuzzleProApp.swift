@@ -263,19 +263,20 @@ struct BlockPuzzleProApp: App {
 
 struct ContentView: View {
     @EnvironmentObject private var authViewModel: AuthViewModel
+    @State private var theme: Theme = Theme.current
     @State private var showSplash = true
 
     var body: some View {
         ZStack {
-            LandingView()
+            MainMenuNavigationHost(theme: theme)
                 .opacity(showSplash ? 0 : 1)
 
             if showSplash {
-                SplashView()
+                SplashView(theme: theme)
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        .preferredColorScheme(.light)
+        .preferredColorScheme(theme.isDarkTheme ? .dark : .light)
         .statusBarHidden()
         .alert("Sign-in error", isPresented: errorBinding) {
             Button("OK", role: .cancel) {
@@ -285,6 +286,12 @@ struct ContentView: View {
             Text(authViewModel.lastError ?? "Unknown error")
         }
         .onAppear { scheduleSplashDismiss() }
+        .onReceive(NotificationCenter.default.publisher(for: .themeDidChange)) { notification in
+            guard let newTheme = notification.object as? Theme else { return }
+            withAnimation(.easeInOut(duration: 0.25)) {
+                theme = newTheme
+            }
+        }
     }
 
     private var errorBinding: Binding<Bool> {
@@ -300,26 +307,31 @@ struct ContentView: View {
 
     private func scheduleSplashDismiss() {
         guard showSplash else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-            withAnimation(.easeInOut(duration: 0.55)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+            withAnimation(.easeInOut(duration: 0.45)) {
                 showSplash = false
             }
         }
     }
 }
 
-private enum LandingDestination: Hashable {
-    case playSetup
+private enum MenuRoute: Hashable {
     case game(GameMode)
-    case themes
-    case account
 }
 
-private struct LandingView: View {
+private struct MainMenuNavigationHost: View {
     @EnvironmentObject private var authViewModel: AuthViewModel
     @EnvironmentObject private var cloudSaveStore: CloudSaveStore
 
-    @State private var path: [LandingDestination] = []
+    let theme: Theme
+
+    @State private var path: [MenuRoute] = []
+    @State private var showSettings = false
+    @State private var showThemes = false
+    @State private var showAccount = false
+    @State private var showModePicker = false
+    @State private var pendingModeToLaunch: GameMode?
+    @State private var deferredMenuAction: DeferredMenuAction?
 
     private var isLoading: Bool {
         authViewModel.isAuthenticating || cloudSaveStore.isSyncing
@@ -327,415 +339,924 @@ private struct LandingView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            ZStack {
-                LandingBackground()
-                    .ignoresSafeArea()
-
-                VStack(spacing: 40) {
-                    Spacer(minLength: 40)
-
-                    LandingBrand()
-                        .padding(.horizontal, 36)
-
-                    if isLoading {
-                        AnimatedBlockLoader()
-                            .transition(.opacity)
-                    } else {
-                        Text("Spin the pieces, chase combos, and relax into the flow.")
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(Color.white.opacity(0.88))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-                            .transition(.opacity)
-                    }
-
-                    Spacer()
-
-                    VStack(spacing: 20) {
-                        Button {
-                            path.append(.playSetup)
-                        } label: {
-                            Text("Play")
-                        }
-                        .buttonStyle(
-                            BubbleButtonStyle(
-                                gradient: LinearGradient(
-                                    colors: [
-                                        Color(red: 1.0, green: 0.58, blue: 0.42),
-                                        Color(red: 0.94, green: 0.33, blue: 0.64)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                foreground: .white,
-                                shadowOpacity: 0.28
-                            )
-                        )
-
-                        Button {
-                            path.append(.themes)
-                        } label: {
-                            Text("Themes")
-                        }
-                        .buttonStyle(
-                            BubbleButtonStyle(
-                                gradient: LinearGradient(
-                                    colors: [
-                                        Color(red: 0.60, green: 0.40, blue: 0.95),
-                                        Color(red: 0.45, green: 0.25, blue: 0.80)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                foreground: .white,
-                                shadowOpacity: 0.22
-                            )
-                        )
-
-                        Button {
-                            path.append(.account)
-                        } label: {
-                            Text("My Account")
-                        }
-                        .buttonStyle(
-                            BubbleButtonStyle(
-                                gradient: LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.28),
-                                        Color.white.opacity(0.14)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                foreground: .white,
-                                shadowOpacity: 0.12,
-                                borderColor: Color.white.opacity(0.35)
-                            )
-                        )
-                    }
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 56)
-                }
-            }
-            .navigationDestination(for: LandingDestination.self) { destination in
+            MainMenuView(
+                theme: theme,
+                isLoading: isLoading,
+                onPlay: presentModePicker,
+                onOpenSettings: { showSettings = true },
+                onOpenAccount: { showAccount = true }
+            )
+            .navigationDestination(for: MenuRoute.self) { destination in
                 switch destination {
-                case .playSetup:
-                    PlaySetupView { mode in
-                        if !path.isEmpty {
-                            path.removeLast()
-                        }
-                        path.append(.game(mode))
-                    }
                 case .game(let mode):
                     DragDropGameView(
                         gameMode: mode,
-                        onReturnHome: {
-                            path.removeAll()
-                        },
-                        onReturnModeSelect: {
-                            path = [.playSetup]
-                        }
+                        onReturnHome: { path.removeAll() },
+                        onReturnModeSelect: reopenModeSelection
                     )
                     .navigationBarBackButtonHidden()
-                case .themes:
-                    ThemeSelectionView()
-                case .account:
+                }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsPanel(
+                    theme: theme,
+                    onShowThemes: { scheduleMenuAction(.showThemes) },
+                    onReturn: { showSettings = false }
+                )
+            }
+            .sheet(isPresented: $showThemes) {
+                ThemePaletteSheet(theme: theme)
+            }
+            .sheet(isPresented: $showAccount) {
+                NavigationStack {
                     AccountView()
+                        .navigationTitle("Account")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarTrailing) {
+                                Button("Done") { showAccount = false }
+                            }
+                        }
+                }
+                .presentationDetents([.large])
+            }
+            .sheet(isPresented: $showModePicker) {
+                ModeSelectionSheet(theme: theme) { mode in
+                    scheduleModeLaunch(mode)
+                }
+            }
+        }
+        .onChange(of: showSettings) { _, isPresented in
+            guard !isPresented else { return }
+            handleDeferredMenuActionIfNeeded()
+        }
+        .onChange(of: showModePicker) { _, isPresented in
+            guard !isPresented else { return }
+            launchPendingModeIfNeeded()
+        }
+    }
+
+    private func presentModePicker() {
+        pendingModeToLaunch = nil
+        showModePicker = true
+    }
+
+    private func scheduleModeLaunch(_ mode: GameMode) {
+        pendingModeToLaunch = mode
+        showModePicker = false
+    }
+
+    private func launchPendingModeIfNeeded() {
+        guard let mode = pendingModeToLaunch else { return }
+        pendingModeToLaunch = nil
+        startGame(with: mode)
+    }
+
+    private func startGame(with mode: GameMode) {
+        path = [.game(mode)]
+    }
+
+    private func reopenModeSelection() {
+        path.removeAll()
+        pendingModeToLaunch = nil
+        showModePicker = true
+    }
+
+    private func scheduleMenuAction(_ action: DeferredMenuAction) {
+        deferredMenuAction = action
+        showSettings = false
+    }
+
+    private enum DeferredMenuAction {
+        case showThemes
+    }
+
+    private func handleDeferredMenuActionIfNeeded() {
+        guard let action = deferredMenuAction else { return }
+        deferredMenuAction = nil
+
+        switch action {
+        case .showThemes:
+            showThemes = true
+        }
+    }
+}
+
+private struct MainMenuView: View {
+    let theme: Theme
+    let isLoading: Bool
+    let onPlay: () -> Void
+    let onOpenSettings: () -> Void
+    let onOpenAccount: () -> Void
+
+    private var accent: Color { theme.accentColor }
+    private var backgroundGradient: LinearGradient { theme.menuBackgroundGradient }
+
+    var body: some View {
+        ZStack {
+            backgroundGradient
+                .overlay(
+                    RadialGradient(
+                        colors: [theme.accentColor.opacity(0.32), theme.accentColor.opacity(0.04)],
+                        center: .center,
+                        startRadius: 60,
+                        endRadius: 420
+                    )
+                    .blendMode(.plusLighter)
+                )
+                .ignoresSafeArea()
+
+            BlockGridBackground(color: theme.gridOverlayColor)
+                .ignoresSafeArea()
+
+            VStack(spacing: 32) {
+                Spacer(minLength: 60)
+
+                BlockClusterLogo(theme: theme)
+
+                VStack(spacing: 8) {
+                    Text("Block Scramble")
+                        .font(.system(size: 40, weight: .heavy, design: .rounded))
+                        .foregroundStyle(theme.primaryText)
+
+                    Text("Snap into flow with crisp 120 Hz puzzle action.")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundStyle(theme.secondaryText)
+                }
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+                Spacer()
+
+                VStack(spacing: 18) {
+                    MenuBlockButton(
+                        title: "Play",
+                        iconName: "play.fill",
+                        tint: accent,
+                        theme: theme,
+                        action: onPlay
+                    )
+                    .disabled(isLoading)
+                    .opacity(isLoading ? 0.55 : 1.0)
+
+                    MenuBlockButton(
+                        title: "Settings",
+                        iconName: "slider.horizontal.3",
+                        tint: theme.surfaceHighlight,
+                        theme: theme,
+                        action: onOpenSettings
+                    )
+
+                    MenuBlockButton(
+                        title: "Account",
+                        iconName: "person.crop.square",
+                        tint: theme.surfaceHighlight.opacity(0.85),
+                        theme: theme,
+                        action: onOpenAccount
+                    )
+                }
+                .padding(.horizontal, 32)
+                .padding(.bottom, 48)
+
+                if isLoading {
+                    AnimatedBlockLoader(accent: accent)
+                        .padding(.bottom, 26)
                 }
             }
         }
     }
 }
 
-private struct LandingBackground: View {
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.11, green: 0.16, blue: 0.31),
-                    Color(red: 0.18, green: 0.26, blue: 0.54),
-                    Color(red: 0.34, green: 0.26, blue: 0.58)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+struct BlockClusterLogo: View {
+    let theme: Theme
 
-            AnimatedBackdrop()
-                .opacity(0.45)
-
-            ForEach(0..<6) { index in
-                SplashBlock(index: index)
-            }
-        }
+    private struct BlockSpec {
+        let x: CGFloat
+        let y: CGFloat
+        let scale: CGFloat
+        let phase: Double
     }
-}
 
-private struct LandingBrand: View {
+    private let blockSpecs: [BlockSpec] = [
+        BlockSpec(x: 0.28, y: 0.28, scale: 0.9, phase: 0.0),
+        BlockSpec(x: 0.52, y: 0.22, scale: 0.78, phase: 0.45),
+        BlockSpec(x: 0.74, y: 0.34, scale: 1.0, phase: 0.8),
+        BlockSpec(x: 0.34, y: 0.60, scale: 0.88, phase: 1.2),
+        BlockSpec(x: 0.62, y: 0.64, scale: 0.94, phase: 1.6),
+        BlockSpec(x: 0.46, y: 0.80, scale: 0.7, phase: 2.0)
+    ]
+
     var body: some View {
-        VStack(spacing: 28) {
+        TimelineView(.animation(minimumInterval: 1 / 45)) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate
+
             ZStack {
-                Circle()
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color(red: 0.99, green: 0.73, blue: 0.47),
-                                Color(red: 0.97, green: 0.47, blue: 0.63)
+                                theme.accentColor.opacity(theme.isDarkTheme ? 0.35 : 0.25),
+                                theme.surfaceBackground.opacity(theme.isDarkTheme ? 0.65 : 0.9)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 160, height: 160)
-                    .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 32, style: .continuous)
+                            .stroke(theme.surfaceHighlight.opacity(0.55), lineWidth: 1.2)
+                    )
+                    .shadow(color: theme.accentColor.opacity(0.35), radius: 28, x: 0, y: 20)
+                    .overlay(
+                        AngularGradient(
+                            colors: [
+                                theme.accentColor.opacity(0.18),
+                                theme.accentColor.opacity(0.05),
+                                theme.surfaceHighlight.opacity(0.12)
+                            ],
+                            center: .center
+                        )
+                        .blendMode(.plusLighter)
+                        .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+                    )
 
-                AnimatedBlockSymbol()
-                    .frame(width: 94, height: 94)
+                GeometryReader { geo in
+                    let width = geo.size.width
+                    let height = geo.size.height
+                    let base = min(width, height)
+                    let baseBlock = base / 4.1
+
+                    ForEach(Array(blockSpecs.enumerated()), id: \.offset) { index, spec in
+                        let wave = sin(time * 1.6 + spec.phase * .pi)
+                        let blockSize = baseBlock * spec.scale
+                        RoundedRectangle(cornerRadius: blockSize * 0.3, style: .continuous)
+                            .fill(tileGradient(for: index))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: blockSize * 0.3, style: .continuous)
+                                    .stroke(theme.surfaceHighlight.opacity(0.45), lineWidth: 1)
+                            )
+                            .frame(width: blockSize, height: blockSize)
+                            .position(
+                                x: spec.x * width,
+                                y: spec.y * height + CGFloat(wave * 6)
+                            )
+                            .shadow(color: tileShadow(for: index), radius: 10, x: 0, y: 8)
+                    }
+                }
+                .frame(width: 184, height: 184)
+            }
+            .frame(width: 200, height: 200)
+        }
+    }
+
+    private func tileGradient(for index: Int) -> LinearGradient {
+        let base = theme.accentColor
+        let lighten = base.opacity(0.65 + 0.07 * Double(index % 3))
+        let glow = base.opacity(0.35)
+        return LinearGradient(
+            colors: [lighten, glow],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private func tileShadow(for index: Int) -> Color {
+        theme.accentColor.opacity(0.3 - 0.04 * Double(index % 3))
+    }
+}
+
+struct MenuBlockButton: View {
+    let title: String
+    let iconName: String
+    let tint: Color
+    let theme: Theme
+    let action: () -> Void
+
+    @GestureState private var isPressed = false
+
+    var body: some View {
+        let pressGesture = DragGesture(minimumDistance: 0)
+            .updating($isPressed) { _, state, _ in state = true }
+
+        return Button(action: action) {
+            HStack(spacing: 18) {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(tint)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(theme.surfaceHighlight.opacity(0.4), lineWidth: 1)
+                    )
+                    .overlay(
+                        Image(systemName: iconName)
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(theme.iconForeground(on: tint))
+                    )
+                    .frame(width: 58, height: 58)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.system(size: 22, weight: .heavy, design: .rounded))
+                        .foregroundStyle(theme.primaryText)
+                    Rectangle()
+                        .fill(theme.accentColor.opacity(0.22))
+                        .frame(width: 64, height: 4)
+                        .cornerRadius(2)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 24)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(theme.surfaceBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .stroke(theme.surfaceHighlight.opacity(0.45), lineWidth: 1)
+                    )
+            )
+            .shadow(color: tint.opacity(0.28), radius: 18, x: 0, y: 14)
+            .scaleEffect(isPressed ? 0.97 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .gesture(pressGesture)
+        .animation(.spring(response: 0.25, dampingFraction: 0.9), value: isPressed)
+    }
+}
+
+private struct SettingsPanel: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let theme: Theme
+    let onShowThemes: () -> Void
+    let onReturn: () -> Void
+
+    @State private var deferredAction: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: 28) {
+            Capsule()
+                .fill(theme.surfaceHighlight.opacity(0.6))
+                .frame(width: 44, height: 5)
+                .padding(.top, 12)
+
+            VStack(spacing: 8) {
+                Text("Settings")
+                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .foregroundStyle(theme.primaryText)
+                Text("Customize your puzzle vibe.")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(theme.secondaryText)
             }
 
-            Text("Block Scramble")
-                .font(.system(size: 40, weight: .heavy, design: .rounded))
-                .foregroundStyle(Color.white)
-                .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 6)
+            VStack(spacing: 18) {
+                SettingsOptionButton(
+                    title: "Themes",
+                    subtitle: "Swap palettes instantly",
+                    iconName: "paintpalette.fill",
+                    theme: theme
+                ) {
+                    schedule(action: onShowThemes)
+                }
+
+                SettingsOptionButton(
+                    title: "Return to Main",
+                    subtitle: "Close settings",
+                    iconName: "house.fill",
+                    theme: theme
+                ) {
+                    schedule(action: onReturn)
+                }
+            }
         }
-        .padding(32)
+        .padding(.horizontal, 28)
+        .padding(.bottom, 32)
         .background(
             RoundedRectangle(cornerRadius: 36, style: .continuous)
-                .fill(Color.white.opacity(0.12))
+                .fill(theme.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 36, style: .continuous)
-                        .stroke(Color.white.opacity(0.28), lineWidth: 1)
+                        .stroke(theme.surfaceHighlight.opacity(0.5), lineWidth: 1)
                 )
+        )
+        .background(theme.backgroundColorSwift.opacity(0.92).ignoresSafeArea())
+        .presentationDetents([.height(320)])
+        .presentationDragIndicator(.hidden)
+        .onDisappear {
+            if let action = deferredAction {
+                deferredAction = nil
+                action()
+            }
+        }
+    }
+
+    private func schedule(action: @escaping () -> Void) {
+        deferredAction = action
+        dismiss()
+    }
+}
+
+private struct ModeSelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let theme: Theme
+    let onSelect: (GameMode) -> Void
+
+    private var descriptors: [ModeDescriptor] {
+        [
+            ModeDescriptor(
+                mode: .grid8x8,
+                title: "8×8 Grid",
+                subtitle: "Intimate board, quicker clears",
+                iconName: "square.grid.3x3.fill",
+                accent: theme.accentColor
+            ),
+            ModeDescriptor(
+                mode: .grid10x10,
+                title: "10×10 Grid",
+                subtitle: "Spacious layout for marathon runs",
+                iconName: "rectangle.grid.3x2",
+                accent: theme.accentColor.opacity(0.8)
+            ),
+            ModeDescriptor(
+                mode: .timedThreeMinutes,
+                title: "3 Minute Sprint",
+                subtitle: "8×8 grid · speed focused challenge",
+                iconName: "timer",
+                accent: Color.orange
+            ),
+            ModeDescriptor(
+                mode: .timedFiveMinutes,
+                title: "5 Minute Rush",
+                subtitle: "8×8 grid · balanced pacing",
+                iconName: "stopwatch",
+                accent: Color.purple
+            ),
+            ModeDescriptor(
+                mode: .timedSevenMinutes,
+                title: "7 Minute Marathon",
+                subtitle: "8×8 grid · endurance mode",
+                iconName: "hourglass.circle.fill",
+                accent: Color.mint
+            )
+        ]
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    ModeSelectionHeader(theme: theme)
+
+                    VStack(spacing: 16) {
+                        ForEach(descriptors) { descriptor in
+                            ModeOptionCard(descriptor: descriptor, theme: theme) {
+                                handleSelection(descriptor.mode)
+                            }
+                        }
+                    }
+                }
+                .padding(24)
+            }
+            .background(theme.backgroundColorSwift.ignoresSafeArea())
+            .navigationTitle("Choose Mode")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                        .tint(theme.accentColor)
+                }
+            }
+        }
+        .presentationDetents([.fraction(0.72), .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func handleSelection(_ mode: GameMode) {
+        onSelect(mode)
+        dismiss()
+    }
+
+    fileprivate struct ModeDescriptor: Identifiable {
+        let mode: GameMode
+        let title: String
+        let subtitle: String
+        let iconName: String
+        let accent: Color
+
+        var id: GameMode { mode }
+        var isTimed: Bool { mode.isTimed }
+        var durationLabel: String? {
+            guard let seconds = mode.timerDuration else { return nil }
+            let minutes = Int(seconds) / 60
+            return "\(minutes) min"
+        }
+    }
+}
+
+private struct ModeSelectionHeader: View {
+    let theme: Theme
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Pick Your Challenge")
+                .font(.system(size: 24, weight: .heavy, design: .rounded))
+                .foregroundStyle(theme.primaryText)
+
+            Text("Swap between free-play grids or timed sprints whenever you like.")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(theme.secondaryText)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct ModeOptionCard: View {
+    let descriptor: ModeSelectionSheet.ModeDescriptor
+    let theme: Theme
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 18) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(descriptor.accent.opacity(0.2))
+                        .frame(width: 56, height: 56)
+
+                    Image(systemName: descriptor.iconName)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(descriptor.accent)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(descriptor.title)
+                            .font(.system(size: 18, weight: .heavy, design: .rounded))
+                            .foregroundStyle(theme.primaryText)
+
+                        if let badge = descriptor.durationLabel {
+                            Text(badge)
+                                .font(.caption.weight(.bold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(descriptor.accent.opacity(0.22))
+                                .clipShape(Capsule())
+                                .foregroundStyle(theme.primaryText)
+                        }
+                    }
+
+                    Text(descriptor.subtitle)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(theme.secondaryText)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(theme.secondaryText.opacity(0.7))
+            }
+            .padding(.vertical, 18)
+            .padding(.horizontal, 20)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(theme.surfaceBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .stroke(theme.surfaceHighlight.opacity(0.45), lineWidth: 1)
+                    )
+            )
+            .shadow(color: descriptor.accent.opacity(0.18), radius: 16, x: 0, y: 12)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct SettingsOptionButton: View {
+    let title: String
+    let subtitle: String
+    let iconName: String
+    let theme: Theme
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 18) {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(theme.accentColor.opacity(0.85))
+                    .frame(width: 48, height: 48)
+                    .overlay(
+                        Image(systemName: iconName)
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundStyle(Color.white)
+                    )
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(theme.primaryText)
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(theme.secondaryText)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(theme.secondaryText.opacity(0.85))
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 18)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(theme.surfaceHighlight.opacity(theme.isDarkTheme ? 0.5 : 0.68))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct ThemePaletteSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var previewTheme: Theme = Theme.current
+    @State private var selectedTheme: Theme = Theme.current
+
+    let theme: Theme
+
+    private let columns = [GridItem(.adaptive(minimum: 140), spacing: 20)]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 28) {
+                    ThemePreviewRow(theme: previewTheme)
+
+                    LazyVGrid(columns: columns, spacing: 20) {
+                        ForEach(Theme.allCases, id: \.self) { option in
+                            ThemeTile(theme: option, isSelected: option == selectedTheme) {
+                                applyTheme(option)
+                            }
+                        }
+                    }
+                }
+                .padding(24)
+            }
+            .background(previewTheme.backgroundColorSwift.ignoresSafeArea())
+            .navigationTitle("Themes")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Close") { dismiss() }
+                        .tint(previewTheme.accentColor)
+                }
+            }
+        }
+        .presentationDetents([.fraction(0.92)])
+    }
+
+    private func applyTheme(_ theme: Theme) {
+        selectedTheme = theme
+        previewTheme = theme
+        Theme.current = theme
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+}
+
+private struct ThemeTile: View {
+    let theme: Theme
+    let isSelected: Bool
+    let action: () -> Void
+
+    private let tilePositions: [CGPoint] = [
+        CGPoint(x: 0.28, y: 0.28),
+        CGPoint(x: 0.52, y: 0.22),
+        CGPoint(x: 0.74, y: 0.34),
+        CGPoint(x: 0.34, y: 0.60),
+        CGPoint(x: 0.64, y: 0.66),
+        CGPoint(x: 0.46, y: 0.80)
+    ]
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 18) {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(theme.menuBackgroundGradient)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(theme.surfaceHighlight.opacity(isSelected ? 0.85 : 0.4), lineWidth: isSelected ? 3 : 1)
+                    )
+                    .shadow(color: theme.accentColor.opacity(0.28), radius: isSelected ? 18 : 10, x: 0, y: isSelected ? 14 : 8)
+                    .overlay(
+                        GeometryReader { geo in
+                            let width = geo.size.width
+                            let height = geo.size.height
+                            let blockSize = min(width, height) / 5.1
+
+                            ForEach(Array(tilePositions.enumerated()), id: \.offset) { index, position in
+                                RoundedRectangle(cornerRadius: blockSize * 0.28, style: .continuous)
+                                    .fill(theme.accentColor.opacity(0.62 + 0.08 * Double(index % 3)))
+                                    .frame(width: blockSize, height: blockSize)
+                                    .position(
+                                        x: position.x * width,
+                                        y: position.y * height
+                                    )
+                                    .shadow(color: theme.accentColor.opacity(0.2), radius: 6, x: 0, y: 5)
+                            }
+                        }
+                    )
+                    .frame(height: 140)
+
+                Text(theme.displayName)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(theme.primaryText)
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .fill(theme.surfaceBackground.opacity(theme.isDarkTheme ? 0.55 : 0.78))
+            )
+        }
+        .buttonStyle(.plain)
+        .scaleEffect(isSelected ? 1.04 : 1.0)
+        .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isSelected)
+    }
+}
+
+private struct ThemePreviewRow: View {
+    let theme: Theme
+
+    var body: some View {
+        HStack(spacing: 16) {
+            ThemePreviewCard(title: "Main", gradient: theme.menuBackgroundGradient, accent: theme.accentColor)
+            ThemePreviewCard(title: "Settings", gradient: theme.menuGradient(strength: 0.75), accent: theme.surfaceHighlight)
+            ThemePreviewCard(title: "Game Over", gradient: theme.menuGradient(strength: 1.25), accent: theme.accentColor)
+        }
+    }
+}
+
+private struct ThemePreviewCard: View {
+    let title: String
+    let gradient: LinearGradient
+    let accent: Color
+
+    var body: some View {
+        VStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(gradient)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(accent.opacity(0.45), lineWidth: 1)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(accent.opacity(0.8))
+                        .frame(width: 42, height: 14)
+                        .offset(y: 10), alignment: .top
+                )
+                .frame(height: 70)
+
+            Text(title.uppercased())
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.white.opacity(0.82))
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.05))
         )
     }
 }
 
-private struct AnimatedBlockSymbol: View {
+struct BlockGridBackground: View {
+    let color: Color
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
-            let time = timeline.date.timeIntervalSinceReferenceDate
-            let progress = (time.truncatingRemainder(dividingBy: 2.6)) / 2.6
-            let rotation = Angle.degrees(progress * 360)
-            let scale = 0.82 + 0.18 * sin(progress * .pi * 2)
+        GeometryReader { proxy in
+            let spacing: CGFloat = 48
+            Path { path in
+                var y: CGFloat = 0
+                while y <= proxy.size.height {
+                    path.move(to: CGPoint(x: 0, y: y))
+                    path.addLine(to: CGPoint(x: proxy.size.width, y: y))
+                    y += spacing
+                }
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.white.opacity(0.18))
-                    .frame(width: 96, height: 96)
-                    .shadow(color: Color.black.opacity(0.15), radius: 16, x: 0, y: 8)
-
-                ForEach(0..<4) { index in
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(blockColor(for: index))
-                        .frame(width: 26, height: 26)
-                        .offset(blockOffset(for: index))
-                        .rotationEffect(rotation)
-                        .scaleEffect(scale)
-                        .shadow(color: blockColor(for: index).opacity(0.45), radius: 8, x: 0, y: 4)
+                var x: CGFloat = 0
+                while x <= proxy.size.width {
+                    path.move(to: CGPoint(x: x, y: 0))
+                    path.addLine(to: CGPoint(x: x, y: proxy.size.height))
+                    x += spacing
                 }
             }
+            .stroke(color.opacity(0.18), lineWidth: 0.8)
         }
-    }
-
-    private func blockColor(for index: Int) -> Color {
-        switch index {
-        case 0: return Color(red: 0.98, green: 0.46, blue: 0.64)
-        case 1: return Color(red: 0.46, green: 0.78, blue: 0.98)
-        case 2: return Color(red: 0.57, green: 0.88, blue: 0.62)
-        default: return Color(red: 0.98, green: 0.68, blue: 0.39)
-        }
-    }
-
-    private func blockOffset(for index: Int) -> CGSize {
-        switch index {
-        case 0: return CGSize(width: -20, height: -14)
-        case 1: return CGSize(width: 22, height: -8)
-        case 2: return CGSize(width: -10, height: 22)
-        default: return CGSize(width: 18, height: 18)
-        }
+        .allowsHitTesting(false)
     }
 }
 
 private struct AnimatedBlockLoader: View {
+    let accent: Color
+
     var body: some View {
-        HStack(spacing: 20) {
-            ForEach(0..<3) { index in
-                LoaderBlock(index: index)
+        TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate
+
+            HStack(spacing: 10) {
+                ForEach(0..<5) { index in
+                    let phase = sin(time * 2.0 + Double(index) * 0.6)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(accent.opacity(0.58 + 0.1 * Double(index % 3)))
+                        .frame(width: 18, height: 18 + CGFloat(phase + 1) * 6)
+                        .offset(y: CGFloat(-phase * 6))
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                Capsule()
+                    .fill(accent.opacity(0.18))
+            )
+        }
+    }
+}
+
+private struct SplashView: View {
+    let theme: Theme
+
+    var body: some View {
+        ZStack {
+            theme.menuBackgroundGradient
+                .overlay(
+                    RadialGradient(
+                        colors: [theme.accentColor.opacity(0.28), theme.accentColor.opacity(0.05)],
+                        center: .center,
+                        startRadius: 40,
+                        endRadius: 320
+                    )
+                    .blendMode(.plusLighter)
+                )
+                .ignoresSafeArea()
+
+            BlockGridBackground(color: theme.gridOverlayColor)
+                .ignoresSafeArea()
+
+            VStack(spacing: 28) {
+                BlockClusterLogo(theme: theme)
+                AnimatedBlockLoader(accent: theme.accentColor)
+                Text("Loading blocks…")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(theme.secondaryText)
             }
         }
-        .padding(.horizontal, 26)
-        .padding(.vertical, 16)
-        .background(
-            Capsule()
-                .fill(Color.white.opacity(0.16))
-                .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.24), lineWidth: 1)
-                )
+    }
+}
+
+private extension Theme {
+    var accentColor: Color { Color(blockColor) }
+    var backgroundColorSwift: Color { Color(backgroundColor) }
+    var primaryText: Color { isDarkTheme ? Color.white : Color.black }
+    var secondaryText: Color { primaryText.opacity(0.72) }
+    var surfaceHighlight: Color { isDarkTheme ? Color.white.opacity(0.18) : Color.black.opacity(0.08) }
+    var surfaceBackground: Color { isDarkTheme ? Color.white.opacity(0.12) : Color.white.opacity(0.88) }
+    var gridOverlayColor: Color { isDarkTheme ? Color.white.opacity(0.05) : Color.black.opacity(0.05) }
+    var menuBackgroundGradient: LinearGradient { menuGradient(strength: 1.0) }
+
+    func menuGradient(strength: Double) -> LinearGradient {
+        let accentStrength = max(0.1, min(0.85, (isDarkTheme ? 0.45 : 0.32) * strength))
+        return LinearGradient(
+            colors: [
+                backgroundColorSwift,
+                backgroundColorSwift.opacity(isDarkTheme ? 0.9 : 0.96),
+                accentColor.opacity(accentStrength)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
         )
     }
 
-    private struct LoaderBlock: View {
-        let index: Int
-
-        var body: some View {
-            TimelineView(.animation(minimumInterval: 1 / 45)) { timeline in
-                let time = timeline.date.timeIntervalSinceReferenceDate + Double(index) * 0.25
-                let wave = 0.68 + 0.32 * CGFloat(sin(time * 2.6 * .pi))
-                let rotation = Angle.degrees(Double(wave) * 180)
-
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(loaderColor)
-                    .frame(width: 50, height: 50)
-                    .scaleEffect(wave)
-                    .rotationEffect(rotation)
-                    .shadow(color: loaderColor.opacity(0.45), radius: 10, x: 0, y: 5)
-            }
-        }
-
-        private var loaderColor: Color {
-            switch index {
-            case 0: return Color(red: 0.99, green: 0.65, blue: 0.41)
-            case 1: return Color(red: 0.47, green: 0.75, blue: 0.98)
-            default: return Color(red: 0.57, green: 0.87, blue: 0.76)
-            }
-        }
+    func iconForeground(on base: Color) -> Color {
+        base.luminance > 0.6 ? Color.black.opacity(0.85) : Color.white
     }
 }
 
-private struct BubbleButtonStyle: ButtonStyle {
-    let gradient: LinearGradient
-    let foreground: Color
-    let shadowOpacity: Double
-    let borderColor: Color?
-
-    init(gradient: LinearGradient, foreground: Color = .white, shadowOpacity: Double = 0.2, borderColor: Color? = nil) {
-        self.gradient = gradient
-        self.foreground = foreground
-        self.shadowOpacity = shadowOpacity
-        self.borderColor = borderColor
-    }
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.title2.weight(.bold))
-            .textCase(.uppercase)
-            .tracking(0.8)
-            .padding(.vertical, 20)
-            .frame(maxWidth: .infinity)
-            .foregroundStyle(foreground.opacity(configuration.isPressed ? 0.9 : 1))
-            .background(
-                Capsule()
-                    .fill(gradient)
-            )
-            .overlay(
-                Capsule()
-                    .stroke(borderColor ?? .clear, lineWidth: borderColor == nil ? 0 : 1)
-            )
-            .shadow(color: Color.black.opacity(shadowOpacity), radius: configuration.isPressed ? 12 : 22, x: 0, y: configuration.isPressed ? 6 : 14)
-            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
-            .animation(.spring(response: 0.32, dampingFraction: 0.78), value: configuration.isPressed)
+private extension Color {
+    var luminance: Double {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        UIColor(self).getRed(&red, green: &green, blue: &blue, alpha: nil)
+        return Double(0.299 * red + 0.587 * green + 0.114 * blue)
     }
 }
 
-private struct PlaySetupView: View {
-    @Environment(\.dismiss) private var dismiss
 
-    let startGame: (GameMode) -> Void
-
-    var body: some View {
-        VStack(spacing: 28) {
-            VStack(spacing: 10) {
-                Text("Pick a mode")
-                    .font(.largeTitle.weight(.bold))
-                Text("Tap a bubble to jump straight into the puzzle.")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.secondary)
-            }
-            .padding(.top, 20)
-
-            VStack(spacing: 16) {
-                ForEach(GameMode.allCases) { mode in
-                    Button {
-                        startGame(mode)
-                    } label: {
-                        ModeBubble(mode: mode)
-                    }
-                }
-            }
-            .padding(.horizontal, 20)
-
-            Spacer()
-        }
-        .padding(.bottom, 24)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button("Close") { dismiss() }
-            }
-        }
-    }
-}
-
-private struct ModeBubble: View {
-    let mode: GameMode
-
-    private var title: String {
-        mode.displayName
-    }
-
-    private var gradient: LinearGradient {
-        switch mode {
-        case .grid8x8:
-            return LinearGradient(
-                colors: [
-                    Color(red: 0.45, green: 0.73, blue: 0.99),
-                    Color(red: 0.26, green: 0.49, blue: 0.94)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .grid10x10:
-            return LinearGradient(
-                colors: [
-                    Color(red: 0.41, green: 0.85, blue: 0.64),
-                    Color(red: 0.19, green: 0.64, blue: 0.47)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .timedThreeMinutes, .timedFiveMinutes, .timedSevenMinutes:
-            return LinearGradient(
-                colors: [
-                    Color(red: 1.0, green: 0.5, blue: 0.3),
-                    Color(red: 0.8, green: 0.2, blue: 0.2)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-    }
-
-    var body: some View {
-        Text(title)
-            .font(.title3.weight(.bold))
-            .textCase(.uppercase)
-            .tracking(0.8)
-            .padding(.vertical, 20)
-            .frame(maxWidth: .infinity)
-            .foregroundStyle(Color.white)
-            .background(
-                Capsule()
-                    .fill(gradient)
-            )
-            .overlay(
-                Capsule()
-                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.2), radius: 16, x: 0, y: 10)
-    }
-}
-
-private struct AccountView: View {
+struct AccountView: View {
     @EnvironmentObject private var authViewModel: AuthViewModel
 
     var body: some View {
@@ -837,66 +1358,6 @@ private struct AccountView: View {
     }
 }
 
-private struct AnimatedBackdrop: View {
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 40)) { timeline in
-            let time = timeline.date.timeIntervalSinceReferenceDate
-            let rotation = Angle.degrees((time.truncatingRemainder(dividingBy: 16)) / 16 * 360)
-
-            RadialGradient(
-                colors: [
-                    Color.white.opacity(0.32),
-                    Color.white.opacity(0.02)
-                ],
-                center: .center,
-                startRadius: 40,
-                endRadius: 460
-            )
-            .rotationEffect(rotation)
-            .blur(radius: 120)
-            .scaleEffect(1.25)
-        }
-    }
-}
-
-private struct SplashView: View {
-    var body: some View {
-        ZStack {
-            LandingBackground()
-                .ignoresSafeArea()
-
-            VStack(spacing: 32) {
-                LandingBrand()
-
-                AnimatedBlockLoader()
-
-                Text("Loading…")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(Color.white.opacity(0.85))
-            }
-            .padding(40)
-        }
-    }
-}
-
-private struct SplashBlock: View {
-    let index: Int
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 50)) { timeline in
-            let time = timeline.date.timeIntervalSinceReferenceDate + Double(index) * 0.4
-            let oscillation = sin(time * 1.6) * 40
-            let baseSize: CGFloat = 160 + CGFloat(index * 22)
-
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1.5)
-                .frame(width: baseSize, height: baseSize)
-                .rotationEffect(.degrees(Double(time * 18).truncatingRemainder(dividingBy: 360)))
-                .offset(x: CGFloat(oscillation), y: CGFloat(-oscillation / 2))
-        }
-    }
-}
-
 struct GameViewControllerRepresentable: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> GameViewController {
         GameViewController()
@@ -904,137 +1365,5 @@ struct GameViewControllerRepresentable: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: GameViewController, context: Context) {
         // Intentionally left blank
-    }
-}
-
-private struct ThemeSelectionView: View {
-    @State private var selectedTheme: Theme = Theme.current
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Dark Themes
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Dark Themes")
-                        .font(.title2.weight(.bold))
-                        .padding(.horizontal, 20)
-
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        ForEach([Theme.classicDark, .neonCyberpunk, .midnightBlue, .diabloMaroon, .forestNight, .purpleDreams, .retroArcade], id: \.self) { theme in
-                            ThemeBubbleMain(theme: theme, isSelected: selectedTheme == theme) {
-                                selectTheme(theme)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                }
-
-                // Light Themes
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Light Themes")
-                        .font(.title2.weight(.bold))
-                        .padding(.horizontal, 20)
-
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        ForEach([Theme.oceanBreeze, .sunsetGlow, .cherryBlossom], id: \.self) { theme in
-                            ThemeBubbleMain(theme: theme, isSelected: selectedTheme == theme) {
-                                selectTheme(theme)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                }
-            }
-            .padding(.vertical, 28)
-        }
-        .background(Color(UIColor.systemGroupedBackground))
-        .navigationTitle("Themes")
-        .navigationBarTitleDisplayMode(.large)
-        .onAppear {
-            selectedTheme = Theme.current
-        }
-    }
-
-    private func selectTheme(_ theme: Theme) {
-        selectedTheme = theme
-        Theme.current = theme
-        let impact = UIImpactFeedbackGenerator(style: .medium)
-        impact.impactOccurred()
-    }
-}
-
-private struct ThemeBubbleMain: View {
-    let theme: Theme
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 12) {
-                ZStack {
-                    if isSelected {
-                        Circle()
-                            .fill(Color(theme.blockColor).opacity(0.3))
-                            .frame(width: 70, height: 70)
-                            .blur(radius: 10)
-                    }
-
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(theme.blockColor),
-                                    Color(theme.blockColor).opacity(0.80)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 56, height: 56)
-                        .overlay(
-                            Circle()
-                                .stroke(
-                                    isSelected ? Color.white : Color.white.opacity(0.3),
-                                    lineWidth: isSelected ? 4 : 2
-                                )
-                        )
-                        .shadow(color: Color(theme.blockColor).opacity(0.5), radius: isSelected ? 16 : 8, x: 0, y: isSelected ? 8 : 4)
-
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(Color.white)
-                            .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
-                    }
-                }
-
-                Text(theme.displayName)
-                    .font(.system(size: 13, weight: isSelected ? .bold : .semibold, design: .rounded))
-                    .foregroundStyle(isSelected ? Color(theme.blockColor) : Color.primary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-            }
-            .padding(.vertical, 18)
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(
-                        isSelected
-                        ? Color(theme.blockColor).opacity(0.12)
-                        : Color(UIColor.secondarySystemGroupedBackground)
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(
-                        isSelected ? Color(theme.blockColor).opacity(0.5) : Color.clear,
-                        lineWidth: isSelected ? 2.5 : 0
-                    )
-            )
-            .scaleEffect(isSelected ? 1.04 : 1.0)
-            .animation(.spring(response: 0.35, dampingFraction: 0.65), value: isSelected)
-        }
-        .buttonStyle(.plain)
     }
 }

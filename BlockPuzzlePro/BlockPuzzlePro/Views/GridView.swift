@@ -61,19 +61,14 @@ private struct GridCellView: View {
     @State private var pulseAnimation: Bool = false
 
     var body: some View {
-        Rectangle()
-            .fill(cellColor)
+        RoundedRectangle(cornerRadius: cellCornerRadius)
+            .fill(cellFill)
             .frame(width: cellSize, height: cellSize)
             .overlay(
-                Rectangle()
-                    .stroke(cellBorder, lineWidth: isPreview ? 0 : 0.7)  // NO border on preview
+                RoundedRectangle(cornerRadius: cellCornerRadius)
+                    .stroke(cellBorder, lineWidth: isPreview ? 0 : 0.7)
             )
-            .shadow(
-                color: Color.clear,  // NO shadow
-                radius: 0,
-                x: 0,
-                y: 0
-            )
+            .overlay(highlightOverlay)
     }
 
     private var isPreview: Bool {
@@ -83,7 +78,7 @@ private struct GridCellView: View {
         return false
     }
 
-    private var cellColor: Color {
+    private var cellFill: Color {
         switch cell {
         case .empty, .preview:
             // Use theme-aware empty cell color (treat preview as empty)
@@ -100,6 +95,30 @@ private struct GridCellView: View {
     private var cellBorder: Color {
         // Theme-aware grid lines for all cells
         return Color(theme.gridLineColor)
+    }
+
+    private var cellCornerRadius: CGFloat {
+        max(4, cellSize * 0.2)
+    }
+
+    @ViewBuilder
+    private var highlightOverlay: some View {
+        if case .occupied = cell {
+            RoundedRectangle(cornerRadius: cellCornerRadius)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.22),
+                            Color.clear,
+                            Color.black.opacity(0.08)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        } else {
+            EmptyView()
+        }
     }
 }
 

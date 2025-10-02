@@ -200,8 +200,10 @@ class DragController: ObservableObject {
 
         // Start visual feedback immediately
         let springResponse = isProMotionDisplay ? 0.15 : 0.2
+        let enlargedScale: CGFloat = 1.3
+
         withAnimation(.interactiveSpring(response: springResponse, dampingFraction: 0.8)) {
-            dragScale = 1.0
+            dragScale = enlargedScale
             shadowOffset = CGSize(width: 3, height: 6)
         }
 
@@ -449,6 +451,10 @@ class DragController: ObservableObject {
         dragState = .settling(blockIndex: blockIndex, blockPattern: blockPattern, dropPosition: startPosition, touchOffset: .zero)
         logStateTransition(from: oldState, to: dragState)
 
+        // Immediately mark drag as inactive so UI can hide forecast overlays
+        isDragging = false
+        draggedIndices.removeAll()
+
         // Optimized return animation for ProMotion
         let springResponse = isProMotionDisplay ? 0.25 : 0.4
         withAnimation(.interactiveSpring(response: springResponse, dampingFraction: 0.8)) {
@@ -472,9 +478,7 @@ class DragController: ObservableObject {
             self?.logStateTransition(from: oldState, to: .idle)
 
             // Clear remaining state atomically
-            self?.isDragging = false
             self?.dragTouchOffset = .zero
-            self?.draggedIndices.removeAll()
 
             // Cancel timeout timer since drag completed (even if canceled)
             self?.dragTimeoutTimer?.invalidate()

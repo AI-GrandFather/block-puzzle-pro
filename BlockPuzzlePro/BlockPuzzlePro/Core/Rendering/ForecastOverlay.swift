@@ -28,6 +28,7 @@ final class ForecastOverlay {
     func showPreview(for block: Block, at position: Grid.Point, isValid: Bool, parentNode: SKNode) {
         clearPreview()
 
+        guard isValid else { return }
         guard let clipNode = clipNode else { return }
         parentNode.addChild(clipNode)
 
@@ -35,13 +36,13 @@ final class ForecastOverlay {
         guard !clippedCells.isEmpty else { return }
 
         let nodes = nodePool.acquireNodes(count: clippedCells.count)
-        let color = isValid ? Theme.current.previewValidColor : Theme.current.previewInvalidColor
+        let baseColor = block.color.skColor
 
         for (index, cell) in clippedCells.enumerated() {
             guard index < nodes.count else { break }
 
             let node = nodes[index]
-            configurePreviewNode(node, for: cell, color: color)
+            configurePreviewNode(node, for: cell, color: baseColor)
             clipNode.addChild(node)
             activeNodes.append(node)
         }
@@ -65,7 +66,7 @@ final class ForecastOverlay {
         }
     }
 
-    private func configurePreviewNode(_ node: SKSpriteNode, for gridPoint: Grid.Point, color: UIColor) {
+    private func configurePreviewNode(_ node: SKSpriteNode, for gridPoint: Grid.Point, color: SKColor) {
         let screenPosition = gridToScreenPosition(gridPoint)
 
         node.position = screenPosition
