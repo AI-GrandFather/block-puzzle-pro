@@ -6,22 +6,24 @@ import UIKit
 
 /// SwiftUI view for displaying individual blocks
 struct BlockView: View {
-    
+
     // MARK: - Properties
-    
+
     let blockPattern: BlockPattern
     let cellSize: CGFloat
     let isInteractive: Bool
-    
+    let showShadow: Bool  // Control whether to show shadow
+
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     @Environment(\.colorScheme) private var colorScheme
-    
+
     // MARK: - Initialization
-    
-    init(blockPattern: BlockPattern, cellSize: CGFloat = 30, isInteractive: Bool = true) {
+
+    init(blockPattern: BlockPattern, cellSize: CGFloat = 30, isInteractive: Bool = true, showShadow: Bool = false) {
         self.blockPattern = blockPattern
         self.cellSize = cellSize
         self.isInteractive = isInteractive
+        self.showShadow = showShadow
     }
     
     // MARK: - Body

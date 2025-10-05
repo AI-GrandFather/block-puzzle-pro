@@ -285,7 +285,8 @@ private struct TrayBlockSlot: View {
                 BlockView(
                     blockPattern: pattern,
                     cellSize: cellSize,
-                    isInteractive: true
+                    isInteractive: true,
+                    showShadow: false  // NO shadow in tray
                 )
                 .frame(width: blockWidth, height: blockHeight)
                 .scaleEffect(displayScale)
@@ -377,24 +378,27 @@ private struct FloatingBlock: View {
         BlockView(
             blockPattern: pattern,
             cellSize: cellSize,
-            isInteractive: true
+            isInteractive: true,
+            showShadow: false  // No inner shadow, we apply outer shadow below
         )
         .frame(
             width: CGFloat(pattern.size.width) * cellSize,
             height: CGFloat(pattern.size.height) * cellSize
         )
         .scaleEffect(scale)
+        // Prominent shadow for dragged block over grid
         .shadow(
-            color: Color.black.opacity(shadowOpacity),
-            radius: shadowRadius,
+            color: Color.black.opacity(max(shadowOpacity, 0.35)),  // Minimum 35% opacity for visibility
+            radius: max(shadowRadius, 12),  // Minimum 12pt radius for prominence
             x: shadowOffset.width,
-            y: shadowOffset.height
+            y: max(shadowOffset.height, 6)  // Minimum 6pt offset for depth
         )
         .position(
             x: origin.x + (CGFloat(pattern.size.width) * cellSize * scale) / 2,
             y: origin.y + (CGFloat(pattern.size.height) * cellSize * scale) / 2
         )
         .allowsHitTesting(false)
+        .zIndex(1000)  // Ensure it's above everything else
     }
 }
 
