@@ -379,20 +379,14 @@ private struct FloatingBlock: View {
             blockPattern: pattern,
             cellSize: cellSize,
             isInteractive: true,
-            showShadow: false  // No inner shadow, we apply outer shadow below
+            showShadow: false
         )
         .frame(
             width: CGFloat(pattern.size.width) * cellSize,
             height: CGFloat(pattern.size.height) * cellSize
         )
         .scaleEffect(scale)
-        // Prominent shadow for dragged block over grid
-        .shadow(
-            color: Color.black.opacity(max(shadowOpacity, 0.35)),  // Minimum 35% opacity for visibility
-            radius: max(shadowRadius, 12),  // Minimum 12pt radius for prominence
-            x: shadowOffset.width,
-            y: max(shadowOffset.height, 6)  // Minimum 6pt offset for depth
-        )
+        // NO shadow - clean look
         .position(
             x: origin.x + (CGFloat(pattern.size.width) * cellSize * scale) / 2,
             y: origin.y + (CGFloat(pattern.size.height) * cellSize * scale) / 2
