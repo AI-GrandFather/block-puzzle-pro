@@ -69,6 +69,9 @@ class DragController: ObservableObject {
     /// Offset from the user's touch point to the block's top-left in screen space
     @Published var dragTouchOffset: CGSize = .zero
 
+    /// Size of a single block cell in the source coordinate space (used to normalize offsets)
+    @Published var dragSourceCellSize: CGFloat = 0.0
+
     /// Currently dragged block pattern (if any)
     @Published var draggedBlockPattern: BlockPattern? = nil
 
@@ -138,8 +141,10 @@ class DragController: ObservableObject {
         self.deviceManager = deviceManager
 
         // Detect ProMotion display capability
-        let refreshRate = Double(UIScreen.main.maximumFramesPerSecond)
-        self.isProMotionDisplay = refreshRate >= 120.0
+        let displayInfo = FrameRateConfigurator.currentDisplayInfo()
+        let preferredRefresh = displayInfo.preferredRefreshRate > 0 ? Double(displayInfo.preferredRefreshRate) : 0
+        let refreshRate = preferredRefresh > 0 ? preferredRefresh : Double(displayInfo.maxRefreshRate)
+        self.isProMotionDisplay = Double(displayInfo.maxRefreshRate) >= 120.0
 
         // Optimize update interval for 120Hz ProMotion displays
         if let interval = deviceManager?.idealDragUpdateInterval() {
@@ -160,7 +165,7 @@ class DragController: ObservableObject {
     // MARK: - Drag Management
     
     /// Start a drag operation with deterministic state transitions
-    func startDrag(blockIndex: Int, blockPattern: BlockPattern, at position: CGPoint, touchOffset: CGSize) {
+    func startDrag(blockIndex: Int, blockPattern: BlockPattern, at position: CGPoint, touchOffset: CGSize, sourceCellSize: CGFloat = 0.0) {
         let oldState = dragState
         logger.debug("🚀 startDrag called for block \(blockIndex), current state: \(String(describing: self.dragState)), isDragging: \(self.isDragging)")
 
@@ -182,6 +187,7 @@ class DragController: ObservableObject {
         // Set up drag state atomically
         isDragging = true // Set immediately to prevent race conditions
         dragTouchOffset = touchOffset
+        dragSourceCellSize = sourceCellSize
         draggedBlockPattern = blockPattern
         currentBlockIndex = blockIndex
         draggedIndices.insert(blockIndex)
@@ -194,8 +200,10 @@ class DragController: ObservableObject {
 
         // Start visual feedback immediately
         let springResponse = isProMotionDisplay ? 0.15 : 0.2
+        let enlargedScale: CGFloat = 1.3
+
         withAnimation(.interactiveSpring(response: springResponse, dampingFraction: 0.8)) {
-            dragScale = 1.0
+            dragScale = enlargedScale
             shadowOffset = CGSize(width: 3, height: 6)
         }
 
@@ -310,21 +318,26 @@ class DragController: ObservableObject {
         )
         currentTouchLocation = position
 
-        // Call drag ended callback immediately
+        // Call drag ended callback immediately - this triggers placement validation
         onDragEnded?(blockIndex, blockPattern, position)
 
-        // Clear dragged pattern immediately to hide floating preview
-        // This prevents the green outline from persisting while animations complete
-        draggedBlockPattern = nil
-        currentBlockIndex = nil
+        // CRITICAL: Keep dragged pattern available during placement to prevent flicker
+        // The placement engine needs this to show the final preview state
+        // We'll clear it after a brief delay to allow placement to complete
 
-        // CRITICAL FIX: Complete state transition immediately instead of waiting for animation
-        // The async animation was causing the drag controller to stay in 'settling' state
-        // which prevented new drags from starting
+        // Complete state transition immediately to allow new drags
         transitionToIdleImmediately()
 
         // Start visual settling animation without blocking state transitions
         performVisualSettlingAnimation()
+
+        // Clear dragged pattern after placement has time to complete
+        // This prevents the floating preview from disappearing before placement validates
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            self?.draggedBlockPattern = nil
+            self?.currentBlockIndex = nil
+            self?.dragSourceCellSize = 0.0
+        }
     }
 
     /// Optimized settling animation for ProMotion displays (100-140ms target)
@@ -397,6 +410,7 @@ class DragController: ObservableObject {
         isDragging = false
         dragTouchOffset = .zero
         draggedIndices.removeAll()
+        dragSourceCellSize = 0.0
         // Note: draggedBlockPattern and currentBlockIndex already cleared above
 
         logger.debug("✅ State transition complete, dragState=\(String(describing: self.dragState)), isDragging=\(self.isDragging)")
@@ -441,6 +455,10 @@ class DragController: ObservableObject {
         dragState = .settling(blockIndex: blockIndex, blockPattern: blockPattern, dropPosition: startPosition, touchOffset: .zero)
         logStateTransition(from: oldState, to: dragState)
 
+        // Immediately mark drag as inactive so UI can hide forecast overlays
+        isDragging = false
+        draggedIndices.removeAll()
+
         // Optimized return animation for ProMotion
         let springResponse = isProMotionDisplay ? 0.25 : 0.4
         withAnimation(.interactiveSpring(response: springResponse, dampingFraction: 0.8)) {
@@ -452,10 +470,6 @@ class DragController: ObservableObject {
 
         onInvalidDrop?(blockIndex, blockPattern, startPosition)
 
-        // Clear dragged pattern immediately to hide floating preview
-        draggedBlockPattern = nil
-        currentBlockIndex = nil
-
         // Transition to idle after animation
         let animationDuration = springResponse * 1.5
         DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self] in
@@ -463,10 +477,12 @@ class DragController: ObservableObject {
             self?.dragState = .idle
             self?.logStateTransition(from: oldState, to: .idle)
 
+            // Clear dragged pattern after animation completes
+            self?.draggedBlockPattern = nil
+            self?.currentBlockIndex = nil
+
             // Clear remaining state atomically
-            self?.isDragging = false
             self?.dragTouchOffset = .zero
-            self?.draggedIndices.removeAll()
 
             // Cancel timeout timer since drag completed (even if canceled)
             self?.dragTimeoutTimer?.invalidate()
@@ -609,6 +625,7 @@ class DragController: ObservableObject {
         draggedBlockPattern = nil
         currentBlockIndex = nil
         draggedIndices.removeAll()
+        dragSourceCellSize = 0.0
 
         // Reset performance tracking
         lastUpdateTime = 0

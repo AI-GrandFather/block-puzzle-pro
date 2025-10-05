@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// Displays the player's current score with subtle animation on updates.
+/// Displays the player's current score with smooth count-up animation.
 struct ScoreView: View {
     let score: Int
     let lastEvent: ScoreEvent?
     let isHighlighted: Bool
 
+    @State private var displayedScore: Int = 0
     @State private var scale: CGFloat = 1.0
     @State private var deltaOpacity: Double = 0.0
     @State private var deltaOffset: CGFloat = 4.0
@@ -14,8 +15,14 @@ struct ScoreView: View {
 
     var body: some View {
         scoreStack
-            .onAppear { scale = 1.0 }
-            .onChange(of: score) { _, _ in animateScore() }
+            .onAppear {
+                scale = 1.0
+                displayedScore = score
+            }
+            .onChange(of: score) { oldValue, newValue in
+                animateScore()
+                animateCountUp(from: oldValue, to: newValue)
+            }
             .onChange(of: lastEvent?.newTotal) { _, _ in animateDeltaIfNeeded() }
             .onChange(of: isHighlighted) { _, newValue in
                 if newValue {
@@ -26,7 +33,7 @@ struct ScoreView: View {
 
     private var scoreStack: some View {
         ZStack(alignment: .topTrailing) {
-            Text("\(score)")
+            Text("\(displayedScore)")
                 .font(.system(size: 44, weight: .heavy, design: .rounded))
                 .foregroundColor(.white)
                 .lineLimit(1)
@@ -35,6 +42,7 @@ struct ScoreView: View {
                 .scaleEffect(scale * highlightScale)
                 .shadow(color: Color.accentColor.opacity(highlightGlow), radius: highlightGlow * 36, x: 0, y: 0)
                 .accessibilityLabel("Current score \(score)")
+                .contentTransition(.numericText())
 
             if let deltaText = deltaText {
                 Text(deltaText)
@@ -83,6 +91,22 @@ struct ScoreView: View {
         }
         withAnimation(.spring(response: 0.5 * responseMultiplier, dampingFraction: 0.8).delay(0.12 * responseMultiplier)) {
             scale = 1.0
+        }
+    }
+
+    private func animateCountUp(from oldValue: Int, to newValue: Int) {
+        guard newValue != oldValue else { return }
+
+        let difference = abs(newValue - oldValue)
+        let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
+
+        // Calculate animation duration based on score difference
+        let baseDuration: Double = min(0.5, Double(difference) / 1000.0)
+        let duration = isProMotion ? baseDuration * 0.8 : baseDuration
+
+        // Animate the count-up
+        withAnimation(.easeOut(duration: duration)) {
+            displayedScore = newValue
         }
     }
 

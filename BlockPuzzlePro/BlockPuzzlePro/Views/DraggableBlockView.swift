@@ -1,216 +1,4 @@
 import SwiftUI
-import UIKit
-
-// MARK: - View Extensions
-
-extension View {
-    /// Conditionally applies a transformation to a view
-    @ViewBuilder func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
-        if condition {
-            transform(self)
-        } else {
-            self
-        }
-    }
-}
-
-// MARK: - UIKit Touch Detection
-
-/// UIKit-based touch detection for precise vicinity selection
-struct UITouchBlockTrayView: UIViewRepresentable {
-    @ObservedObject var blockFactory: BlockFactory
-    @ObservedObject var dragController: DragController
-
-    let cellSize: CGFloat
-    let slotSize: CGFloat
-    let horizontalInset: CGFloat
-    let slotSpacing: CGFloat
-    let vicinityRadius: CGFloat
-    let onBlockDragged: (Int, BlockPattern) -> Void
-
-    func makeUIView(context: Context) -> TouchBlockTrayUIView {
-        let view = TouchBlockTrayUIView()
-        view.coordinator = context.coordinator
-        view.backgroundColor = .clear
-        view.isMultipleTouchEnabled = false
-        return view
-    }
-
-    func updateUIView(_ uiView: TouchBlockTrayUIView, context: Context) {
-        context.coordinator.updateBlockData(
-            blocks: blockFactory.getTraySlots(),
-            slotSize: slotSize,
-            slotSpacing: slotSpacing,
-            horizontalInset: horizontalInset,
-            vicinityRadius: vicinityRadius,
-            cellSize: cellSize
-        )
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(dragController: dragController, onBlockDragged: onBlockDragged)
-    }
-
-    class Coordinator: NSObject {
-        let dragController: DragController
-        let onBlockDragged: (Int, BlockPattern) -> Void
-
-        private var blockFrames: [Int: CGRect] = [:]
-        private var blockPatterns: [Int: BlockPattern] = [:]
-        private var blockCellSizes: [Int: CGFloat] = [:]
-        private var vicinityRadius: CGFloat = 80.0
-        private var cellSize: CGFloat = 0.0
-
-        private var activeTouch: UITouch?
-        private var activeDragBlockIndex: Int?
-
-        init(dragController: DragController, onBlockDragged: @escaping (Int, BlockPattern) -> Void) {
-            self.dragController = dragController
-            self.onBlockDragged = onBlockDragged
-        }
-
-        func updateBlockData(blocks: [BlockPattern?], slotSize: CGFloat, slotSpacing: CGFloat, horizontalInset: CGFloat, vicinityRadius: CGFloat, cellSize: CGFloat) {
-            self.vicinityRadius = vicinityRadius
-            self.cellSize = cellSize
-            blockFrames.removeAll()
-            blockPatterns.removeAll()
-            blockCellSizes.removeAll()
-
-            let startX = horizontalInset
-            for (index, blockPattern) in blocks.enumerated() {
-                guard let pattern = blockPattern else { continue }
-                let x = startX + CGFloat(index) * (slotSize + slotSpacing)
-
-                // Calculate actual rendered block size so touch offsets align with the drawn block
-                let rawWidth = CGFloat(pattern.size.width) * cellSize
-                let rawHeight = CGFloat(pattern.size.height) * cellSize
-                let maxDimension = max(rawWidth, rawHeight)
-                let scale: CGFloat
-                if maxDimension > 0 {
-                    let availableSpan = slotSize * 0.88
-                    scale = min(1.0, availableSpan / maxDimension)
-                } else {
-                    scale = 1.0
-                }
-
-                let displayWidth = rawWidth * scale
-                let displayHeight = rawHeight * scale
-                let insetX = (slotSize - displayWidth) / 2.0
-                let insetY = (slotSize - displayHeight) / 2.0
-
-                let frame = CGRect(
-                    x: x + insetX,
-                    y: 14 + insetY,
-                    width: displayWidth,
-                    height: displayHeight
-                )
-
-                blockFrames[index] = frame
-                blockPatterns[index] = pattern
-
-                if pattern.size.width > 0 {
-                    blockCellSizes[index] = displayWidth / CGFloat(pattern.size.width)
-                } else {
-                    blockCellSizes[index] = 0
-                }
-            }
-        }
-
-        @MainActor func handleTouchBegan(_ touch: UITouch, in view: UIView) {
-            let location = touch.location(in: view)
-            DebugLog.trace("🎯 UITouch: Touch began at \(location), view bounds: \(view.bounds)")
-            DebugLog.trace("🎯 UITouch: Block frames: \(blockFrames)")
-
-            if let blockIndex = findBlockNearTouch(at: location) {
-                guard let blockPattern = blockPatterns[blockIndex],
-                      let blockFrame = blockFrames[blockIndex],
-                      dragController.dragState == .idle else {
-                    DebugLog.trace("❌ UITouch: Guard failed - dragState: \(dragController.dragState)")
-                    return
-                }
-
-                activeTouch = touch
-                activeDragBlockIndex = blockIndex
-
-                let touchOffset = CGSize(
-                    width: location.x - blockFrame.minX,
-                    height: location.y - blockFrame.minY
-                )
-
-                let globalLocation = view.convert(location, to: nil)
-                onBlockDragged(blockIndex, blockPattern)
-                let sourceCellSize = blockCellSizes[blockIndex] ?? 0
-                dragController.startDrag(
-                    blockIndex: blockIndex,
-                    blockPattern: blockPattern,
-                    at: globalLocation,
-                    touchOffset: touchOffset,
-                    sourceCellSize: sourceCellSize
-                )
-                DebugLog.trace("✅ UITouch: Started drag block \(blockIndex) at global: \(globalLocation)")
-            } else {
-                DebugLog.trace("❌ UITouch: No block found near touch \(location)")
-            }
-        }
-
-        @MainActor func handleTouchMoved(_ touch: UITouch, in view: UIView) {
-            guard touch == activeTouch, let blockIndex = activeDragBlockIndex, dragController.isBlockDragged(blockIndex) else { return }
-            let globalLocation = view.convert(touch.location(in: view), to: nil)
-            dragController.updateDrag(to: globalLocation)
-        }
-
-        @MainActor func handleTouchEnded(_ touch: UITouch, in view: UIView) {
-            guard touch == activeTouch else { return }
-            let globalLocation = view.convert(touch.location(in: view), to: nil)
-            if let blockIndex = activeDragBlockIndex, dragController.isBlockDragged(blockIndex) {
-                dragController.endDrag(at: globalLocation)
-            }
-            activeTouch = nil
-            activeDragBlockIndex = nil
-        }
-
-        private func findBlockNearTouch(at point: CGPoint) -> Int? {
-            for (index, frame) in blockFrames.sorted(by: { $0.key < $1.key }) {
-                var expandedFrame = frame.insetBy(dx: -vicinityRadius, dy: -vicinityRadius)
-                let bottomPadding = max(vicinityRadius, frame.height * 0.45)
-                expandedFrame.size.height += bottomPadding
-                if expandedFrame.contains(point) {
-                    return index
-                }
-
-                let distance = hypot(point.x - frame.midX, point.y - frame.midY)
-                if distance <= vicinityRadius {
-                    return index
-                }
-            }
-            return nil
-        }
-    }
-}
-
-class TouchBlockTrayUIView: UIView {
-    weak var coordinator: UITouchBlockTrayView.Coordinator?
-
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesBegan(touches, with: event)
-        touches.first.map { coordinator?.handleTouchBegan($0, in: self) }
-    }
-
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesMoved(touches, with: event)
-        touches.first.map { coordinator?.handleTouchMoved($0, in: self) }
-    }
-
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesEnded(touches, with: event)
-        touches.first.map { coordinator?.handleTouchEnded($0, in: self) }
-    }
-
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesCancelled(touches, with: event)
-        touches.first.map { coordinator?.handleTouchEnded($0, in: self) }
-    }
-}
 
 // MARK: - Draggable Block View
 
@@ -224,7 +12,6 @@ struct DraggableBlockView: View {
     let cellSize: CGFloat
     let restingScale: CGFloat
     let containerSize: CGFloat
-    let useUIKitTouch: Bool  // If true, disable SwiftUI gestures for UIKit touch handling
 
     @ObservedObject var dragController: DragController
     @Environment(\.colorScheme) private var colorScheme
@@ -244,9 +31,7 @@ struct DraggableBlockView: View {
     }
 
     private var dragOffset: CGSize {
-        // When dragged, block position is controlled by dragController
-        // No offset needed - block moves with FloatingBlockPreview
-        return .zero
+        isDragged ? dragController.dragOffset : .zero
     }
 
     private var blockScale: CGFloat {
@@ -255,14 +40,7 @@ struct DraggableBlockView: View {
         }
 
         let baseScale = restingScale
-
-        // When using UIKit touch, don't scale on press (tray blocks stay at base scale)
-        if useUIKitTouch {
-            return baseScale
-        }
-
-        // Enlarge to 2.0x when pressed for better visibility (SwiftUI gesture only)
-        return isPressed ? baseScale * 2.0 : baseScale
+        return isPressed ? baseScale * 0.95 : baseScale
     }
 
     private var dragRotation: Double {
@@ -270,25 +48,17 @@ struct DraggableBlockView: View {
     }
 
     private var shadowOffset: CGSize {
-        if isDragged {
-            return dragController.shadowOffset
-        }
-        // No shadow when using UIKit touch (tray blocks)
-        if useUIKitTouch {
-            return .zero
-        }
-        return isPressed ? CGSize(width: 1, height: 2) : .zero
+        isDragged ? dragController.shadowOffset : (isPressed ? CGSize(width: 1, height: 2) : .zero)
     }
 
     private var shadowRadius: CGFloat {
         if isDragged {
             return 8
-        }
-        // No shadow when using UIKit touch (tray blocks)
-        if useUIKitTouch {
+        } else if isPressed {
+            return 4
+        } else {
             return 0
         }
-        return isPressed ? 4 : 0
     }
 
     private var baseBlockSize: CGSize {
@@ -316,9 +86,6 @@ struct DraggableBlockView: View {
             }
         }
         .frame(width: containerSize, height: containerSize)
-        .if(!useUIKitTouch) { view in
-            view.contentShape(Rectangle())  // Make entire container area tappable (SwiftUI gesture only)
-        }
         .shadow(
             color: shadowColor,
             radius: shadowRadius,
@@ -327,27 +94,21 @@ struct DraggableBlockView: View {
         )
         .offset(dragOffset)
         .zIndex(isDragged ? 1000 : 0)
-        .if(!useUIKitTouch) { view in
-            view
-                .animation(.interactiveSpring(response: 0.15, dampingFraction: 0.8, blendDuration: 0), value: isPressed)
-                .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.85, blendDuration: 0), value: blockScale)
-                .animation(.linear(duration: 0.016), value: dragRotation)
-        }
+        .animation(.interactiveSpring(response: 0.15, dampingFraction: 0.8, blendDuration: 0), value: isPressed)
+        .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.85, blendDuration: 0), value: blockScale)
+        .animation(.linear(duration: 0.016), value: dragRotation)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint("Drag to place this block on the game board")
         .accessibilityAddTraits(.allowsDirectInteraction)
-        .if(!useUIKitTouch) { view in
-            view
-                .onChange(of: dragController.dragScale) { _, _ in
-                    refreshBlockFrame()
-                }
-                .onChange(of: isPressed) { _, _ in
-                    refreshBlockFrame()
-                }
-                .onChange(of: dragController.dragState) { _, _ in
-                    refreshBlockFrame()
-                }
+        .onChange(of: dragController.dragScale) { _, _ in
+            refreshBlockFrame()
+        }
+        .onChange(of: isPressed) { _, _ in
+            refreshBlockFrame()
+        }
+        .onChange(of: dragController.dragState) { _, _ in
+            refreshBlockFrame()
         }
     }
 
@@ -364,10 +125,13 @@ struct DraggableBlockView: View {
         .rotationEffect(.degrees(dragRotation))
         .frame(width: containerSize, height: containerSize, alignment: .center)
         .background(containerGeometry)
-        .allowsHitTesting(!useUIKitTouch)  // Disable hit testing when using UIKit touch
-        .if(!useUIKitTouch) { view in
-            view.gesture(dragGesture)  // Only add SwiftUI gesture if not using UIKit touch
-        }
+        .onLongPressGesture(minimumDuration: 0.2) { isPressing in
+            let animationDuration: Double = 0.15
+            withAnimation(.easeInOut(duration: animationDuration)) {
+                isPressed = isPressing
+            }
+        } perform: {}
+        .gesture(dragGesture)
     }
 
     private var containerGeometry: some View {
@@ -385,49 +149,19 @@ struct DraggableBlockView: View {
     }
 
     private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .global)
+        DragGesture(minimumDistance: 1, coordinateSpace: .global)
             .onChanged { value in
-                // Set pressed state immediately on touch
-                if !isPressed {
-                    withAnimation(.interactiveSpring(response: 0.15, dampingFraction: 0.8)) {
-                        isPressed = true
-                    }
-                }
-
                 if !didSendDragBegan && dragController.dragState == .idle {
                     DebugLog.trace("🎮 Block \(blockIndex): Starting drag, controller state: \(dragController.dragState)")
                     didSendDragBegan = true
                     dragGestureID = UUID()
 
-                    // VICINITY SELECTION: Check if touch is within large radius (half centimeter ≈ 60pt)
                     let touchOffset: CGSize
-
                     if blockFrame != .zero {
-                        let vicinityRadius: CGFloat = 100.0  // Wider detection radius for lenient taps
-                        let blockCenter = CGPoint(
-                            x: blockFrame.midX,
-                            y: blockFrame.midY
+                        touchOffset = CGSize(
+                            width: value.startLocation.x - blockFrame.minX,
+                            height: value.startLocation.y - blockFrame.minY
                         )
-                        let touchDistance = hypot(
-                            value.startLocation.x - blockCenter.x,
-                            value.startLocation.y - blockCenter.y
-                        )
-
-                        DebugLog.trace("📍 Block \(blockIndex): Touch at \(value.startLocation), block center \(blockCenter), distance \(touchDistance)pt")
-
-                        // Accept touch if within vicinity radius (very generous detection)
-                        if touchDistance <= vicinityRadius {
-                            // Use center of block as reference for clean dragging
-                            touchOffset = CGSize(
-                                width: blockCenter.x - blockFrame.minX,
-                                height: blockCenter.y - blockFrame.minY
-                            )
-                            DebugLog.trace("✅ Block \(blockIndex): Vicinity touch accepted at distance \(touchDistance)pt (max: \(vicinityRadius)pt)")
-                        } else {
-                            // Touch too far away - don't start drag
-                            touchOffset = .zero
-                            DebugLog.trace("❌ Block \(blockIndex): Touch rejected - distance \(touchDistance)pt exceeds \(vicinityRadius)pt")
-                        }
                     } else {
                         touchOffset = .zero
                     }
@@ -438,8 +172,7 @@ struct DraggableBlockView: View {
                         blockIndex: blockIndex,
                         blockPattern: blockPattern,
                         at: value.startLocation,
-                        touchOffset: touchOffset,
-                        sourceCellSize: blockPattern.size.width > 0 ? (blockFrame.width / CGFloat(blockPattern.size.width)) : 0
+                        touchOffset: touchOffset
                     )
 
                 } else if !didSendDragBegan {
@@ -537,7 +270,6 @@ struct FloatingBlockPreview: View {
     let cellSize: CGFloat
     let position: CGPoint
     let isValid: Bool
-    let scale: CGFloat
     
     @Environment(\.colorScheme) private var colorScheme
     
@@ -546,8 +278,6 @@ struct FloatingBlockPreview: View {
     var body: some View {
         let blockWidth = blockPattern.size.width * cellSize
         let blockHeight = blockPattern.size.height * cellSize
-        let scaledWidth = blockWidth * scale
-        let scaledHeight = blockHeight * scale
 
         BlockView(
             blockPattern: blockPattern,
@@ -555,23 +285,33 @@ struct FloatingBlockPreview: View {
             isInteractive: false
         )
         .frame(width: blockWidth, height: blockHeight, alignment: .topLeading)
-        .scaleEffect(scale, anchor: .center)
-        .shadow(color: shadowColor, radius: 12, x: 0, y: 6)
+        .opacity(previewOpacity)
+        .overlay(validationOverlay)
+        .shadow(color: shadowColor, radius: 8, x: 2, y: 4)
         .position(
-            x: position.x + scaledWidth / 2,
-            y: position.y + scaledHeight / 2
+            x: position.x + blockWidth / 2,
+            y: position.y + blockHeight / 2
         )
-        .animation(.easeOut(duration: 0.12), value: scale)
         .allowsHitTesting(false)
         .zIndex(999)
     }
 
     // MARK: - View Components
 
+    private var previewOpacity: Double {
+        isValid ? 0.85 : 0.45
+    }
+
+    private var validationOverlay: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .stroke(isValid ? Color.green : Color.red, lineWidth: 2)
+            .opacity(isValid ? 0.35 : 0.6)
+            .animation(.easeInOut(duration: 0.1), value: isValid)
+    }
+
     private var shadowColor: Color {
-        let baseOpacity = colorScheme == .dark ? 0.5 : 0.3
-        let adjusted = isValid ? baseOpacity * 0.6 : baseOpacity
-        return Color.black.opacity(adjusted)
+        let base = isValid ? Color.green : Color.red
+        return base.opacity(colorScheme == .dark ? 0.35 : 0.25)
     }
 }
 
@@ -612,35 +352,22 @@ struct DraggableBlockTrayView: View {
     // MARK: - Body
 
     var body: some View {
-        let trayVicinity = max(slotSize * 0.6, 60)
-
-        ZStack {
-            // Visual layer: SwiftUI blocks for rendering
-            VStack(spacing: 0) {
-                HStack(spacing: slotSpacing) {
-                    ForEach(Array(blockFactory.getTraySlots().enumerated()), id: \.offset) { index, blockPattern in
-                        traySlot(for: blockPattern, index: index)
-                    }
+        VStack(spacing: 0) {
+            HStack(spacing: slotSpacing) {
+                ForEach(Array(blockFactory.getTraySlots().enumerated()), id: \.offset) { index, blockPattern in
+                    traySlot(for: blockPattern, index: index)
                 }
-                .padding(.horizontal, horizontalInset)
-                .padding(.vertical, 14)
-                .frame(maxWidth: .infinity)
             }
-            .allowsHitTesting(false)  // Disable SwiftUI gestures
-
-            // Touch layer: UIKit touch detection with vicinity radius
-            UITouchBlockTrayView(
-                blockFactory: blockFactory,
-                dragController: dragController,
-                cellSize: cellSize,
-                slotSize: slotSize,
-                horizontalInset: horizontalInset,
-                slotSpacing: slotSpacing,
-                vicinityRadius: trayVicinity,
-                onBlockDragged: onBlockDragged
+            .padding(.horizontal, horizontalInset)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
+            .background(trayBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(trayBorderColor, lineWidth: 1)
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(Rectangle())  // Make entire area touchable
+            .shadow(color: trayShadowColor, radius: 10, x: 0, y: 6)
         }
         .onAppear(perform: setupDragCallbacks)
     }
@@ -659,10 +386,9 @@ struct DraggableBlockTrayView: View {
                     cellSize: cellSize,
                     restingScale: restingScale,
                     containerSize: slotSize,
-                    useUIKitTouch: true,  // Enable UIKit touch detection, disable SwiftUI gestures
                     dragController: dragController
                 )
-                .opacity(isDragged ? 0.0 : 1.0)  // COMPLETELY invisible when dragging
+                .opacity(isDragged ? 0.25 : 1.0)
             } else {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(Color.white.opacity(colorScheme == .dark ? 0.18 : 0.28), style: StrokeStyle(lineWidth: 1, dash: [4, 6]))

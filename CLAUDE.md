@@ -27,6 +27,16 @@ Before implementing any features, libraries, or architectures, **ALWAYS use Cont
    - Restart Cursor/IDE for MCP configuration changes to take effect
    - Test with: `mcp__context7__resolve-library-id` with libraryName "SwiftUI"
 
+### Fallback: Ref MCP Server
+If Context7 MCP does not work or is unavailable, use **Ref MCP server** to fetch latest documentation:
+
+**Setup Command:**
+```bash
+claude mcp add --transport http Ref https://api.ref.tools/mcp --header "x-ref-api-key: ref-93f25aef1e299dae7897"
+```
+
+**Usage**: Use Ref MCP tools to search and retrieve up-to-date documentation for any library or framework when Context7 is unavailable.
+
 ## Execution Protocol
 
 ### Sequential Execution
@@ -313,6 +323,8 @@ Each major component should have:
 - Don't skip testing phases
 - Refactor as you discover better patterns
 - Keep code readable and maintainable
+- Always question and evaluate your work and reimplement anything if seems off.
+- do not assume anything on yourown, instead do your internet research or ask ref mcp server.
 
 ## Critical Implementation Rules
 
@@ -393,5 +405,5 @@ When updating existing code:
 ---
 
 **Current Status**: Documentation updated for SwiftUI 6 / iOS 26
-**Platform Versions**: iOS 26, SwiftUI 6, Swift 6
+**Platform Versions**: iOS 26, SwiftUI 6.2, Swift 6.2
 **Last Updated**: October 4, 2025
