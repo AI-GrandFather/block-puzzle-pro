@@ -655,19 +655,3 @@ final class PlacementEngine: ObservableObject {
         return unusedCells
     }
 }
-
-// MARK: - Safe Lookups
-
-private extension Array {
-    subscript(safe index: Int) -> Element? {
-        guard index >= 0 && index < count else { return nil }
-        return self[index]
-    }
-}
-
-private extension Array where Element == Bool {
-    subscript(safe index: Int) -> Bool? {
-        guard index >= 0 && index < count else { return nil }
-        return self[index]
-    }
-}

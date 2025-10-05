@@ -59,7 +59,7 @@ struct GridContainerView: View {
     private var gridCells: some View {
         let gridSize = gameEngine.gridSize
 
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: gridSize), spacing: 1) {
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: gridSize), spacing: 1) {
             ForEach(0..<(gridSize * gridSize), id: \.self) { index in
                 let row = index / gridSize
                 let col = index % gridSize

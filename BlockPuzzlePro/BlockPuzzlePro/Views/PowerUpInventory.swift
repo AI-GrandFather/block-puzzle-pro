@@ -13,7 +13,7 @@ struct PowerUpInventory: View {
     var body: some View {
         HStack(spacing: 8) {
             ForEach(PowerUpType.allCases.prefix(3), id: \.self) { powerUp in
-                PowerUpButton(
+                PowerUpInventoryButton(
                     type: powerUp,
                     count: manager.count(for: powerUp),
                     isActive: manager.activePowerUp == powerUp,
@@ -31,7 +31,7 @@ struct PowerUpInventory: View {
 
 // MARK: - Power-Up Button
 
-private struct PowerUpButton: View {
+private struct PowerUpInventoryButton: View {
 
     let type: PowerUpType
     let count: Int
@@ -106,15 +106,17 @@ private struct PowerUpButton: View {
 // MARK: - Preview
 
 #Preview {
-    let manager = PowerUpManager()
-    manager.addPowerUp(.rotateToken, count: 3)
-    manager.addPowerUp(.bomb, count: 1)
+    @Previewable @State var manager = PowerUpManager()
 
-    return VStack {
+    VStack {
         PowerUpInventory(manager: manager) { powerUp in
             print("Activated: \(powerUp)")
         }
     }
     .padding()
     .background(Color(UIColor.systemBackground))
+    .onAppear {
+        manager.addPowerUp(.rotateToken, count: 3)
+        manager.addPowerUp(.bomb, count: 1)
+    }
 }

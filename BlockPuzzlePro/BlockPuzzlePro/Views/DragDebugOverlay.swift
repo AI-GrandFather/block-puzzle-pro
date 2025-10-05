@@ -239,32 +239,4 @@ struct GridCoordinateOverlay: View {
     }
 }
 
-// MARK: - Preview
-
-#Preview {
-    let dragController = SimplifiedDragController()
-    let gameEngine = GameEngine(gameMode: .classic)
-    let placementEngine = SimplifiedPlacementEngine(gameEngine: gameEngine, gridSize: 10)
-
-    // Simulate active drag
-    dragController.startDrag(
-        blockIndex: 0,
-        pattern: .square2x2,
-        touchLocation: CGPoint(x: 200, y: 300),
-        blockOrigin: CGPoint(x: 150, y: 250)
-    )
-    dragController.updateDrag(to: CGPoint(x: 250, y: 350))
-
-    let gridFrame = CGRect(x: 50, y: 100, width: 360, height: 360)
-
-    return ZStack {
-        Color.black
-
-        DragDebugOverlay(
-            dragController: dragController,
-            placementEngine: placementEngine,
-            gridFrame: gridFrame,
-            cellSize: 36
-        )
-    }
-}
+// Preview intentionally omitted; requires runtime dependencies not available in the static build context.

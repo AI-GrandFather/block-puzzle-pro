@@ -62,7 +62,7 @@ extension UIColor {
     }
 
     func toSKColor() -> SKColor {
-        return SKColor(self)
+        return self
     }
 }
 

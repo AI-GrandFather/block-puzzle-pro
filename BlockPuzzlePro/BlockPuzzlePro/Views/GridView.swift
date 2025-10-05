@@ -36,7 +36,7 @@ struct GridView: View {
                 let column = index % gridSize
                 let position = GridPosition(unsafeRow: row, unsafeColumn: column)
 
-                GridCellView(
+                GridCellRenderView(
                     cell: gameEngine.cell(at: position) ?? .empty,
                     cellSize: cellSize,
                     theme: currentTheme
@@ -53,7 +53,7 @@ struct GridView: View {
     }
 }
 
-private struct GridCellView: View {
+private struct GridCellRenderView: View {
     let cell: GridCell
     let cellSize: CGFloat
     let theme: Theme

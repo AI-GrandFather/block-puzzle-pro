@@ -10,16 +10,7 @@ struct GameContainerView: View {
     }
 }
 
-struct GameViewControllerRepresentable: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> GameViewController {
-        let gameViewController = GameViewController()
-        return gameViewController
-    }
-
-    func updateUIViewController(_ uiViewController: GameViewController, context: Context) {
-        // No updates needed
-    }
-}
+// GameViewControllerRepresentable is defined in BlockPuzzleProApp.swift
 
 #Preview {
     GameContainerView()

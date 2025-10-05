@@ -549,7 +549,8 @@ private struct GameOverOverlayV2: View {
 // MARK: - Preview
 
 #Preview {
-    GameViewV2()
-        .environmentObject(AuthViewModel())
-        .environmentObject(CloudSaveStore())
+    let store = CloudSaveStore()
+    return GameViewV2()
+        .environmentObject(AuthViewModel(cloudStore: store))
+        .environmentObject(store)
 }

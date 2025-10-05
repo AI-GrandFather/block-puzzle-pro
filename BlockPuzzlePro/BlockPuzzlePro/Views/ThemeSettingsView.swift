@@ -2,7 +2,7 @@
 import SwiftUI
 
 struct ThemeSettingsView: View {
-    @ObservedObject private var themeManager = ThemeManager.shared
+    @State private var themeManager = AdvancedThemeManager.shared
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -20,10 +20,11 @@ struct ThemeSettingsView: View {
                         ForEach(GameTheme.allCases, id: \.self) { theme in
                             ThemePreviewCard(
                                 theme: theme,
-                                isSelected: themeManager.currentTheme == theme
+                                isSelected: themeManager.currentTheme == theme,
+                                isUnlocked: themeManager.isUnlocked(theme)
                             ) {
                                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    themeManager.currentTheme = theme
+                                    themeManager.switchTheme(to: theme)
                                 }
                             }
                         }
@@ -50,6 +51,7 @@ struct ThemeSettingsView: View {
 struct ThemePreviewCard: View {
     let theme: GameTheme
     let isSelected: Bool
+    let isUnlocked: Bool
     let onTap: () -> Void
 
     var body: some View {
@@ -61,23 +63,37 @@ struct ThemePreviewCard: View {
                         HStack(spacing: 2) {
                             ForEach(0..<4, id: \.self) { col in
                                 Rectangle()
-                                    .fill(Color(getCellColor(row: row, col: col)))
+                                    .fill(getCellColor(row: row, col: col))
                                     .frame(width: 16, height: 16)
                             }
                         }
                     }
                 }
                 .padding(8)
-                .background(Color(theme.gridBackgroundColor))
+                .background(theme.gridCellColor)
                 .cornerRadius(8)
 
-                Text(theme.displayName)
-                    .font(.headline.weight(.semibold))
-                    .foregroundColor(.primary)
+                // Theme name and unlock status
+                VStack(spacing: 4) {
+                    Text(theme.name)
+                        .font(.headline.weight(.semibold))
+                        .foregroundColor(.primary)
+
+                    if !isUnlocked {
+                        HStack(spacing: 4) {
+                            Image(systemName: "lock.fill")
+                                .font(.caption2)
+                            Text(theme.isPremium ? "Premium" : "Level \(theme.unlockLevel)")
+                                .font(.caption2)
+                        }
+                        .foregroundColor(.secondary)
+                    }
+                }
             }
             .padding()
             .frame(maxWidth: .infinity)
             .background(Color(UIColor.secondarySystemBackground))
+            .opacity(isUnlocked ? 1.0 : 0.6)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(
@@ -95,17 +111,18 @@ struct ThemePreviewCard: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .disabled(!isUnlocked)
     }
 
-    private func getCellColor(row: Int, col: Int) -> UIColor {
+    private func getCellColor(row: Int, col: Int) -> Color {
         // Create a mini preview pattern
         let isBlockCell = (row == 1 && col >= 1 && col <= 2) ||
                          (row == 2 && col >= 1 && col <= 2)
 
         if isBlockCell {
-            return theme.blockColors[0]
+            return theme.blockColors[0].baseColor
         } else {
-            return theme.emptyCellColor
+            return theme.gridCellColor.opacity(0.5)
         }
     }
 }

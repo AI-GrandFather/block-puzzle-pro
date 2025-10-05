@@ -3,6 +3,7 @@ import Foundation
 import SpriteKit
 import os.signpost
 
+@MainActor
 final class PerformanceMonitor {
     static let shared = PerformanceMonitor()
 
@@ -15,6 +16,7 @@ final class PerformanceMonitor {
     private let maxFrameBufferSize = 60
 
     // Performance flags
+    @MainActor
     struct Flags {
         static var enableVSync = true
         static var enableNodePooling = true
@@ -136,11 +138,12 @@ final class FPSCounter: SKNode {
     }
 }
 
+@MainActor
 struct MemoryProfiler {
     static func logMemoryUsage(context: String = "") {
         guard PerformanceMonitor.Flags.profileMemoryAllocations else { return }
 
-        let info = mach_task_basic_info()
+        var info = mach_task_basic_info()
         var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size)/4
 
         let kerr: kern_return_t = withUnsafeMutablePointer(to: &info) {
@@ -159,11 +162,12 @@ struct MemoryProfiler {
     }
 
     static func checkMemoryPressure() -> Bool {
-        return GameConfig.memoryPressureLevel > 1
+        GameConfig.memoryPressureLevel > 1
     }
 }
 
 // MARK: - Debug Helpers
+@MainActor
 struct DebugFlags {
     static var showGridBounds = false
     static var showHitBoxes = false

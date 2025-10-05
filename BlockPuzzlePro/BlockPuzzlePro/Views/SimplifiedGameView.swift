@@ -13,7 +13,7 @@ struct SimplifiedGameView: View {
 
     // MARK: - State Objects
 
-    @StateObject private var gameEngine = GameEngine(gameMode: .classic)
+    @StateObject private var gameEngine = GameEngine(gameMode: .grid10x10)
     @StateObject private var blockFactory = BlockFactory()
     @StateObject private var dragController: SimplifiedDragController
     @StateObject private var placementEngine: SimplifiedPlacementEngine
@@ -37,7 +37,7 @@ struct SimplifiedGameView: View {
 
     init() {
         let deviceMgr = DeviceManager()
-        let engine = GameEngine(gameMode: .classic)
+        let engine = GameEngine(gameMode: .grid10x10)
 
         _dragController = StateObject(wrappedValue: SimplifiedDragController(deviceManager: deviceMgr))
         _placementEngine = StateObject(wrappedValue: SimplifiedPlacementEngine(

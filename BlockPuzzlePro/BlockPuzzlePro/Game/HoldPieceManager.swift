@@ -101,7 +101,7 @@ final class HoldPieceManager: ObservableObject {
 
 // MARK: - Hold Piece State
 
-struct HoldPieceState: Codable {
+struct HoldPieceState {
     let heldPiece: BlockPattern?
     let canSwap: Bool
 }

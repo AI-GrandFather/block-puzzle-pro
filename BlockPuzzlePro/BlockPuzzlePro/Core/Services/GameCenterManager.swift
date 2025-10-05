@@ -212,7 +212,9 @@ final class GameCenterManager: NSObject, ObservableObject {
 // MARK: - GKGameCenterControllerDelegate
 
 extension GameCenterManager: GKGameCenterControllerDelegate {
-    func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) {
-        gameCenterViewController.dismiss(animated: true)
+    nonisolated func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) {
+        Task { @MainActor in
+            gameCenterViewController.dismiss(animated: true)
+        }
     }
 }

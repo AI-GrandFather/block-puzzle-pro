@@ -291,10 +291,10 @@ private struct ChallengeCard: View {
 // MARK: - Preview
 
 #Preview {
-    let manager = DailyChallengeManager()
-    let powerUpManager = PowerUpManager()
+    @Previewable @State var manager = DailyChallengeManager()
+    @Previewable @State var powerUpManager = PowerUpManager()
 
-    return DailyChallengesView(
+    DailyChallengesView(
         manager: manager,
         powerUpManager: powerUpManager
     )

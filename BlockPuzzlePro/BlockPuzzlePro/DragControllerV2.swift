@@ -16,6 +16,19 @@ enum SimpleDragState: Equatable {
     }
 }
 
+extension SimpleDragState {
+    static func ==(lhs: SimpleDragState, rhs: SimpleDragState) -> Bool {
+        switch (lhs, rhs) {
+        case (.idle, .idle):
+            return true
+        case let (.active(lIndex, lPattern), .active(rIndex, rPattern)):
+            return lIndex == rIndex && lPattern.type == rPattern.type
+        default:
+            return false
+        }
+    }
+}
+
 // MARK: - Drag Controller V2 - Completely Rewritten
 
 /// Simplified drag controller with pixel-perfect coordinate handling
@@ -85,7 +98,7 @@ final class DragControllerV2: ObservableObject {
             return
         }
 
-        logger.info("🚀 START DRAG: block=\(blockIndex) touch=\(touchLocation) blockOrigin=\(blockOrigin) trayCellSize=\(trayCellSize)")
+        logger.info("🚀 START DRAG: block=\(blockIndex, privacy: .public) touch=\(touchLocation.debugDescription, privacy: .public) blockOrigin=\(blockOrigin.debugDescription, privacy: .public) trayCellSize=\(trayCellSize, privacy: .public)")
 
         // Calculate the finger's offset from the block's top-left corner
         // This offset remains constant throughout the entire drag
@@ -128,7 +141,7 @@ final class DragControllerV2: ObservableObject {
             return
         }
 
-        logger.info("🎯 END DRAG: block=\(blockIndex) touch=\(touchLocation)")
+        logger.info("🎯 END DRAG: block=\(blockIndex, privacy: .public) touch=\(touchLocation.debugDescription, privacy: .public)")
 
         currentTouchLocation = touchLocation
         onDragEnded?(blockIndex, pattern, touchLocation)

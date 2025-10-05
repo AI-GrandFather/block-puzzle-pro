@@ -181,10 +181,10 @@ private struct EmptySlot: View {
 // MARK: - Preview
 
 #Preview {
-    let factory = BlockFactory()
-    let controller = DragControllerV2()
+    @Previewable @State var factory = BlockFactory()
+    @Previewable @State var controller = DragControllerV2()
 
-    return VStack {
+    VStack {
         Spacer()
         SimplifiedBlockTray(
             blockFactory: factory,

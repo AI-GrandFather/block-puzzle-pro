@@ -140,6 +140,21 @@ class GameEngine: ObservableObject {
         return cell.isEmpty || cell.isPreview
     }
 
+    /// Determine whether a block can be cleared at the specified position.
+    func canClearAt(position: GridPosition) -> Bool {
+        guard let cell = cell(at: position) else { return false }
+        return cell.isOccupied
+    }
+
+    /// Clear the supplied positions without applying additional scoring logic.
+    func clearBlocks(at positions: [GridPosition]) {
+        guard !positions.isEmpty else { return }
+
+        for position in positions {
+            setCell(at: position, to: .empty)
+        }
+    }
+
     /// Determine if a full block pattern can be placed anywhere on the grid.
     func canPlace(blockPattern: BlockPattern) -> Bool {
         for row in 0..<self.gridSize {

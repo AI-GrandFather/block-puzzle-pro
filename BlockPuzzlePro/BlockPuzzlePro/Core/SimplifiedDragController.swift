@@ -17,6 +17,19 @@ enum SimplifiedDragState: Equatable {
     case dragging(blockIndex: Int, pattern: BlockPattern)
 }
 
+extension SimplifiedDragState {
+    static func ==(lhs: SimplifiedDragState, rhs: SimplifiedDragState) -> Bool {
+        switch (lhs, rhs) {
+        case (.idle, .idle):
+            return true
+        case let (.dragging(lIndex, lPattern), .dragging(rIndex, rPattern)):
+            return lIndex == rIndex && lPattern.type == rPattern.type
+        default:
+            return false
+        }
+    }
+}
+
 /// Manages drag & drop interactions with simplified coordinate system
 @MainActor
 class SimplifiedDragController: ObservableObject {
