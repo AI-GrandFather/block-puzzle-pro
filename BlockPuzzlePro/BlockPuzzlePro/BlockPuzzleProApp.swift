@@ -185,11 +185,16 @@ private struct MainMenuNavigationHost: View {
                     )
                     .navigationTitle(gameTitle(for: mode))
                     .navigationBarTitleDisplayMode(.inline)
+                    .navigationBarBackButtonHidden(true)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button(action: { path.removeAll() }) {
-                                Label("Home", systemImage: "chevron.backward")
-                                    .labelStyle(.titleAndIcon)
+                                HStack(spacing: 6) {
+                                    Image(systemName: "chevron.left")
+                                        .font(.body.weight(.semibold))
+                                    Text("Home")
+                                }
+                                .foregroundStyle(Color.accentColor)
                             }
                         }
                     }
@@ -572,6 +577,7 @@ private struct TimedModesView: View {
 private struct LevelModesLandingView: View {
     let onSelectPack: (LevelPack) -> Void
     @State private var packs: [LevelPack] = LevelsRepository.shared.allPacks()
+    private let progressStore = LevelProgressStore.shared
 
     var body: some View {
         MenuBackground {
@@ -588,7 +594,9 @@ private struct LevelModesLandingView: View {
 
                     VStack(spacing: 16) {
                         ForEach(packs) { pack in
-                            LevelPackButton(pack: pack) {
+                            let earned = progressStore.starsEarned(in: pack)
+                            let total = pack.levels.count * 3
+                            LevelPackButton(pack: pack, earnedStars: earned, totalStars: total) {
                                 onSelectPack(pack)
                             }
                         }
@@ -606,6 +614,8 @@ private struct LevelModesLandingView: View {
 
 private struct LevelPackButton: View {
     let pack: LevelPack
+    let earnedStars: Int
+    let totalStars: Int
     let action: () -> Void
 
     private var gradient: [Color] {
@@ -628,6 +638,12 @@ private struct LevelPackButton: View {
                     Text(pack.subtitle)
                         .font(.caption)
                         .foregroundStyle(Color.white.opacity(0.75))
+                    HStack(spacing: 6) {
+                        Label("\(earnedStars)/\(totalStars)", systemImage: "star.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.white.opacity(0.85))
+                        Spacer()
+                    }
                 }
 
                 Spacer()
@@ -703,54 +719,58 @@ private struct SettingsPanel: View {
     @State private var deferredAction: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 28) {
-            Capsule()
-                .fill(theme.surfaceHighlight.opacity(0.6))
-                .frame(width: 44, height: 5)
-                .padding(.top, 12)
+        MenuBackground {
+            VStack(spacing: 24) {
+                Capsule()
+                    .fill(Color.white.opacity(0.2))
+                    .frame(width: 44, height: 5)
+                    .padding(.top, 16)
 
-            VStack(spacing: 8) {
-                Text("Settings")
-                    .font(.system(size: 28, weight: .heavy, design: .rounded))
-                    .foregroundStyle(theme.primaryText)
-                Text("Customize your puzzle vibe.")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(theme.secondaryText)
-            }
-
-            VStack(spacing: 18) {
-                SettingsOptionButton(
-                    title: "Themes",
-                    subtitle: "Swap palettes instantly",
-                    iconName: "paintpalette.fill",
-                    theme: theme
-                ) {
-                    schedule(action: onShowThemes)
+                VStack(spacing: 8) {
+                    Text("Settings")
+                        .font(.system(size: 28, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color.white)
+                    Text("Tune visuals and experience.")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.white.opacity(0.7))
                 }
 
-                SettingsOptionButton(
-                    title: "Return to Main",
-                    subtitle: "Close settings",
-                    iconName: "house.fill",
-                    theme: theme
-                ) {
-                    schedule(action: onReturn)
+                VStack(spacing: 18) {
+                    SettingsOptionButton(
+                        title: "Themes",
+                        subtitle: "Swap palettes instantly",
+                        iconName: "paintpalette.fill",
+                        theme: theme
+                    ) {
+                        schedule(action: onShowThemes)
+                    }
+
+                    SettingsOptionButton(
+                        title: "Return",
+                        subtitle: "Back to menu",
+                        iconName: "house.fill",
+                        theme: theme
+                    ) {
+                        schedule(action: onReturn)
+                    }
                 }
+                .padding(.horizontal, 24)
+
+                Spacer(minLength: 12)
             }
+            .padding(.bottom, 32)
+            .background(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .fill(Color.black.opacity(0.35))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 32, style: .continuous)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.25), radius: 28, x: 0, y: 16)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 20)
         }
-        .padding(.horizontal, 28)
-        .padding(.bottom, 32)
-        .background(
-            RoundedRectangle(cornerRadius: 36, style: .continuous)
-                .fill(theme.surfaceBackground)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 36, style: .continuous)
-                        .stroke(theme.surfaceHighlight.opacity(0.5), lineWidth: 1)
-                )
-        )
-        .background(theme.backgroundColorSwift.opacity(0.92).ignoresSafeArea())
-        .presentationDetents([.height(320)])
-        .presentationDragIndicator(.hidden)
         .onDisappear {
             if let action = deferredAction {
                 deferredAction = nil

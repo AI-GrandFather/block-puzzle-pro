@@ -172,6 +172,11 @@ final class LevelSessionCoordinator: ObservableObject {
         progressStore.recordFailure(levelID: level.id)
     }
 
+    func notifyNoMovesAvailable() {
+        guard case .running = state else { return }
+        triggerFailure(reason: .outOfMoves)
+    }
+
     private func evaluateObjectiveFulfilment() {
         objectiveFulfilled = checkObjectiveSatisfied()
     }

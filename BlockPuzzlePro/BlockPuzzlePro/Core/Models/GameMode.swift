@@ -22,13 +22,13 @@ enum GameMode: String, CaseIterable, Identifiable, Hashable {
     var displayName: String {
         switch self {
         case .classic:
-            return "Classic 8×8"
+            return "Play & Relax"
         case .timedThreeMinutes:
-            return "3 Minute Challenge"
+            return "Quick Play (3 Min)"
         case .timedFiveMinutes:
-            return "5 Minute Challenge"
+            return "Beat the Clock (5 Min)"
         case .timedSevenMinutes:
-            return "7 Minute Challenge"
+            return "Time Challenge (7 Min)"
         }
     }
 

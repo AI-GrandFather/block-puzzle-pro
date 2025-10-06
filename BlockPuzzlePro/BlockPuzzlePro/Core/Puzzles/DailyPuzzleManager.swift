@@ -223,7 +223,8 @@ private extension DailyPuzzleManager {
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.dateFormat = "yyyyMMdd"
         let str = formatter.string(from: date)
-        return UInt64(str.hashValue) & 0xFFFFFFFFFFFFFFFF
+        // Use bitPattern to safely convert Int (which can be negative) to UInt64
+        return UInt64(bitPattern: Int64(str.hashValue))
     }
 
     static func pickDifficulty(date: Date) -> PuzzleDifficulty {

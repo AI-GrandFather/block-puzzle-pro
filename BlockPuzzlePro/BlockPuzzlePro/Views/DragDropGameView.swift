@@ -205,7 +205,7 @@ struct DragDropGameView: View {
         }
         .overlay(levelHUD, alignment: .top)
         .overlay(levelOutcomeOverlay)
-        .overlay(celebrationOverlay, alignment: .top)
+        .overlay(celebrationOverlay, alignment: .center)
         .overlay(gameOverOverlay)
         .sheet(isPresented: $isSettingsPresented) {
             SettingsSheet(
@@ -380,14 +380,17 @@ struct DragDropGameView: View {
         }
     }
 
+    @State private var isHUDExpanded = false
+
     private var levelHUD: some View {
         Group {
             if let configuration = levelConfiguration,
                case .running = levelBridge.state {
-                LevelHUDView(
+                LevelHUDBadge(
                     level: configuration.level,
                     objectiveText: objectiveDescription(for: configuration.level),
-                    bridge: levelBridge
+                    bridge: levelBridge,
+                    isExpanded: $isHUDExpanded
                 )
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
@@ -398,50 +401,48 @@ struct DragDropGameView: View {
         }
     }
 
+    @ViewBuilder
     private var levelOutcomeOverlay: some View {
-        Group {
-            guard let configuration = levelConfiguration else { return AnyView(EmptyView()) }
-
+        if let configuration = levelConfiguration {
             switch levelBridge.state {
             case .success(let result):
-                return AnyView(
-                    ZStack {
-                        Color.black.opacity(0.35)
-                            .ignoresSafeArea()
-                        LevelOutcomeCard(
-                            title: "Level Complete",
-                            message: objectiveDescription(for: configuration.level),
-                            stars: result.starsEarned,
-                            summary: result.summary,
-                            primaryTitle: "Continue",
-                            primaryAction: { returnToModeSelection() },
-                            secondaryTitle: "Replay",
-                            secondaryAction: { performRestart(triggerHaptics: true) }
-                        )
-                    }
-                )
+                ZStack {
+                    Color.black.opacity(0.35)
+                        .ignoresSafeArea()
+                    LevelOutcomeCard(
+                        title: "Level Complete",
+                        message: objectiveDescription(for: configuration.level),
+                        stars: result.starsEarned,
+                        summary: result.summary,
+                        primaryTitle: "Continue",
+                        primaryAction: { returnToModeSelection() },
+                        secondaryTitle: "Replay",
+                        secondaryAction: { performRestart(triggerHaptics: true) }
+                    )
+                }
+                .transition(.opacity.combined(with: .scale))
+                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: levelBridge.state)
             case .failed(let reason):
-                return AnyView(
-                    ZStack {
-                        Color.black.opacity(0.35)
-                            .ignoresSafeArea()
-                        LevelOutcomeCard(
-                            title: "Level Failed",
-                            message: failureDescription(for: reason),
-                            stars: nil,
-                            summary: nil,
-                            primaryTitle: "Retry",
-                            primaryAction: { performRestart(triggerHaptics: true) },
-                            secondaryTitle: "Exit",
-                            secondaryAction: { returnToModeSelection() }
-                        )
-                    }
-                )
+                ZStack {
+                    Color.black.opacity(0.35)
+                        .ignoresSafeArea()
+                    LevelOutcomeCard(
+                        title: "Level Failed",
+                        message: failureDescription(for: reason),
+                        stars: nil,
+                        summary: nil,
+                        primaryTitle: "Retry",
+                        primaryAction: { performRestart(triggerHaptics: true) },
+                        secondaryTitle: "Exit",
+                        secondaryAction: { returnToModeSelection() }
+                    )
+                }
+                .transition(.opacity.combined(with: .scale))
+                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: levelBridge.state)
             default:
-                return AnyView(EmptyView())
+                EmptyView()
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: levelBridge.state)
     }
 
     private var gridView: some View {
@@ -527,10 +528,8 @@ struct DragDropGameView: View {
     @ViewBuilder
     private var celebrationOverlay: some View {
         if let message = celebrationMessage, celebrationVisible {
-            CelebrationBannerView(message: message)
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
-            .transition(.move(edge: .top).combined(with: .opacity))
+            GridCelebrationPopup(message: message)
+            .transition(.scale.combined(with: .opacity))
             .allowsHitTesting(false)
         }
     }
@@ -873,36 +872,50 @@ struct DragDropGameView: View {
     private func failureDescription(for reason: LevelFailureReason) -> String {
         switch reason {
         case .objectiveFailed:
-            return "Objective not met. Try a different strategy."
+            return "😔 Didn't quite make it! Try again!"
         case .outOfMoves:
-            return "You ran out of moves before completing the objective."
+            return "🎮 No more moves! Let's try again!"
         case .timeExpired:
-            return "Time expired before the objective was completed."
+            return "⏱️ Time's up! You'll get it next time!"
         }
     }
 
     private func objectiveDescription(for level: Level) -> String {
         switch level.objective.type {
         case .reachScore:
-            return "Score \(level.objective.targetValue) points"
+            return "🎯 Get \(level.objective.targetValue) points!"
         case .clearLines:
-            return "Clear \(level.objective.targetValue) lines"
+            return "✨ Clear \(level.objective.targetValue) lines!"
         case .createPattern:
-            return "Complete the \(level.objective.pattern?.rawValue.replacingOccurrences(of: "_", with: " ").capitalized ?? "pattern") pattern"
+            if let pattern = level.objective.pattern {
+                switch pattern {
+                case .twoByTwoSquare:
+                    return "🟦 Fill a 2×2 square anywhere on the board!"
+                case .filledCorners:
+                    return "📍 Put blocks in all 4 corners!"
+                case .filledCentre:
+                    return "⭕ Fill the middle 4 blocks!"
+                case .diagonal:
+                    return "📐 Fill blocks from corner to corner!"
+                case .checkerboard:
+                    return "🎲 Fill blocks in a checkerboard pattern!"
+                }
+            }
+            return "🎨 Make the special shape!"
         case .surviveTime:
-            return "Survive for \(formattedTime(level.objective.targetValue))"
+            return "⏰ Keep playing for \(formattedTime(level.objective.targetValue))!"
         case .clearAllBlocks:
-            return "Clear all blocks from the board"
+            return "🧹 Remove all blocks from the board!"
         case .clearSpecificColor:
-            return "Clear \(level.objective.targetValue) blocks of a specific color"
+            return "🌈 Remove \(level.objective.targetValue) colored blocks!"
         case .achieveCombo:
-            return "Achieve a \(level.objective.targetValue)x combo"
+            return "🔥 Clear \(level.objective.targetValue) lines at the same time!"
         case .perfectClear:
-            return "Perform \(level.objective.targetValue) perfect clears"
+            return "⭐ Clear the whole board \(level.objective.targetValue) times!"
         case .useOnlyPieces:
-            return "Use only the specified pieces to win"
+            return "🎲 Use only these special pieces!"
         case .clearWithMoves:
-            return "Complete within \(level.objective.targetValue) moves"
+            return "🚀 Finish using only \(level.objective.targetValue) moves!"
         }
     }
 
@@ -1070,6 +1083,14 @@ struct DragDropGameView: View {
         }
 
         let hasMove = gameEngine.hasAnyValidMove(using: blocks)
+
+        if let coordinator = levelCoordinator, levelConfiguration != nil {
+            if !hasMove {
+                coordinator.notifyNoMovesAvailable()
+            }
+            return
+        }
+
         updateGameOverState(!hasMove)
     }
 
@@ -1260,101 +1281,159 @@ private struct GameOverOverlayView: View {
         score >= highScore && highScore > 0
     }
 
+    private var gradientBackground: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(red: 0.09, green: 0.08, blue: 0.2),
+                Color(red: 0.15, green: 0.15, blue: 0.32),
+                Color(red: 0.12, green: 0.12, blue: 0.28)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
     var body: some View {
         ZStack {
-            Color.black.opacity(0.45)
+            gradientBackground
                 .ignoresSafeArea()
+                .overlay(
+                    RadialGradient(
+                        colors: [Color.accentColor.opacity(0.15), Color.clear],
+                        center: .center,
+                        startRadius: 60,
+                        endRadius: 320
+                    )
+                    .blendMode(.plusLighter)
+                )
 
-            VStack(spacing: 24) {
-                VStack(spacing: 12) {
-                    Image(systemName: "hexagon.fill")
+            VStack(spacing: 28) {
+                VStack(spacing: 14) {
+                    Image(systemName: "gamecontroller.fill")
                         .font(.system(size: 52))
-                        .foregroundStyle(LinearGradient(
-                            colors: [Color.accentColor, Color.accentColor.opacity(0.6)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ))
-                        .shadow(color: Color.accentColor.opacity(0.4), radius: 12, x: 0, y: 6)
+                        .foregroundStyle(Color.white)
+                        .padding(20)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.accentColor, Color.accentColor.opacity(0.7)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            .clipShape(Circle())
+                        )
+                        .shadow(color: Color.accentColor.opacity(0.45), radius: 20, x: 0, y: 12)
 
                     Text("Game Over")
-                        .font(.system(size: 32, weight: .heavy, design: .rounded))
+                        .font(.system(size: 36, weight: .heavy, design: .rounded))
                         .foregroundStyle(Color.white)
 
                     if isNewHighScore {
-                        Text("New high score!")
-                            .font(.headline)
+                        Text("🎉 New High Score!")
+                            .font(.headline.weight(.bold))
                             .foregroundStyle(Color.yellow)
-                    }
-                }
-
-                VStack(spacing: 10) {
-                    scoreRow(label: "Final Score", value: score, color: Color.white)
-                    scoreRow(label: "Best", value: highScore, color: Color.yellow)
-                }
-
-                VStack(spacing: 16) {
-                    Button(action: onRestart) {
-                        Label("Play Again", systemImage: "arrow.counterclockwise")
-                            .font(.headline)
-                            .foregroundStyle(Color.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(RoundedRectangle(cornerRadius: 16).fill(Color.accentColor))
-                    }
-
-                    Button(action: onOpenSettings) {
-                        Label("Settings", systemImage: "gearshape.fill")
-                            .font(.headline)
-                            .foregroundStyle(Color.accentColor)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
                             .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(Color.accentColor.opacity(0.5), lineWidth: 1.2)
+                                Capsule()
+                                    .fill(Color.yellow.opacity(0.15))
                             )
                     }
                 }
+
+                VStack(spacing: 12) {
+                    scoreRow(label: "Final Score", value: score, color: Color.white, icon: "star.fill")
+                    scoreRow(label: "Best Score", value: highScore, color: Color.yellow, icon: "trophy.fill")
+                }
+
+                VStack(spacing: 14) {
+                    Button(action: onRestart) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "arrow.counterclockwise")
+                                .font(.headline.weight(.bold))
+                            Text("Play Again")
+                                .font(.headline.weight(.bold))
+                        }
+                        .foregroundStyle(Color.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.accentColor, Color.accentColor.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            .clipShape(Capsule())
+                        )
+                        .shadow(color: Color.accentColor.opacity(0.35), radius: 14, x: 0, y: 8)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: onOpenSettings) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "gearshape.fill")
+                                .font(.headline.weight(.semibold))
+                            Text("Settings")
+                                .font(.headline.weight(.semibold))
+                        }
+                        .foregroundStyle(Color.white.opacity(0.85))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            Capsule()
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 32)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 38)
+            .frame(maxWidth: 380)
             .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .fill(Color.black.opacity(0.4))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        RoundedRectangle(cornerRadius: 32, style: .continuous)
                             .stroke(Color.white.opacity(0.18), lineWidth: 1)
                     )
             )
-            .shadow(color: Color.black.opacity(0.2), radius: 30, x: 0, y: 18)
-            .scaleEffect(showContent ? 1.0 : 0.92)
+            .shadow(color: Color.black.opacity(0.3), radius: 45, x: 0, y: 20)
+            .scaleEffect(showContent ? 1.0 : 0.88)
             .opacity(showContent ? 1.0 : 0.0)
             .onAppear {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
                     showContent = true
                 }
             }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Game over. Final score: \(score). High score: \(highScore)")
     }
 
-    private func scoreRow(label: String, value: Int, color: Color) -> some View {
-        HStack {
+    private func scoreRow(label: String, value: Int, color: Color, icon: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(color)
+                .frame(width: 28)
+
             Text(label.uppercased())
-                .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.7))
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.white.opacity(0.75))
 
             Spacer()
 
             Text("\(value)")
-                .font(.system(size: 24, weight: .heavy, design: .rounded))
+                .font(.system(size: 26, weight: .heavy, design: .rounded))
                 .foregroundStyle(color)
         }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
         .background(
-            RoundedRectangle(cornerRadius: 18)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(Color.white.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
         )
     }
 }
@@ -1367,55 +1446,151 @@ private struct SettingsSheet: View {
     let onExitToMenu: () -> Void
     let onReturnToModeSelect: () -> Void
 
+    private var gradientBackground: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(red: 0.09, green: 0.08, blue: 0.2),
+                Color(red: 0.15, green: 0.15, blue: 0.32)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
     var body: some View {
         NavigationStack {
-            List {
-                Section("Session") {
-                    Button {
-                        dismiss()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                            onExitToMenu()
+            ZStack {
+                gradientBackground
+                    .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 20) {
+                        VStack(spacing: 8) {
+                            Text("Game Settings")
+                                .font(.system(size: 28, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Color.white)
+                            Text("Manage your session")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.white.opacity(0.7))
                         }
-                    } label: {
-                        Label("Return to Main Menu", systemImage: "house.fill")
-                            .font(.headline)
-                    }
+                        .padding(.top, 24)
 
-                    Button {
-                        dismiss()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                            onReturnToModeSelect()
+                        VStack(spacing: 14) {
+                            settingsButton(
+                                title: "Return to Main Menu",
+                                icon: "house.fill",
+                                color: Color.blue
+                            ) {
+                                dismiss()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                                    onExitToMenu()
+                                }
+                            }
+
+                            settingsButton(
+                                title: "Choose Game Mode",
+                                icon: "square.grid.2x2",
+                                color: Color.purple
+                            ) {
+                                dismiss()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                                    onReturnToModeSelect()
+                                }
+                            }
+
+                            settingsButton(
+                                title: "Restart Game",
+                                icon: "arrow.counterclockwise",
+                                color: Color.green
+                            ) {
+                                onRestart()
+                                dismiss()
+                            }
                         }
-                    } label: {
-                        Label("Choose Game Mode", systemImage: "square.grid.2x2")
-                            .font(.headline)
-                    }
+                        .padding(.horizontal, 24)
 
-                    Button {
-                        onRestart()
-                        dismiss()
-                    } label: {
-                        Label("Restart Game", systemImage: "arrow.counterclockwise")
-                            .font(.headline)
-                    }
-                }
+                        #if DEBUG
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Debug Options")
+                                .font(.headline.weight(.bold))
+                                .foregroundStyle(Color.white.opacity(0.85))
+                                .padding(.horizontal, 24)
 
-                #if DEBUG
-                Section("Debug") {
-                    Toggle(isOn: $debugLoggingEnabled) {
-                        Label("Verbose debug logging", systemImage: "waveform")
+                            Toggle(isOn: $debugLoggingEnabled) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "waveform")
+                                        .font(.title3.weight(.semibold))
+                                        .foregroundStyle(Color.orange)
+                                        .frame(width: 28)
+                                    Text("Verbose Logging")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(Color.white)
+                                }
+                            }
+                            .tint(Color.orange)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .fill(Color.white.opacity(0.08))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                    )
+                            )
+                            .padding(.horizontal, 24)
+                        }
+                        .padding(.top, 12)
+                        #endif
                     }
+                    .padding(.bottom, 32)
                 }
-                #endif
             }
-            .listStyle(.insetGrouped)
-            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(Color.white.opacity(0.8))
+                    }
                 }
             }
         }
+    }
+
+    private func settingsButton(title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(color)
+                    .frame(width: 28)
+
+                Text(title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.white)
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.white.opacity(0.5))
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color.white.opacity(0.08))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -1457,10 +1632,11 @@ private struct TimerBadge: View {
 
 // MARK: - Fragment Effects
 
-private struct LevelHUDView: View {
+private struct LevelHUDBadge: View {
     let level: Level
     let objectiveText: String
     @ObservedObject var bridge: LevelSessionBridge
+    @Binding var isExpanded: Bool
 
     private var moveLimit: Int? { level.constraints.moveLimit }
     private var timeLimit: Int? {
@@ -1468,75 +1644,103 @@ private struct LevelHUDView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(level.title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                Spacer()
-                Text(level.difficulty.rawValue.capitalized)
-                    .font(.caption.bold())
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule().fill(Color.accentColor.opacity(0.18))
-                    )
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            // Compact badge
+            Button(action: { withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { isExpanded.toggle() } }) {
+                HStack(spacing: 12) {
+                    Image(systemName: isExpanded ? "chevron.up.circle.fill" : "info.circle.fill")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
 
-            Text(objectiveText)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.secondary)
-                .multilineTextAlignment(.leading)
+                    Text(level.title)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Color.white)
 
-            if moveLimit != nil || timeLimit != nil {
-                Divider().opacity(0.2)
-                HStack(spacing: 16) {
-                    if let moveLimit {
-                        Label {
-                            Text("Moves \(bridge.movesUsed)/\(moveLimit)")
-                        } icon: {
-                            Image(systemName: "figure.walk")
+                    Spacer()
+
+                    // Quick stats
+                    if !isExpanded {
+                        HStack(spacing: 8) {
+                            if let moveLimit {
+                                Text("\(bridge.movesUsed)/\(moveLimit)")
+                                    .font(.caption.weight(.bold).monospacedDigit())
+                                    .foregroundStyle(Color.white.opacity(0.85))
+                            }
+                            if let timeLimit, let remaining = bridge.timeRemaining {
+                                Text(quickTime(remaining))
+                                    .font(.caption.weight(.bold).monospacedDigit())
+                                    .foregroundStyle(Color.white.opacity(0.85))
+                            }
                         }
-                        .font(.caption.bold())
-                    }
-
-                    if let timeLimit, let remaining = bridge.timeRemaining {
-                        Label {
-                            Text(formattedTime(remaining, total: timeLimit))
-                        } icon: {
-                            Image(systemName: "clock")
-                        }
-                        .font(.caption.bold())
-                    }
-
-                    if bridge.linesCleared > 0 {
-                        Label {
-                            Text("Lines \(bridge.linesCleared)")
-                        } icon: {
-                            Image(systemName: "line.3.horizontal.decrease")
-                        }
-                        .font(.caption.bold())
                     }
                 }
-                .foregroundStyle(Color.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+
+            // Expanded details
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 14) {
+                    Divider()
+                        .background(Color.white.opacity(0.2))
+
+                    Text(objectiveText)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(Color.white.opacity(0.95))
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(3)
+
+                    if moveLimit != nil || timeLimit != nil {
+                        HStack(spacing: 14) {
+                            if let moveLimit {
+                                statBadge(icon: "figure.walk", value: "\(bridge.movesUsed)/\(moveLimit)")
+                            }
+                            if let timeLimit, let remaining = bridge.timeRemaining {
+                                statBadge(icon: "clock.fill", value: quickTime(remaining))
+                            }
+                            if bridge.linesCleared > 0 {
+                                statBadge(icon: "sparkles", value: "\(bridge.linesCleared)")
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 14)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(18)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.12), radius: 20, x: 0, y: 10)
+        .shadow(color: Color.black.opacity(0.15), radius: 16, x: 0, y: 8)
     }
 
-    private func formattedTime(_ remaining: Int, total: Int) -> String {
-        let minutes = remaining / 60
-        let seconds = remaining % 60
-        let totalMinutes = total / 60
-        return String(format: "%02d:%02d / %02d:%02d", minutes, seconds, totalMinutes, total % 60)
+    private func statBadge(icon: String, value: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption2.weight(.semibold))
+            Text(value)
+                .font(.caption.weight(.bold).monospacedDigit())
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(Color.accentColor.opacity(0.25))
+        )
+        .foregroundStyle(Color.white)
+    }
+
+    private func quickTime(_ seconds: Int) -> String {
+        let minutes = seconds / 60
+        let secs = seconds % 60
+        return String(format: "%d:%02d", minutes, secs)
     }
 }
 
@@ -1550,92 +1754,148 @@ private struct LevelOutcomeCard: View {
     let secondaryTitle: String?
     let secondaryAction: (() -> Void)?
 
+    private var isSuccess: Bool { stars != nil }
+
+    private var backgroundGradient: LinearGradient {
+        if isSuccess {
+            return LinearGradient(
+                colors: [
+                    Color(red: 0.2, green: 0.7, blue: 0.4),
+                    Color(red: 0.15, green: 0.55, blue: 0.35),
+                    Color(red: 0.1, green: 0.4, blue: 0.3)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else {
+            return LinearGradient(
+                colors: [
+                    Color(red: 0.85, green: 0.35, blue: 0.35),
+                    Color(red: 0.75, green: 0.25, blue: 0.25),
+                    Color(red: 0.65, green: 0.15, blue: 0.15)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
     var body: some View {
-        VStack(spacing: 18) {
-            Text(title)
-                .font(.system(size: 24, weight: .heavy, design: .rounded))
+        VStack(spacing: 22) {
+            // Icon and title
+            VStack(spacing: 14) {
+                Image(systemName: isSuccess ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .font(.system(size: 56))
+                    .foregroundStyle(Color.white)
+                    .padding(18)
+                    .background(
+                        Circle()
+                            .fill(isSuccess ? Color.green.opacity(0.3) : Color.red.opacity(0.3))
+                    )
+                    .shadow(color: isSuccess ? Color.green.opacity(0.4) : Color.red.opacity(0.4), radius: 20, x: 0, y: 10)
+
+                Text(title)
+                    .font(.system(size: 32, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Color.white)
+            }
 
             if let stars {
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     ForEach(0..<3, id: \.self) { index in
                         Image(systemName: index < stars ? "star.fill" : "star")
-                            .foregroundStyle(index < stars ? Color.yellow : Color.gray.opacity(0.4))
-                            .font(.system(size: 26, weight: .bold))
+                            .foregroundStyle(index < stars ? Color.yellow : Color.white.opacity(0.3))
+                            .font(.system(size: 34, weight: .bold))
+                            .shadow(color: index < stars ? Color.yellow.opacity(0.5) : Color.clear, radius: 8, x: 0, y: 4)
                     }
                 }
+                .padding(.vertical, 8)
             }
 
             Text(message)
-                .font(.subheadline)
-                .foregroundStyle(Color.secondary)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color.white.opacity(0.95))
                 .multilineTextAlignment(.center)
+                .lineLimit(3)
 
             if let summary {
-                Divider()
-                    .opacity(0.15)
-
-                VStack(spacing: 8) {
-                    HStack {
-                        Label("Score", systemImage: "medal.fill")
-                            .font(.caption.bold())
-                        Spacer()
-                        Text("\(summary.score)")
-                            .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    }
+                VStack(spacing: 10) {
+                    summaryRow(icon: "star.fill", label: "Score", value: "\(summary.score)", color: .yellow)
                     if let remainingMoves = summary.remainingMoves {
-                        HStack {
-                            Label("Moves Remaining", systemImage: "figure.walk")
-                                .font(.caption.bold())
-                            Spacer()
-                            Text("\(remainingMoves)")
-                                .font(.system(size: 13, weight: .bold, design: .monospaced))
-                        }
+                        summaryRow(icon: "figure.walk", label: "Moves Left", value: "\(remainingMoves)", color: .cyan)
                     }
                     if let timeRemaining = summary.timeRemaining {
-                        HStack {
-                            Label("Time", systemImage: "clock")
-                                .font(.caption.bold())
-                            Spacer()
-                            Text(timeString(timeRemaining))
-                                .font(.system(size: 13, weight: .bold, design: .monospaced))
-                        }
+                        summaryRow(icon: "clock.fill", label: "Time Left", value: timeString(timeRemaining), color: .orange)
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(Color.white.opacity(0.12))
+                )
             }
 
-            Button(action: primaryAction) {
-                Text(primaryTitle)
-                    .font(.headline.bold())
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.accentColor)
-                    .foregroundStyle(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            }
-
-            if let secondaryTitle, let secondaryAction {
-                Button(action: secondaryAction) {
-                    Text(secondaryTitle)
-                        .font(.headline.weight(.semibold))
+            VStack(spacing: 12) {
+                Button(action: primaryAction) {
+                    Text(primaryTitle)
+                        .font(.headline.bold())
+                        .foregroundStyle(isSuccess ? Color.green : Color.red)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.clear)
-                        .foregroundStyle(Color.accentColor)
+                        .padding(.vertical, 16)
+                        .background(Color.white)
+                        .clipShape(Capsule())
+                        .shadow(color: Color.black.opacity(0.2), radius: 12, x: 0, y: 6)
+                }
+                .buttonStyle(.plain)
+
+                if let secondaryTitle, let secondaryAction {
+                    Button(action: secondaryAction) {
+                        Text(secondaryTitle)
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(Color.white.opacity(0.9))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                Capsule()
+                                    .stroke(Color.white.opacity(0.4), lineWidth: 2)
+                            )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
-        .padding(28)
-        .frame(maxWidth: 360)
+        .padding(.horizontal, 32)
+        .padding(.vertical, 36)
+        .frame(maxWidth: 400)
         .background(
             RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(.ultraThinMaterial)
+                .fill(backgroundGradient)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1.5)
+                )
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .stroke(Color.white.opacity(0.14), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 18)
+        .shadow(color: Color.black.opacity(0.35), radius: 40, x: 0, y: 20)
         .padding(.horizontal, 24)
+    }
+
+    private func summaryRow(icon: String, label: String, value: String, color: Color) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(color)
+                .frame(width: 28)
+
+            Text(label)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(Color.white.opacity(0.85))
+
+            Spacer()
+
+            Text(value)
+                .font(.body.weight(.heavy).monospacedDigit())
+                .foregroundStyle(Color.white)
+        }
     }
 
     private func timeString(_ seconds: Int) -> String {
@@ -1723,45 +1983,73 @@ extension View {
 }
 
 
-private struct CelebrationBannerView: View {
+private struct GridCelebrationPopup: View {
     let message: CelebrationMessage
+    @State private var scale: CGFloat = 0.5
+    @State private var rotation: Double = -15
 
     var body: some View {
-        HStack(spacing: 12) {
+        VStack(spacing: 12) {
+            // Big icon
             Image(systemName: message.icon)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Color.white)
-                .padding(10)
-                .background(
-                    Circle().fill(Color.accentColor.opacity(0.85))
-                )
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(message.title)
-                    .font(.headline.bold())
-                    .foregroundStyle(Color.white)
-                Text(message.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(Color.white.opacity(0.85))
-            }
-
-            if message.points > 0 {
-                Spacer(minLength: 12)
-                Text("+\(message.points)")
-                    .font(.caption.bold())
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule().fill(Color.white.opacity(0.2))
+                .font(.system(size: 48, weight: .bold))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color.yellow, Color.orange],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
+                )
+                .shadow(color: Color.orange.opacity(0.6), radius: 12, x: 0, y: 6)
+                .rotationEffect(.degrees(rotation))
+
+            // Title
+            Text(message.title)
+                .font(.system(size: 26, weight: .heavy, design: .rounded))
+                .foregroundStyle(Color.white)
+                .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+            // Points
+            if message.points > 0 {
+                Text("+\(message.points)")
+                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.yellow, Color.orange, Color.red],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .shadow(color: Color.black.opacity(0.4), radius: 6, x: 0, y: 3)
             }
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 16)
-        .background(.ultraThinMaterial)
-        .cornerRadius(18)
-        .shadow(color: Color.black.opacity(0.2), radius: 12, x: 0, y: 6)
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .padding(.horizontal, 32)
+        .padding(.vertical, 28)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.black.opacity(0.75))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.yellow.opacity(0.6), Color.orange.opacity(0.6)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 3
+                        )
+                )
+        )
+        .shadow(color: Color.black.opacity(0.4), radius: 24, x: 0, y: 12)
+        .scaleEffect(scale)
+        .onAppear {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                scale = 1.1
+                rotation = 0
+            }
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.1)) {
+                scale = 1.0
+            }
+        }
     }
 }

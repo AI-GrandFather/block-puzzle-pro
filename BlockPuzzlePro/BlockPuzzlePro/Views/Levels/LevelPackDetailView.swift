@@ -56,12 +56,12 @@ struct LevelPackDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             ProgressView(value: Double(earnedStars), total: Double(totalStars))
                 .progressViewStyle(.linear)
-                .tint(Color(hex: pack.visual.primaryHex))
+                .tint(color(from: pack.visual.primaryHex))
 
             HStack {
                 Label("\(earnedStars)/\(totalStars) Stars", systemImage: "star.fill")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color(hex: pack.visual.primaryHex))
+                    .foregroundStyle(color(from: pack.visual.primaryHex))
                 Spacer()
                 Text("\(progressStore.completedLevels(in: pack))/\(pack.levels.count) Levels")
                     .font(.caption.weight(.semibold))
@@ -157,4 +157,8 @@ private extension LevelObjectiveType {
         case .clearWithMoves: return "Win within \(target) moves"
         }
     }
+}
+
+private func color(from hex: String) -> Color {
+    Color(UIColor(hex: hex))
 }
