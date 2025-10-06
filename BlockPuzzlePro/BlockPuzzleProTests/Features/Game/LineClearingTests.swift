@@ -6,7 +6,7 @@ struct LineClearingTests {
 
     @Test("End-to-end line clearing flow")
     func endToEndLineClearingFlow() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         let placementEngine = PlacementEngine(gameEngine: engine)
 
         engine.startNewGame()
@@ -68,7 +68,7 @@ struct LineClearingTests {
 
     @Test("L-shaped intersection clearing")
     func lShapedIntersectionClearing() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
 
         let intersectionRow = 5
@@ -115,7 +115,7 @@ struct LineClearingTests {
 
     @Test("Multiple staggered clears")
     func multipleStaggeredClears() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
 
         let rows = [1, 3, 7]
@@ -171,7 +171,7 @@ struct LineClearingTests {
 
     @Test("Animation state management")
     func animationStateManagement() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
 
         // Initially no active clears
@@ -211,7 +211,7 @@ struct LineClearingTests {
 
     @Test("Boundary condition clearing")
     func boundaryConditionClearing() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
 
         // Test edge rows and columns

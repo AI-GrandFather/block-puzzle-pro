@@ -10,6 +10,13 @@ enum PlacementResult {
     case invalid(reason: PlacementError)
 }
 
+/// Context describing a committed placement, emitted after the grid and score update.
+struct PlacementCommitContext {
+    let positions: [GridPosition]
+    let lineClearResult: LineClearResult
+    let blockPattern: BlockPattern
+}
+
 /// Reasons why a placement might be invalid
 enum PlacementError: Equatable {
     case outOfBounds
@@ -51,6 +58,9 @@ final class PlacementEngine: ObservableObject {
 
     /// Whether current preview is valid
     @Published private(set) var isCurrentPreviewValid: Bool = false
+
+    /// Callback invoked after a successful placement commit
+    var onPlacementCommitted: ((PlacementCommitContext) -> Void)?
 
     /// Grid size constant
     private var gridSize: Int {
@@ -301,6 +311,13 @@ final class PlacementEngine: ObservableObject {
             if let scoreEvent = gameEngine.applyScore(placedCells: placedCellCount, lineClearResult: lineClearResult) {
                 logger.info("Placement score event: +\(scoreEvent.totalDelta) (cells=\(scoreEvent.placedCells), lines=\(scoreEvent.linesCleared)) -> total \(scoreEvent.newTotal)")
             }
+
+            let context = PlacementCommitContext(
+                positions: previewPositions,
+                lineClearResult: lineClearResult,
+                blockPattern: blockPattern
+            )
+            onPlacementCommitted?(context)
         } else {
             logger.error("Failed to place block at positions: \(self.previewPositions) - this should not happen after validation")
         }

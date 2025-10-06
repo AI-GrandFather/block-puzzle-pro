@@ -139,6 +139,12 @@ struct ContentView: View {
 
 private enum MenuRoute: Hashable {
     case game(GameMode)
+    case timedModes
+    case levelMenu
+    case levelPack(Int)
+    case level(Int)
+    case dailyPuzzle
+    case puzzle(String)
 }
 
 private struct MainMenuNavigationHost: View {
@@ -151,8 +157,6 @@ private struct MainMenuNavigationHost: View {
     @State private var showSettings = false
     @State private var showThemes = false
     @State private var showAccount = false
-    @State private var showModePicker = false
-    @State private var pendingModeToLaunch: GameMode?
     @State private var deferredMenuAction: DeferredMenuAction?
 
     private var isLoading: Bool {
@@ -164,7 +168,10 @@ private struct MainMenuNavigationHost: View {
             MainMenuView(
                 theme: theme,
                 isLoading: isLoading,
-                onPlay: presentModePicker,
+                onClassic: { startGame(with: .classic) },
+                onTimedModes: openTimedModes,
+                onLevels: openLevelMenu,
+                onDailyPuzzle: openDailyPuzzle,
                 onOpenSettings: { showSettings = true },
                 onOpenAccount: { showAccount = true }
             )
@@ -174,9 +181,53 @@ private struct MainMenuNavigationHost: View {
                     DragDropGameView(
                         gameMode: mode,
                         onReturnHome: { path.removeAll() },
-                        onReturnModeSelect: reopenModeSelection
+                        onReturnModeSelect: { returnToModeSelection(for: mode) }
                     )
-                    .navigationBarBackButtonHidden()
+                    .navigationTitle(gameTitle(for: mode))
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button(action: { path.removeAll() }) {
+                                Label("Home", systemImage: "chevron.backward")
+                                    .labelStyle(.titleAndIcon)
+                            }
+                        }
+                    }
+                case .levelMenu:
+                    LevelModesLandingView { pack in
+                        path.append(.levelPack(pack.id))
+                    }
+                case .levelPack(let packID):
+                    if let pack = LevelsRepository.shared.pack(with: packID) {
+                        LevelPackDetailView(
+                            pack: pack,
+                            progressStore: LevelProgressStore.shared
+                        ) { level in
+                            path.append(.level(level.id))
+                        }
+                    } else {
+                        LevelModesLandingView { pack in
+                            path.append(.levelPack(pack.id))
+                        }
+                    }
+                case .level(let levelID):
+                    LevelPlayContainerView(levelID: levelID)
+                case .timedModes:
+                    TimedModesView { selection in
+                        startGame(with: selection)
+                    }
+                case .dailyPuzzle:
+                    DailyPuzzleHubView { puzzle in
+                        path.append(.puzzle(puzzle.id.formattedDate))
+                    }
+                case .puzzle(let identifier):
+                    if let puzzle = DailyPuzzleManager.shared.puzzle(with: identifier) {
+                        PuzzlePlayContainerView(puzzle: puzzle)
+                    } else {
+                        DailyPuzzleHubView { puzzle in
+                            path.append(.puzzle(puzzle.id.formattedDate))
+                        }
+                    }
                 }
             }
             .sheet(isPresented: $showSettings) {
@@ -202,46 +253,45 @@ private struct MainMenuNavigationHost: View {
                 }
                 .presentationDetents([.large])
             }
-            .sheet(isPresented: $showModePicker) {
-                ModeSelectionSheet(theme: theme) { mode in
-                    scheduleModeLaunch(mode)
-                }
-            }
         }
         .onChange(of: showSettings) { _, isPresented in
             guard !isPresented else { return }
             handleDeferredMenuActionIfNeeded()
         }
-        .onChange(of: showModePicker) { _, isPresented in
-            guard !isPresented else { return }
-            launchPendingModeIfNeeded()
-        }
-    }
-
-    private func presentModePicker() {
-        pendingModeToLaunch = nil
-        showModePicker = true
-    }
-
-    private func scheduleModeLaunch(_ mode: GameMode) {
-        pendingModeToLaunch = mode
-        showModePicker = false
-    }
-
-    private func launchPendingModeIfNeeded() {
-        guard let mode = pendingModeToLaunch else { return }
-        pendingModeToLaunch = nil
-        startGame(with: mode)
     }
 
     private func startGame(with mode: GameMode) {
         path = [.game(mode)]
     }
 
-    private func reopenModeSelection() {
-        path.removeAll()
-        pendingModeToLaunch = nil
-        showModePicker = true
+    private func openTimedModes() {
+        path = [.timedModes]
+    }
+
+    private func openLevelMenu() {
+        path = [.levelMenu]
+    }
+
+    private func openDailyPuzzle() {
+        path = [.dailyPuzzle]
+    }
+
+    private func returnToModeSelection(for mode: GameMode) {
+        switch mode {
+        case .classic:
+            path.removeAll()
+        case .timedThreeMinutes, .timedFiveMinutes, .timedSevenMinutes:
+            path = [.timedModes]
+        }
+    }
+
+    private func gameTitle(for mode: GameMode) -> String {
+        switch mode {
+        case .classic: return "Classic"
+        case .timedThreeMinutes: return "3 Minute Sprint"
+        case .timedFiveMinutes: return "5 Minute Rush"
+        case .timedSevenMinutes: return "7 Minute Marathon"
+        }
     }
 
     private func scheduleMenuAction(_ action: DeferredMenuAction) {
@@ -267,89 +317,125 @@ private struct MainMenuNavigationHost: View {
 private struct MainMenuView: View {
     let theme: Theme
     let isLoading: Bool
-    let onPlay: () -> Void
+    let onClassic: () -> Void
+    let onTimedModes: () -> Void
+    let onLevels: () -> Void
+    let onDailyPuzzle: () -> Void
     let onOpenSettings: () -> Void
     let onOpenAccount: () -> Void
 
-    private var accent: Color { theme.accentColor }
-    private var backgroundGradient: LinearGradient { theme.menuBackgroundGradient }
-
     var body: some View {
         ZStack {
-            backgroundGradient
-                .overlay(
-                    RadialGradient(
-                        colors: [theme.accentColor.opacity(0.32), theme.accentColor.opacity(0.04)],
-                        center: .center,
-                        startRadius: 60,
-                        endRadius: 420
-                    )
-                    .blendMode(.plusLighter)
-                )
-                .ignoresSafeArea()
-
-            BlockGridBackground(color: theme.gridOverlayColor)
-                .ignoresSafeArea()
+            LinearGradient(
+                colors: [Color(red: 0.08, green: 0.07, blue: 0.18), Color(red: 0.17, green: 0.17, blue: 0.35)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
             VStack(spacing: 32) {
-                Spacer(minLength: 60)
-
-                BlockClusterLogo(theme: theme)
-
-                VStack(spacing: 8) {
-                    Text("Block Scramble")
-                        .font(.system(size: 40, weight: .heavy, design: .rounded))
-                        .foregroundStyle(theme.primaryText)
-
-                    Text("Snap into flow with crisp 120 Hz puzzle action.")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundStyle(theme.secondaryText)
+                HStack {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("BLOCK SCRAMBLE")
+                            .font(.system(size: 32, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Color.white)
+                        Text("Pick a mode to begin")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.white.opacity(0.7))
+                    }
+                    Spacer()
+                    HStack(spacing: 14) {
+                        CircleIconButton(systemName: "slider.horizontal.3", action: onOpenSettings)
+                        CircleIconButton(systemName: "person.crop.circle", action: onOpenAccount)
+                    }
                 }
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+                .padding(.horizontal, 28)
+                .padding(.top, 44)
 
-                Spacer()
+                Spacer(minLength: 40)
 
-                VStack(spacing: 18) {
-                    MenuBlockButton(
-                        title: "Play",
-                        iconName: "play.fill",
-                        tint: accent,
-                        theme: theme,
-                        action: onPlay
+                VStack(spacing: 20) {
+                    GradientMenuButton(
+                        title: "Classic Game",
+                        gradient: [Color(red: 0.95, green: 0.27, blue: 0.35), Color(red: 0.82, green: 0.16, blue: 0.29)],
+                        action: onClassic
                     )
-                    .disabled(isLoading)
-                    .opacity(isLoading ? 0.55 : 1.0)
-
-                    MenuBlockButton(
-                        title: "Settings",
-                        iconName: "slider.horizontal.3",
-                        tint: theme.surfaceHighlight,
-                        theme: theme,
-                        action: onOpenSettings
+                    GradientMenuButton(
+                        title: "Time Modes",
+                        gradient: [Color(red: 0.45, green: 0.31, blue: 0.95), Color(red: 0.36, green: 0.22, blue: 0.86)],
+                        action: onTimedModes
                     )
-
-                    MenuBlockButton(
-                        title: "Account",
-                        iconName: "person.crop.square",
-                        tint: theme.surfaceHighlight.opacity(0.85),
-                        theme: theme,
-                        action: onOpenAccount
+                    GradientMenuButton(
+                        title: "Level Modes",
+                        gradient: [Color(red: 0.28, green: 0.65, blue: 0.98), Color(red: 0.17, green: 0.52, blue: 0.9)],
+                        action: onLevels
+                    )
+                    GradientMenuButton(
+                        title: "Daily Challenges",
+                        gradient: [Color(red: 0.99, green: 0.68, blue: 0.34), Color(red: 0.95, green: 0.5, blue: 0.18)],
+                        action: onDailyPuzzle
                     )
                 }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 48)
+                .padding(.horizontal, 28)
 
                 if isLoading {
-                    AnimatedBlockLoader(accent: accent)
-                        .padding(.bottom, 26)
+                    AnimatedBlockLoader(accent: Color.white)
+                        .padding(.bottom, 24)
                 }
+
+                Spacer()
             }
         }
     }
 }
 
-struct BlockClusterLogo: View {
+private struct CircleIconButton: View {
+    let systemName: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(Color.white)
+                .padding(12)
+                .background(Color.white.opacity(0.12), in: Circle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct GradientMenuButton: View {
+    let title: String
+    let gradient: [Color]
+    let action: () -> Void
+
+    @GestureState private var isPressed = false
+
+    var body: some View {
+        let press = DragGesture(minimumDistance: 0)
+            .updating($isPressed) { _, state, _ in state = true }
+
+        return Button(action: action) {
+            Text(title.uppercased())
+                .font(.system(size: 22, weight: .heavy, design: .rounded))
+                .foregroundStyle(Color.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+                .background(
+                    LinearGradient(colors: gradient, startPoint: .topLeading, endPoint: .bottomTrailing)
+                        .clipShape(Capsule())
+                )
+                .shadow(color: gradient.last?.opacity(0.45) ?? .black.opacity(0.3), radius: isPressed ? 6 : 16, x: 0, y: isPressed ? 3 : 10)
+        }
+        .buttonStyle(.plain)
+        .simultaneousGesture(press)
+        .scaleEffect(isPressed ? 0.97 : 1.0)
+        .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isPressed)
+    }
+}
+
+private struct BlockClusterLogo: View {
     let theme: Theme
 
     private struct BlockSpec {
@@ -447,65 +533,166 @@ struct BlockClusterLogo: View {
     }
 }
 
-struct MenuBlockButton: View {
-    let title: String
-    let iconName: String
-    let tint: Color
-    let theme: Theme
-    let action: () -> Void
-
-    @GestureState private var isPressed = false
+private struct TimedModesView: View {
+    let onSelect: (GameMode) -> Void
 
     var body: some View {
-        let pressGesture = DragGesture(minimumDistance: 0)
-            .updating($isPressed) { _, state, _ in state = true }
+        MenuBackground {
+            VStack(spacing: 28) {
+                Text("Time Modes")
+                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Color.white)
 
-        return Button(action: action) {
-            HStack(spacing: 18) {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(tint)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(theme.surfaceHighlight.opacity(0.4), lineWidth: 1)
+                VStack(spacing: 20) {
+                    GradientMenuButton(
+                        title: "3 Minute Sprint",
+                        gradient: [Color(red: 0.42, green: 0.74, blue: 0.99), Color(red: 0.25, green: 0.56, blue: 0.94)],
+                        action: { onSelect(.timedThreeMinutes) }
                     )
-                    .overlay(
-                        Image(systemName: iconName)
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(theme.iconForeground(on: tint))
+                    GradientMenuButton(
+                        title: "5 Minute Rush",
+                        gradient: [Color(red: 0.74, green: 0.47, blue: 0.96), Color(red: 0.56, green: 0.25, blue: 0.84)],
+                        action: { onSelect(.timedFiveMinutes) }
                     )
-                    .frame(width: 58, height: 58)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 22, weight: .heavy, design: .rounded))
-                        .foregroundStyle(theme.primaryText)
-                    Rectangle()
-                        .fill(theme.accentColor.opacity(0.22))
-                        .frame(width: 64, height: 4)
-                        .cornerRadius(2)
+                    GradientMenuButton(
+                        title: "7 Minute Marathon",
+                        gradient: [Color(red: 0.36, green: 0.87, blue: 0.79), Color(red: 0.2, green: 0.73, blue: 0.65)],
+                        action: { onSelect(.timedSevenMinutes) }
+                    )
                 }
-
-                Spacer()
+                .padding(.horizontal, 24)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 24)
-            .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(theme.surfaceBackground)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(theme.surfaceHighlight.opacity(0.45), lineWidth: 1)
-                    )
-            )
-            .shadow(color: tint.opacity(0.28), radius: 18, x: 0, y: 14)
-            .scaleEffect(isPressed ? 0.97 : 1.0)
+            .padding(.top, 60)
         }
-        .buttonStyle(.plain)
-        .gesture(pressGesture)
-        .animation(.spring(response: 0.25, dampingFraction: 0.9), value: isPressed)
+        .navigationTitle("Time Modes")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
+private struct LevelModesLandingView: View {
+    let onSelectPack: (LevelPack) -> Void
+    @State private var packs: [LevelPack] = LevelsRepository.shared.allPacks()
+
+    var body: some View {
+        MenuBackground {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    Text("Level Modes")
+                        .font(.system(size: 28, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color.white)
+
+                    Text("Choose a pack to begin. Progress carries across all packs.")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.white.opacity(0.7))
+                        .padding(.horizontal, 4)
+
+                    VStack(spacing: 16) {
+                        ForEach(packs) { pack in
+                            LevelPackButton(pack: pack) {
+                                onSelectPack(pack)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 48)
+                .padding(.bottom, 60)
+            }
+        }
+        .navigationTitle("Level Modes")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct LevelPackButton: View {
+    let pack: LevelPack
+    let action: () -> Void
+
+    private var gradient: [Color] {
+        [color(from: pack.visual.primaryHex), color(from: pack.visual.secondaryHex)]
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: pack.visual.iconName)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Color.white)
+                    .padding(16)
+                    .background(Color.white.opacity(0.2), in: Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(pack.title)
+                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color.white)
+                    Text(pack.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(Color.white.opacity(0.75))
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Color.white.opacity(0.8))
+            }
+            .padding(.vertical, 22)
+            .padding(.horizontal, 20)
+            .background(
+                LinearGradient(colors: gradient, startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            )
+            .shadow(color: gradient.last?.opacity(0.45) ?? .black.opacity(0.3), radius: 16, x: 0, y: 10)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func color(from hex: String) -> Color {
+        var sanitized = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        if sanitized.count == 3 {
+            let chars = Array(sanitized)
+            sanitized = "\(chars[0])\(chars[0])\(chars[1])\(chars[1])\(chars[2])\(chars[2])"
+        }
+
+        var value: UInt64 = 0
+        Scanner(string: sanitized).scanHexInt64(&value)
+
+        let r, g, b: UInt64
+        switch sanitized.count {
+        case 6:
+            (r, g, b) = ((value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF)
+        default:
+            (r, g, b) = (0, 0, 0)
+        }
+
+        return Color(
+            red: Double(r) / 255.0,
+            green: Double(g) / 255.0,
+            blue: Double(b) / 255.0
+        )
+    }
+}
+
+private struct MenuBackground<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(red: 0.09, green: 0.08, blue: 0.2), Color(red: 0.15, green: 0.15, blue: 0.32)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            content
+        }
+    }
+}
 private struct SettingsPanel: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -587,14 +774,14 @@ private struct ModeSelectionSheet: View {
     private var descriptors: [ModeDescriptor] {
         [
             ModeDescriptor(
-                mode: .grid8x8,
+                mode: .classic,
                 title: "8×8 Grid",
                 subtitle: "Intimate board, quicker clears",
                 iconName: "square.grid.3x3.fill",
                 accent: theme.accentColor
             ),
             ModeDescriptor(
-                mode: .grid10x10,
+                mode: .classic,
                 title: "10×10 Grid",
                 subtitle: "Spacious layout for marathon runs",
                 iconName: "rectangle.grid.3x2",

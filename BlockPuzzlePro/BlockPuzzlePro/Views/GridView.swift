@@ -124,7 +124,7 @@ private struct GridCellRenderView: View {
 
 #Preview {
     GridView(
-        gameEngine: GameEngine(gameMode: .grid10x10),
+        gameEngine: GameEngine(gameMode: .classic),
         dragController: DragController(),
         cellSize: 32,
         gridSpacing: 2

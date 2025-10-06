@@ -47,7 +47,7 @@ struct GameViewV2: View {
     // MARK: - Initialization
 
     init(
-        gameMode: GameMode = .grid10x10,
+        gameMode: GameMode = .classic,
         onReturnHome: @escaping () -> Void = {},
         onReturnModeSelect: @escaping () -> Void = {}
     ) {

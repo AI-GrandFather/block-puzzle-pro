@@ -268,6 +268,16 @@ class GameEngine: ObservableObject {
         logger.info("New game started")
     }
 
+    /// Apply a pre-filled pattern to the grid before gameplay begins.
+    func apply(prefill: LevelPrefill) {
+        let clampedGridSize = min(gridSize, prefill.gridSize)
+        for cell in prefill.cells {
+            guard cell.row < clampedGridSize, cell.column < clampedGridSize else { continue }
+            let position = GridPosition(unsafeRow: cell.row, unsafeColumn: cell.column)
+            setCell(at: position, to: .occupied(color: cell.color))
+        }
+    }
+
     /// Mark the current session as ended without mutating grid contents.
     func endGame() {
         guard isGameActive else { return }

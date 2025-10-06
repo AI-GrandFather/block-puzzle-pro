@@ -70,7 +70,7 @@ struct SimpleGridCellView: View {
 
 #Preview {
     SimpleGridView(
-        gameEngine: GameEngine(gameMode: .grid10x10),
+        gameEngine: GameEngine(gameMode: .classic),
         dragController: DragController(deviceManager: DeviceManager()),
         cellSize: 30,
         gridSpacing: 2

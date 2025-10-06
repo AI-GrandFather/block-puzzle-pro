@@ -1,11 +1,8 @@
 
 import Foundation
 
-import Foundation
-
 enum GameMode: String, CaseIterable, Identifiable, Hashable {
-    case grid8x8
-    case grid10x10
+    case classic
     case timedThreeMinutes
     case timedFiveMinutes
     case timedSevenMinutes
@@ -14,21 +11,18 @@ enum GameMode: String, CaseIterable, Identifiable, Hashable {
 
     var gridSize: Int {
         switch self {
-        case .grid8x8:
-            return 8
-        case .grid10x10:
-            return 10
-        case .timedThreeMinutes, .timedFiveMinutes, .timedSevenMinutes:
+        case .classic,
+             .timedThreeMinutes,
+             .timedFiveMinutes,
+             .timedSevenMinutes:
             return 8
         }
     }
 
     var displayName: String {
         switch self {
-        case .grid8x8:
-            return "8×8 Grid"
-        case .grid10x10:
-            return "10×10 Grid"
+        case .classic:
+            return "Classic 8×8"
         case .timedThreeMinutes:
             return "3 Minute Challenge"
         case .timedFiveMinutes:
@@ -42,7 +36,7 @@ enum GameMode: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .timedThreeMinutes, .timedFiveMinutes, .timedSevenMinutes:
             return true
-        default:
+        case .classic:
             return false
         }
     }
@@ -55,7 +49,7 @@ enum GameMode: String, CaseIterable, Identifiable, Hashable {
             return 300 // 5 * 60
         case .timedSevenMinutes:
             return 420 // 7 * 60
-        default:
+        case .classic:
             return nil
         }
     }

@@ -4,6 +4,58 @@ import CoreGraphics
 import Combine
 import QuartzCore
 
+// MARK: - Level Session Bridge
+
+@MainActor
+private final class LevelSessionBridge: ObservableObject {
+    @Published var state: LevelSessionCoordinator.State = .idle
+    @Published var timeRemaining: Int? = nil
+    @Published var movesUsed: Int = 0
+    @Published var linesCleared: Int = 0
+    @Published var objectiveFulfilled: Bool = false
+
+    private var cancellables: [AnyCancellable] = []
+
+    func bind(to coordinator: LevelSessionCoordinator) {
+        cancel()
+
+        cancellables.append(
+            coordinator.$state
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] state in self?.state = state }
+        )
+
+        cancellables.append(
+            coordinator.$timeRemaining
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] value in self?.timeRemaining = value }
+        )
+
+        cancellables.append(
+            coordinator.$movesUsed
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] value in self?.movesUsed = value }
+        )
+
+        cancellables.append(
+            coordinator.$linesCleared
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] value in self?.linesCleared = value }
+        )
+
+        cancellables.append(
+            coordinator.$objectiveFulfilled
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] value in self?.objectiveFulfilled = value }
+        )
+    }
+
+    func cancel() {
+        cancellables.forEach { $0.cancel() }
+        cancellables.removeAll()
+    }
+}
+
 // MARK: - Drag Drop Game View
 
 /// Main game view with integrated drag and drop functionality
@@ -12,7 +64,7 @@ struct DragDropGameView: View {
     // MARK: - Properties
     
     @StateObject private var gameEngine: GameEngine
-    @StateObject private var blockFactory = BlockFactory()
+    @StateObject private var blockFactory: BlockFactory
     @StateObject private var deviceManager: DeviceManager
     @StateObject private var dragController: DragController
     @StateObject private var placementEngine: PlacementEngine
@@ -45,6 +97,12 @@ struct DragDropGameView: View {
     @State private var lastUpdateTime: TimeInterval = 0
     @State private var frameSkipCounter: Int = 0
     @State private var isProMotionDevice: Bool = false
+    @State private var hasDispatchedLevelOutcome = false
+
+    @StateObject private var levelBridge = LevelSessionBridge()
+
+    private let levelConfiguration: LevelSessionConfiguration?
+    private let levelCoordinator: LevelSessionCoordinator?
 
     private let gridSpacing: CGFloat = 2
     private let timerPublisher = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -55,17 +113,37 @@ struct DragDropGameView: View {
     // MARK: - Initialization
     
     init(
-        gameMode: GameMode = .grid10x10,
+        gameMode: GameMode = .classic,
+        levelConfiguration: LevelSessionConfiguration? = nil,
         onReturnHome: @escaping () -> Void = {},
         onReturnModeSelect: @escaping () -> Void = {}
     ) {
-        let gameEngine = GameEngine(gameMode: gameMode)
+        let resolvedMode = gameMode
+        let gameEngine = GameEngine(gameMode: resolvedMode)
         let deviceManager = DeviceManager()
-        
+        let placementEngine = PlacementEngine(gameEngine: gameEngine)
+        let blockFactory = BlockFactory()
+
+        if let allowedPieces = levelConfiguration?.level.constraints.allowedPieces {
+            blockFactory.configureAllowedTypes(allowedPieces)
+        }
+
+        var coordinator: LevelSessionCoordinator? = nil
+        if let levelConfiguration {
+            coordinator = LevelSessionCoordinator(
+                level: levelConfiguration.level,
+                gameEngine: gameEngine,
+                placementEngine: placementEngine
+            )
+        }
+
         _gameEngine = StateObject(wrappedValue: gameEngine)
+        _blockFactory = StateObject(wrappedValue: blockFactory)
         _deviceManager = StateObject(wrappedValue: deviceManager)
         _dragController = StateObject(wrappedValue: DragController(deviceManager: deviceManager))
-        _placementEngine = StateObject(wrappedValue: PlacementEngine(gameEngine: gameEngine))
+        _placementEngine = StateObject(wrappedValue: placementEngine)
+        self.levelConfiguration = levelConfiguration
+        self.levelCoordinator = coordinator
         self.onReturnHome = onReturnHome
         self.onReturnModeSelect = onReturnModeSelect
     }
@@ -125,6 +203,8 @@ struct DragDropGameView: View {
                     loadingView
                 }
         }
+        .overlay(levelHUD, alignment: .top)
+        .overlay(levelOutcomeOverlay)
         .overlay(celebrationOverlay, alignment: .top)
         .overlay(gameOverOverlay)
         .sheet(isPresented: $isSettingsPresented) {
@@ -178,6 +258,7 @@ struct DragDropGameView: View {
                 applyCloudSnapshotIfAvailable()
             }
             .onReceive(timerPublisher) { _ in
+                guard levelConfiguration == nil else { return }
                 guard gameEngine.gameMode.isTimed, timerActive, gameEngine.isGameActive else { return }
                 guard timerRemaining > 0 else {
                     handleTimerExpired()
@@ -188,12 +269,19 @@ struct DragDropGameView: View {
                     handleTimerExpired()
                 }
             }
+            .onChange(of: levelBridge.state) { _, newValue in
+                guard levelConfiguration != nil else { return }
+                handleLevelStateChange(newValue)
+            }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase != .active else { return }
                 saveProgressSnapshot()
             }
         }
-        .onDisappear { stopTimer() }
+        .onDisappear {
+            stopTimer()
+            levelBridge.cancel()
+        }
         .environmentObject(deviceManager)
         // Removed .onChange(of: dragController.isDragging) due to non-existent property
     }
@@ -292,6 +380,70 @@ struct DragDropGameView: View {
         }
     }
 
+    private var levelHUD: some View {
+        Group {
+            if let configuration = levelConfiguration,
+               case .running = levelBridge.state {
+                LevelHUDView(
+                    level: configuration.level,
+                    objectiveText: objectiveDescription(for: configuration.level),
+                    bridge: levelBridge
+                )
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            } else {
+                EmptyView()
+            }
+        }
+    }
+
+    private var levelOutcomeOverlay: some View {
+        Group {
+            guard let configuration = levelConfiguration else { return AnyView(EmptyView()) }
+
+            switch levelBridge.state {
+            case .success(let result):
+                return AnyView(
+                    ZStack {
+                        Color.black.opacity(0.35)
+                            .ignoresSafeArea()
+                        LevelOutcomeCard(
+                            title: "Level Complete",
+                            message: objectiveDescription(for: configuration.level),
+                            stars: result.starsEarned,
+                            summary: result.summary,
+                            primaryTitle: "Continue",
+                            primaryAction: { returnToModeSelection() },
+                            secondaryTitle: "Replay",
+                            secondaryAction: { performRestart(triggerHaptics: true) }
+                        )
+                    }
+                )
+            case .failed(let reason):
+                return AnyView(
+                    ZStack {
+                        Color.black.opacity(0.35)
+                            .ignoresSafeArea()
+                        LevelOutcomeCard(
+                            title: "Level Failed",
+                            message: failureDescription(for: reason),
+                            stars: nil,
+                            summary: nil,
+                            primaryTitle: "Retry",
+                            primaryAction: { performRestart(triggerHaptics: true) },
+                            secondaryTitle: "Exit",
+                            secondaryAction: { returnToModeSelection() }
+                        )
+                    }
+                )
+            default:
+                return AnyView(EmptyView())
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: levelBridge.state)
+    }
+
     private var gridView: some View {
         ZStack(alignment: .topLeading) {
             GridView(
@@ -385,7 +537,9 @@ struct DragDropGameView: View {
 
     @ViewBuilder
     private var gameOverOverlay: some View {
-        if isGameOver {
+        if levelConfiguration != nil {
+            EmptyView()
+        } else if isGameOver {
             GameOverOverlayView(
                 score: lastGameOverScore,
                 highScore: gameEngine.highScore,
@@ -447,12 +601,29 @@ struct DragDropGameView: View {
 
         // Start new game
         gameEngine.startNewGame()
+        if let allowed = levelConfiguration?.level.constraints.allowedPieces {
+            blockFactory.configureAllowedTypes(allowed)
+        } else if levelConfiguration == nil {
+            blockFactory.configureAllowedTypes(nil)
+        }
+
         blockFactory.resetTray()
-        initializeTimer()
+
+        if levelConfiguration == nil {
+            initializeTimer()
+        } else {
+            stopTimer()
+        }
 
         DispatchQueue.main.async {
             evaluateGameOver()
             saveProgressSnapshot()
+        }
+
+        if let coordinator = levelCoordinator {
+            hasDispatchedLevelOutcome = false
+            levelBridge.bind(to: coordinator)
+            coordinator.begin()
         }
 
         // Mark as ready respecting Reduce Motion accessibility setting
@@ -599,6 +770,9 @@ struct DragDropGameView: View {
         isSettingsPresented = false
         stopTimer()
         saveProgressSnapshot()
+        levelBridge.cancel()
+        levelCoordinator?.concludeDueToManualExit()
+        levelConfiguration?.onExitRequested()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             deviceManager.provideHapticFeedback(style: .medium)
             onReturnHome()
@@ -609,6 +783,9 @@ struct DragDropGameView: View {
         isSettingsPresented = false
         stopTimer()
         saveProgressSnapshot()
+        levelBridge.cancel()
+        levelCoordinator?.concludeDueToManualExit()
+        levelConfiguration?.onExitRequested()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             deviceManager.provideNotificationFeedback(type: .warning)
             onReturnModeSelect()
@@ -626,6 +803,9 @@ struct DragDropGameView: View {
 
         placementEngine.clearPreview()
         dragController.reset()
+        if let allowed = levelConfiguration?.level.constraints.allowedPieces {
+            blockFactory.configureAllowedTypes(allowed)
+        }
         blockFactory.resetTray()
 
         withAnimation(.easeInOut(duration: 0.3)) {
@@ -634,7 +814,17 @@ struct DragDropGameView: View {
         }
 
         lastGameOverScore = 0
-        initializeTimer()
+
+        if levelConfiguration == nil {
+            initializeTimer()
+        } else {
+            levelBridge.cancel()
+            if let coordinator = levelCoordinator {
+                hasDispatchedLevelOutcome = false
+                levelBridge.bind(to: coordinator)
+                coordinator.begin()
+            }
+        }
 
         DispatchQueue.main.async {
             evaluateGameOver()
@@ -660,7 +850,68 @@ struct DragDropGameView: View {
     private func cancelDragIfNeeded() {
         // Currently nothing additional needed; placeholder for future logic if needed.
     }
-    
+
+    private func handleLevelStateChange(_ newValue: LevelSessionCoordinator.State) {
+        guard levelConfiguration != nil else { return }
+
+        switch newValue {
+        case .success(let result):
+            if !hasDispatchedLevelOutcome {
+                hasDispatchedLevelOutcome = true
+                levelConfiguration?.onComplete(result)
+            }
+        case .failed(let reason):
+            if !hasDispatchedLevelOutcome {
+                hasDispatchedLevelOutcome = true
+                levelConfiguration?.onFailure(reason)
+            }
+        default:
+            break
+        }
+    }
+
+    private func failureDescription(for reason: LevelFailureReason) -> String {
+        switch reason {
+        case .objectiveFailed:
+            return "Objective not met. Try a different strategy."
+        case .outOfMoves:
+            return "You ran out of moves before completing the objective."
+        case .timeExpired:
+            return "Time expired before the objective was completed."
+        }
+    }
+
+    private func objectiveDescription(for level: Level) -> String {
+        switch level.objective.type {
+        case .reachScore:
+            return "Score \(level.objective.targetValue) points"
+        case .clearLines:
+            return "Clear \(level.objective.targetValue) lines"
+        case .createPattern:
+            return "Complete the \(level.objective.pattern?.rawValue.replacingOccurrences(of: "_", with: " ").capitalized ?? "pattern") pattern"
+        case .surviveTime:
+            return "Survive for \(formattedTime(level.objective.targetValue))"
+        case .clearAllBlocks:
+            return "Clear all blocks from the board"
+        case .clearSpecificColor:
+            return "Clear \(level.objective.targetValue) blocks of a specific color"
+        case .achieveCombo:
+            return "Achieve a \(level.objective.targetValue)x combo"
+        case .perfectClear:
+            return "Perform \(level.objective.targetValue) perfect clears"
+        case .useOnlyPieces:
+            return "Use only the specified pieces to win"
+        case .clearWithMoves:
+            return "Complete within \(level.objective.targetValue) moves"
+        }
+    }
+
+    private func formattedTime(_ seconds: Int) -> String {
+        let minutes = seconds / 60
+        let remaining = seconds % 60
+        return String(format: "%02d:%02d", minutes, remaining)
+    }
+
     // MARK: - Placement Engine Integration
     
     private func updatePlacementPreview(blockPattern: BlockPattern, blockOrigin: CGPoint) {
@@ -1205,6 +1456,194 @@ private struct TimerBadge: View {
 }
 
 // MARK: - Fragment Effects
+
+private struct LevelHUDView: View {
+    let level: Level
+    let objectiveText: String
+    @ObservedObject var bridge: LevelSessionBridge
+
+    private var moveLimit: Int? { level.constraints.moveLimit }
+    private var timeLimit: Int? {
+        level.constraints.timeLimit ?? (level.objective.type == .surviveTime ? level.objective.targetValue : nil)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(level.title)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                Spacer()
+                Text(level.difficulty.rawValue.capitalized)
+                    .font(.caption.bold())
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule().fill(Color.accentColor.opacity(0.18))
+                    )
+            }
+
+            Text(objectiveText)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.secondary)
+                .multilineTextAlignment(.leading)
+
+            if moveLimit != nil || timeLimit != nil {
+                Divider().opacity(0.2)
+                HStack(spacing: 16) {
+                    if let moveLimit {
+                        Label {
+                            Text("Moves \(bridge.movesUsed)/\(moveLimit)")
+                        } icon: {
+                            Image(systemName: "figure.walk")
+                        }
+                        .font(.caption.bold())
+                    }
+
+                    if let timeLimit, let remaining = bridge.timeRemaining {
+                        Label {
+                            Text(formattedTime(remaining, total: timeLimit))
+                        } icon: {
+                            Image(systemName: "clock")
+                        }
+                        .font(.caption.bold())
+                    }
+
+                    if bridge.linesCleared > 0 {
+                        Label {
+                            Text("Lines \(bridge.linesCleared)")
+                        } icon: {
+                            Image(systemName: "line.3.horizontal.decrease")
+                        }
+                        .font(.caption.bold())
+                    }
+                }
+                .foregroundStyle(Color.secondary)
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.12), radius: 20, x: 0, y: 10)
+    }
+
+    private func formattedTime(_ remaining: Int, total: Int) -> String {
+        let minutes = remaining / 60
+        let seconds = remaining % 60
+        let totalMinutes = total / 60
+        return String(format: "%02d:%02d / %02d:%02d", minutes, seconds, totalMinutes, total % 60)
+    }
+}
+
+private struct LevelOutcomeCard: View {
+    let title: String
+    let message: String
+    let stars: Int?
+    let summary: LevelSessionSummary?
+    let primaryTitle: String
+    let primaryAction: () -> Void
+    let secondaryTitle: String?
+    let secondaryAction: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Text(title)
+                .font(.system(size: 24, weight: .heavy, design: .rounded))
+
+            if let stars {
+                HStack(spacing: 10) {
+                    ForEach(0..<3, id: \.self) { index in
+                        Image(systemName: index < stars ? "star.fill" : "star")
+                            .foregroundStyle(index < stars ? Color.yellow : Color.gray.opacity(0.4))
+                            .font(.system(size: 26, weight: .bold))
+                    }
+                }
+            }
+
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(Color.secondary)
+                .multilineTextAlignment(.center)
+
+            if let summary {
+                Divider()
+                    .opacity(0.15)
+
+                VStack(spacing: 8) {
+                    HStack {
+                        Label("Score", systemImage: "medal.fill")
+                            .font(.caption.bold())
+                        Spacer()
+                        Text("\(summary.score)")
+                            .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    }
+                    if let remainingMoves = summary.remainingMoves {
+                        HStack {
+                            Label("Moves Remaining", systemImage: "figure.walk")
+                                .font(.caption.bold())
+                            Spacer()
+                            Text("\(remainingMoves)")
+                                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                        }
+                    }
+                    if let timeRemaining = summary.timeRemaining {
+                        HStack {
+                            Label("Time", systemImage: "clock")
+                                .font(.caption.bold())
+                            Spacer()
+                            Text(timeString(timeRemaining))
+                                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                        }
+                    }
+                }
+            }
+
+            Button(action: primaryAction) {
+                Text(primaryTitle)
+                    .font(.headline.bold())
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.accentColor)
+                    .foregroundStyle(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+
+            if let secondaryTitle, let secondaryAction {
+                Button(action: secondaryAction) {
+                    Text(secondaryTitle)
+                        .font(.headline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.clear)
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+        }
+        .padding(28)
+        .frame(maxWidth: 360)
+        .background(
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .stroke(Color.white.opacity(0.14), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.25), radius: 30, x: 0, y: 18)
+        .padding(.horizontal, 24)
+    }
+
+    private func timeString(_ seconds: Int) -> String {
+        let minutes = seconds / 60
+        let remainder = seconds % 60
+        return String(format: "%02d:%02d", minutes, remainder)
+    }
+}
 
 private struct FragmentEffect: Identifiable {
     let id = UUID()

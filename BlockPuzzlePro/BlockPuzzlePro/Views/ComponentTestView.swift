@@ -5,7 +5,7 @@ import SwiftUI
 /// Test view to validate all components work together
 struct ComponentTestView: View {
     
-    @StateObject private var gameEngine = GameEngine(gameMode: .grid10x10)
+    @StateObject private var gameEngine = GameEngine(gameMode: .classic)
     @StateObject private var blockFactory = BlockFactory()
     @StateObject private var dragController = DragController()
     @StateObject private var deviceManager = DeviceManager()

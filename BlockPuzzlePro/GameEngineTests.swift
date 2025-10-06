@@ -6,7 +6,7 @@ struct GameEngineTests {
 
     @Test("New game resets state")
     func newGameResetsState() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         // Fill one cell
         let pos = try #require(GridPosition(row: 0, column: 0, gridSize: engine.gridSize))
         _ = engine.placeBlocks(at: [pos], color: .red)
@@ -29,7 +29,7 @@ struct GameEngineTests {
 
     @Test("Place a simple block succeeds")
     func placeSimpleBlock() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
         let p = try #require(GridPosition(row: 3, column: 3, gridSize: engine.gridSize))
         let ok = engine.placeBlocks(at: [p], color: .blue)
@@ -39,7 +39,7 @@ struct GameEngineTests {
 
     @Test("Clears a completed row")
     func clearsCompletedRow() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
         let row = 2
         var positions: [GridPosition] = []
@@ -60,7 +60,7 @@ struct GameEngineTests {
 
     @Test("Clears a completed column")
     func clearsCompletedColumn() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
         let column = 3
         var positions: [GridPosition] = []
@@ -81,7 +81,7 @@ struct GameEngineTests {
 
     @Test("Clears simultaneous row and column")
     func clearsSimultaneousRowAndColumn() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
         let targetRow = 4
         let targetColumn = 5
@@ -120,7 +120,7 @@ struct GameEngineTests {
 
     @Test("Multiple rows clear simultaneously")
     func clearsMultipleRows() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
         let row1 = 1
         let row2 = 3
@@ -155,7 +155,7 @@ struct GameEngineTests {
 
     @Test("No partial line clears")
     func noPartialLineClears() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
         let row = 2
 
@@ -179,7 +179,7 @@ struct GameEngineTests {
 
     @Test("Cleared spaces immediately available")
     func clearedSpacesImmediatelyAvailable() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
         let row = 5
 
@@ -210,7 +210,7 @@ struct GameEngineTests {
 
     @Test("Active line clears tracking")
     func activeLineClearsTracking() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
 
         // Initially no active clears
@@ -238,7 +238,7 @@ struct GameEngineTests {
 
     @Test("Placement scoring adds base cell points")
     func placementScoringAddsBasePoints() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
 
         let positions = [
@@ -261,7 +261,7 @@ struct GameEngineTests {
 
     @Test("Single line clear awards correct bonus")
     func singleLineClearAwardsCorrectBonus() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
 
         let targetRow = 4
@@ -288,7 +288,7 @@ struct GameEngineTests {
 
     @Test("Simultaneous multi-line clear uses exponential bonus")
     func simultaneousMultiLineClearBonus() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
 
         let column = engine.gridSize - 1
@@ -333,7 +333,7 @@ struct GameEngineTests {
 
     @Test("High score updates and persists across sessions")
     func highScorePersistsAcrossGames() async throws {
-        let engine = GameEngine(gameMode: .grid10x10)
+        let engine = GameEngine(gameMode: .classic)
         engine.startNewGame()
 
         let position = try #require(GridPosition(row: 0, column: 0, gridSize: engine.gridSize))

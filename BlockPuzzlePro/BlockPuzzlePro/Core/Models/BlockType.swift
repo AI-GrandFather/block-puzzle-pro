@@ -4,7 +4,7 @@ import SpriteKit
 // MARK: - Block Type Model
 
 /// Defines the different types of blocks available in the game
-enum BlockType: String, CaseIterable, Identifiable {
+enum BlockType: String, CaseIterable, Identifiable, Codable {
     case single = "single"                 // 1x1 block
     case horizontal = "horizontal"         // 1x2 horizontal domino
     case vertical = "vertical"             // 2x1 vertical domino
@@ -233,6 +233,9 @@ class BlockFactory: ObservableObject {
     /// Remember the previous tray selection to avoid repetition
     private var lastTrayTypes: Set<BlockType> = []
 
+    /// Optional restriction applied in curated modes (e.g., levels)
+    private var allowedTypes: [BlockType]? = nil
+
     /// Random generator for block and color selection
     private var generator = SystemRandomNumberGenerator()
     
@@ -273,6 +276,12 @@ class BlockFactory: ObservableObject {
         refillTray()
     }
 
+    /// Restrict the factory to a subset of pieces. Passing nil restores the full catalogue.
+    func configureAllowedTypes(_ types: [BlockType]?) {
+        allowedTypes = types
+        refillTray()
+    }
+
     /// Legacy API: behave like consuming a block so tray only refreshes when empty
     func regenerateBlock(at index: Int) {
         consumeBlock(at: index)
@@ -306,10 +315,14 @@ class BlockFactory: ObservableObject {
     }
 
     private func pickTrayTypes() -> [BlockType] {
-        var pool = BlockType.allCases.shuffled(using: &generator)
+        var pool = (allowedTypes ?? BlockType.allCases).shuffled(using: &generator)
+
+        if pool.isEmpty {
+            pool = BlockType.allCases.shuffled(using: &generator)
+        }
 
         if pool.count < traySize {
-            return Array(repeating: .single, count: traySize)
+            return (0..<traySize).map { pool[$0 % pool.count] }
         }
 
         var selected = Array(pool.prefix(traySize))

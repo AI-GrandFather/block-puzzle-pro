@@ -18,7 +18,7 @@ final class DragDropTests: XCTestCase {
     override func setUp() {
         super.setUp()
         
-        gameEngine = GameEngine(gameMode: .grid10x10)
+        gameEngine = GameEngine(gameMode: .classic)
         deviceManager = DeviceManager()
         placementEngine = PlacementEngine(gameEngine: gameEngine)
         dragController = DragController(deviceManager: deviceManager)

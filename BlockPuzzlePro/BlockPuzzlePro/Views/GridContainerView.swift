@@ -109,7 +109,7 @@ struct GridCellView: View {
 
 #Preview {
     GridContainerView(
-        gameEngine: GameEngine(gameMode: .grid10x10),
+        gameEngine: GameEngine(gameMode: .classic),
         dragController: DragController(deviceManager: DeviceManager()),
         availableSize: CGSize(width: 300, height: 300)
     )
