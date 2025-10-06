@@ -75,6 +75,26 @@ struct DraggableBlockView: View {
         )
     }
 
+    /// Vicinity touch expansion - extends hit area around block for easier tapping
+    /// Research: 12-16pt expansion is standard for touch targets on mobile
+    private var vicinityTouchExpansion: CGFloat {
+        // Adaptive expansion based on block size
+        // Smaller blocks get more help, larger blocks less
+        let blockArea = baseBlockSize.width * baseBlockSize.height
+        let normalizedArea = blockArea / (cellSize * cellSize) // Blocks relative to single cell
+
+        if normalizedArea < 4 {
+            // Small blocks (1-3 cells): 16pt expansion
+            return 16
+        } else if normalizedArea < 9 {
+            // Medium blocks (4-8 cells): 14pt expansion
+            return 14
+        } else {
+            // Large blocks (9+ cells): 12pt expansion
+            return 12
+        }
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -125,6 +145,11 @@ struct DraggableBlockView: View {
         .rotationEffect(.degrees(dragRotation))
         .frame(width: containerSize, height: containerSize, alignment: .center)
         .background(containerGeometry)
+        // VICINITY TOUCH: Expand hit area around piece for easier selection
+        .contentShape(
+            Rectangle()
+                .inset(by: -vicinityTouchExpansion)
+        )
         .onLongPressGesture(minimumDuration: 0.2) { isPressing in
             let animationDuration: Double = 0.15
             withAnimation(.easeInOut(duration: animationDuration)) {
