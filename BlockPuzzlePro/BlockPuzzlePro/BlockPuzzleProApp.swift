@@ -145,6 +145,7 @@ private enum MenuRoute: Hashable {
     case level(Int)
     case dailyPuzzle
     case puzzle(String)
+    case zenMode
 }
 
 private struct MainMenuNavigationHost: View {
@@ -172,6 +173,7 @@ private struct MainMenuNavigationHost: View {
                 onTimedModes: openTimedModes,
                 onLevels: openLevelMenu,
                 onDailyPuzzle: openDailyPuzzle,
+                onZenMode: openZenMode,
                 onOpenSettings: { showSettings = true },
                 onOpenAccount: { showAccount = true }
             )
@@ -233,6 +235,8 @@ private struct MainMenuNavigationHost: View {
                             path.append(.puzzle(puzzle.id.formattedDate))
                         }
                     }
+                case .zenMode:
+                    ZenModeView()
                 }
             }
             .sheet(isPresented: $showSettings) {
@@ -281,6 +285,10 @@ private struct MainMenuNavigationHost: View {
         path = [.dailyPuzzle]
     }
 
+    private func openZenMode() {
+        path = [.zenMode]
+    }
+
     private func returnToModeSelection(for mode: GameMode) {
         switch mode {
         case .classic:
@@ -326,6 +334,7 @@ private struct MainMenuView: View {
     let onTimedModes: () -> Void
     let onLevels: () -> Void
     let onDailyPuzzle: () -> Void
+    let onZenMode: () -> Void
     let onOpenSettings: () -> Void
     let onOpenAccount: () -> Void
 
@@ -379,6 +388,11 @@ private struct MainMenuView: View {
                         title: "Daily Challenges",
                         gradient: [Color(red: 0.99, green: 0.68, blue: 0.34), Color(red: 0.95, green: 0.5, blue: 0.18)],
                         action: onDailyPuzzle
+                    )
+                    GradientMenuButton(
+                        title: "🧘 Zen Mode",
+                        gradient: [Color(red: 0.53, green: 0.76, blue: 0.89), Color(red: 0.36, green: 0.87, blue: 0.79)],
+                        action: onZenMode
                     )
                 }
                 .padding(.horizontal, 28)

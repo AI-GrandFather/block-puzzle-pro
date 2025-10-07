@@ -82,10 +82,12 @@ struct GameConfig {
     }
 
     // Device capability detection
+    @MainActor
     static var isProMotionDevice: Bool {
         return UIScreen.main.maximumFramesPerSecond >= 120
     }
 
+    @MainActor
     static var preferredMaxFrameRate: Int {
         return isProMotionDevice ? preferredFrameRate : fallbackFrameRate
     }

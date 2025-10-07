@@ -155,28 +155,39 @@ private extension DailyPuzzleManager {
 
         switch category {
         case .clearInOne:
+            // Easy: 3 moves, Medium: 2 moves, Hard+: 1 move
+            let moves = difficulty == .easy ? 3 : (difficulty == .medium ? 2 : 1)
             objective = PuzzleObjective(type: .clearBoard, value: 1)
-            moveLimit = 1
+            moveLimit = moves
             timeLimit = nil
-            parMoves = 1
+            parMoves = moves
             parTime = 60
         case .patternMatch:
-            objective = PuzzleObjective(type: .clearLines, value: 4)
-            moveLimit = 6
+            // Clear 3-5 lines based on difficulty
+            let lines = difficulty == .easy ? 3 : (difficulty == .medium ? 4 : 5)
+            let moves = difficulty == .easy ? 8 : (difficulty == .medium ? 6 : 5)
+            objective = PuzzleObjective(type: .clearLines, value: lines)
+            moveLimit = moves
             timeLimit = nil
-            parMoves = 4
+            parMoves = max(moves - 2, 3)
             parTime = 180
         case .blockBreaker:
-            objective = PuzzleObjective(type: .reachScore, value: 2000)
-            moveLimit = 8
+            // Realistic scoring: Easy: 150pts (~10 moves), Medium: 250pts, Hard: 400pts
+            let score = difficulty == .easy ? 150 : (difficulty == .medium ? 250 : 400)
+            let moves = difficulty == .easy ? 12 : (difficulty == .medium ? 18 : 30)
+            objective = PuzzleObjective(type: .reachScore, value: score)
+            moveLimit = moves
             timeLimit = nil
-            parMoves = 6
+            parMoves = max(moves - 3, 8)
             parTime = 240
         case .comboBuilder:
-            objective = PuzzleObjective(type: .clearLines, value: 10)
-            moveLimit = 10
+            // Clear 5-10 lines based on difficulty
+            let lines = difficulty == .easy ? 5 : (difficulty == .medium ? 7 : 10)
+            let moves = difficulty == .easy ? 12 : (difficulty == .medium ? 15 : 20)
+            objective = PuzzleObjective(type: .clearLines, value: lines)
+            moveLimit = moves
             timeLimit = nil
-            parMoves = 8
+            parMoves = max(moves - 4, 8)
             parTime = 260
         case .survival:
             objective = PuzzleObjective(type: .surviveTime, value: Int(difficulty.targetSolveTime))
@@ -185,10 +196,13 @@ private extension DailyPuzzleManager {
             parMoves = 0
             parTime = difficulty.targetSolveTime
         case .constraint:
-            objective = PuzzleObjective(type: .clearLines, value: 6)
-            moveLimit = 6
+            // Adjust constraint difficulty too
+            let lines = difficulty == .easy ? 4 : (difficulty == .medium ? 5 : 6)
+            let moves = difficulty == .easy ? 8 : (difficulty == .medium ? 7 : 6)
+            objective = PuzzleObjective(type: .clearLines, value: lines)
+            moveLimit = moves
             timeLimit = nil
-            parMoves = 5
+            parMoves = max(moves - 1, 4)
             parTime = 200
         }
 
