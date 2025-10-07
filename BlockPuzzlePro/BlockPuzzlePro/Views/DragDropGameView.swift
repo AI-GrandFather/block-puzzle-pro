@@ -931,17 +931,31 @@ struct DragDropGameView: View {
         // Use the actual grid frame from GeometryReader
         guard gridFrame != .zero else { return }
 
+        // Calculate visual touch location (finger + lift offset)
+        let visualTouchPoint = CGPoint(
+            x: dragController.currentTouchLocation.x,
+            y: dragController.currentTouchLocation.y + dragController.liftOffsetY
+        )
+
+        // Don't show preview if visual piece is below grid (in tray area)
+        // Add some margin (50pt) to prevent flickering at grid bottom
+        let gridBottomWithMargin = gridFrame.maxY + 50
+        if visualTouchPoint.y > gridBottomWithMargin {
+            placementEngine.clearPreview()
+            return
+        }
+
         placementEngine.updatePreview(
             blockPattern: blockPattern,
             blockOrigin: blockOrigin,
-            touchPoint: dragController.currentTouchLocation,
+            touchPoint: visualTouchPoint,  // Use visual position, not raw finger
             touchOffset: dragController.dragTouchOffset,
             gridFrame: gridFrame,
             cellSize: gridCellSize,
             gridSpacing: gridSpacing
         )
-        DebugLog.trace("🧮 updatePlacementPreview blockIndex=\(dragController.currentBlockIndex ?? -1) origin=\(blockOrigin) touch=\(dragController.currentTouchLocation) touchOffset=\(dragController.dragTouchOffset) gridFrame=\(gridFrame)")
-        
+        DebugLog.trace("🧮 updatePlacementPreview blockIndex=\(dragController.currentBlockIndex ?? -1) origin=\(blockOrigin) visualTouch=\(visualTouchPoint) rawTouch=\(dragController.currentTouchLocation) liftOffset=\(dragController.liftOffsetY) gridFrame=\(gridFrame)")
+
         // Removed the following line as per instructions:
         // dragController.setDropValidity(placementEngine.isCurrentPreviewValid)
     }

@@ -194,7 +194,7 @@ class DragController: ObservableObject {
             x: position.x - touchOffset.width,
             y: position.y - touchOffset.height
         )
-        currentTouchLocation = position
+        currentTouchLocation = position  // Keep raw finger for reference
 
         // Start visual feedback immediately
         let springResponse = isProMotionDisplay ? 0.15 : 0.2

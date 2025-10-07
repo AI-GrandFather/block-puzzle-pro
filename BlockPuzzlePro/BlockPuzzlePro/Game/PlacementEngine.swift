@@ -343,11 +343,9 @@ final class PlacementEngine: ObservableObject {
         let originX = gridFrame.minX + gridSpacing
         let originY = gridFrame.minY + gridSpacing
 
-        let candidateOriginX = touchPoint.x - touchOffset.width
-        let candidateOriginY = touchPoint.y - touchOffset.height
-
-        let blockOriginX = candidateOriginX.isFinite ? candidateOriginX : blockOrigin.x
-        let blockOriginY = candidateOriginY.isFinite ? candidateOriginY : blockOrigin.y
+        // Use blockOrigin directly - it already includes lift offset from DragController
+        let blockOriginX = blockOrigin.x
+        let blockOriginY = blockOrigin.y
 
         let adjustedX = blockOriginX - originX + (cellSpan / 2)
         let adjustedY = blockOriginY - originY + (cellSpan / 2)
