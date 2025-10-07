@@ -358,16 +358,19 @@ class PlacementAnimator: ObservableObject {
     private func getOptimizedSettings() -> (reduceMotion: Bool, preferredFrameRate: Int) {
         let reduceMotion = UIAccessibility.isReduceMotionEnabled
         let preferredFrameRate: Int
-        
+
+        // Check for ProMotion display (120Hz capable)
+        let isProMotion = UIScreen.main.maximumFramesPerSecond >= 120
+
         switch deviceManager.deviceType {
         case .iPhone:
-            preferredFrameRate = reduceMotion ? 30 : 60
+            preferredFrameRate = reduceMotion ? 30 : (isProMotion ? 120 : 60)
         case .iPadMini:
-            preferredFrameRate = reduceMotion ? 30 : 60
+            preferredFrameRate = reduceMotion ? 30 : (isProMotion ? 120 : 60)
         case .iPadRegular, .iPadPro:
-            preferredFrameRate = reduceMotion ? 30 : 60 // Could be 120 on Pro models
+            preferredFrameRate = reduceMotion ? 30 : (isProMotion ? 120 : 60)
         }
-        
+
         return (reduceMotion, preferredFrameRate)
     }
     
