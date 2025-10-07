@@ -75,6 +75,10 @@ class DragController: ObservableObject {
     /// Currently dragged block index (if any)
     @Published var currentBlockIndex: Int? = nil
 
+    /// Visual lift offset (Y-axis) - piece rises when dragged for better visibility
+    /// Default -100pt means piece appears 100pt above finger
+    @Published var liftOffsetY: CGFloat = 0
+
     // MARK: - Gesture Properties
 
     @GestureState private var gestureOffset: CGSize = .zero
@@ -197,6 +201,7 @@ class DragController: ObservableObject {
         withAnimation(.interactiveSpring(response: springResponse, dampingFraction: 0.8)) {
             dragScale = 1.0
             shadowOffset = CGSize(width: 3, height: 6)
+            liftOffsetY = -100  // Lift piece 100pt above finger
         }
 
         // Haptic feedback
@@ -234,10 +239,12 @@ class DragController: ObservableObject {
         os_signpost(.event, log: signpostLog, name: "DragUpdate")
 #endif
 
-        // Update position immediately for smooth preview
+        // Update position using VISUAL position (finger + lift offset)
+        // This ensures placement logic uses where the piece visually appears
+        let visualFingerY = position.y + liftOffsetY
         currentDragPosition = CGPoint(
             x: position.x - touchOffset.width,
-            y: position.y - touchOffset.height
+            y: visualFingerY - touchOffset.height
         )
         dragOffset = CGSize(
             width: position.x - startPosition.x,
@@ -300,9 +307,11 @@ class DragController: ObservableObject {
         )
         logStateTransition(from: oldState, to: dragState)
 
+        // Use VISUAL position (finger + lift) for final placement
+        let visualFingerY = position.y + liftOffsetY
         currentDragPosition = CGPoint(
             x: position.x - touchOffset.width,
-            y: position.y - touchOffset.height
+            y: visualFingerY - touchOffset.height
         )
         dragOffset = CGSize(
             width: position.x - startPosition.x,
@@ -310,8 +319,9 @@ class DragController: ObservableObject {
         )
         currentTouchLocation = position
 
-        // Call drag ended callback immediately
-        onDragEnded?(blockIndex, blockPattern, position)
+        // Call drag ended callback immediately (use visual position)
+        let visualPosition = CGPoint(x: position.x, y: visualFingerY)
+        onDragEnded?(blockIndex, blockPattern, visualPosition)
 
         // Clear dragged pattern immediately to hide floating preview
         // This prevents the green outline from persisting while animations complete
@@ -338,6 +348,7 @@ class DragController: ObservableObject {
             dragRotation = 0.0
             shadowOffset = .zero
             dragOffset = .zero
+            liftOffsetY = 0  // Reset lift offset
         }
 
         // Schedule completion after animation
@@ -417,6 +428,7 @@ class DragController: ObservableObject {
             dragRotation = 0.0
             shadowOffset = .zero
             dragOffset = .zero
+            liftOffsetY = 0  // Reset lift offset
         }
     }
 
@@ -448,6 +460,7 @@ class DragController: ObservableObject {
             dragScale = 1.0
             dragRotation = 0.0
             shadowOffset = .zero
+            liftOffsetY = 0  // Reset lift offset
         }
 
         onInvalidDrop?(blockIndex, blockPattern, startPosition)

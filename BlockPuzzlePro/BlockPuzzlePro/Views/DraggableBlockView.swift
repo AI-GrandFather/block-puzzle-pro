@@ -113,10 +113,12 @@ struct DraggableBlockView: View {
             y: shadowOffset.height
         )
         .offset(dragOffset)
+        .offset(y: isDragged ? dragController.liftOffsetY : 0)  // Apply visual lift
         .zIndex(isDragged ? 1000 : 0)
         .animation(.interactiveSpring(response: 0.15, dampingFraction: 0.8, blendDuration: 0), value: isPressed)
         .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.85, blendDuration: 0), value: blockScale)
         .animation(.linear(duration: 0.016), value: dragRotation)
+        .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.8, blendDuration: 0), value: dragController.liftOffsetY)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint("Drag to place this block on the game board")
