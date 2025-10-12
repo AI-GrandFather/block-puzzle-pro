@@ -39,6 +39,11 @@ claude mcp add --transport http Ref https://api.ref.tools/mcp --header "x-ref-ap
 
 ## Execution Protocol
 
+## Change Documentation Protocol
+- Before starting any new gameplay fix or experiment, search the `docs/` directory (e.g. `drag_fix_attempt_*.md`) and review the existing attempt notes to avoid repeating previously failed approaches.
+- After completing changes, capture the work in a new markdown file within `docs/` summarising the problem, solution, and outcome.
+- Reference the relevant attempt note in updates so future iterations can pick up where the last one left off.
+
 ### Sequential Execution
 1. Execute each prompt file **in numerical order** (01, 02, 03, etc.)
 2. **Complete each phase fully** before moving to the next

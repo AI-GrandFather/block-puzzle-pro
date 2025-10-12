@@ -737,6 +737,8 @@ struct DragDropGameView: View {
         // Drag ended callback
         dragController.onDragEnded = { blockIndex, blockPattern, position in
             DebugLog.trace("🛑 onDragEnded blockIndex=\(blockIndex) position=\(position) state=\(self.dragController.dragState)")
+            // Refresh preview with final finger location before committing placement
+            self.updatePlacementPreview(blockPattern: blockPattern, blockOrigin: self.dragController.currentDragPosition)
             // Commit placement and handle result
             let placementSuccess = self.placementEngine.commitPlacement(blockPattern: blockPattern)
 
@@ -1680,7 +1682,7 @@ private struct LevelHUDBadge: View {
                                     .font(.caption.weight(.bold).monospacedDigit())
                                     .foregroundStyle(Color.white.opacity(0.85))
                             }
-                            if let timeLimit, let remaining = bridge.timeRemaining {
+                            if timeLimit != nil, let remaining = bridge.timeRemaining {
                                 Text(quickTime(remaining))
                                     .font(.caption.weight(.bold).monospacedDigit())
                                     .foregroundStyle(Color.white.opacity(0.85))
@@ -1710,7 +1712,7 @@ private struct LevelHUDBadge: View {
                             if let moveLimit {
                                 statBadge(icon: "figure.walk", value: "\(bridge.movesUsed)/\(moveLimit)")
                             }
-                            if let timeLimit, let remaining = bridge.timeRemaining {
+                            if timeLimit != nil, let remaining = bridge.timeRemaining {
                                 statBadge(icon: "clock.fill", value: quickTime(remaining))
                             }
                             if bridge.linesCleared > 0 {

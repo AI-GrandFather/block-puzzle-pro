@@ -158,7 +158,16 @@ struct DraggableBlockView: View {
                 isPressed = isPressing
             }
         } perform: {}
-        .gesture(dragGesture)
+        .modifier(DragGestureModifier(
+            blockIndex: blockIndex,
+            blockPattern: blockPattern,
+            blockFrame: blockFrame,
+            baseBlockSize: baseBlockSize,
+            dragController: dragController,
+            didSendDragBegan: $didSendDragBegan,
+            dragGestureID: $dragGestureID,
+            isPressed: $isPressed
+        ))
     }
 
     private var containerGeometry: some View {
@@ -173,61 +182,6 @@ struct DraggableBlockView: View {
                     refreshBlockFrame()
                 }
         }
-    }
-
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 1, coordinateSpace: .global)
-            .onChanged { value in
-                if !didSendDragBegan && dragController.dragState == .idle {
-                    DebugLog.trace("🎮 Block \(blockIndex): Starting drag, controller state: \(dragController.dragState)")
-                    didSendDragBegan = true
-                    dragGestureID = UUID()
-
-                    let touchOffset: CGSize
-                    if blockFrame != .zero {
-                        touchOffset = CGSize(
-                            width: value.startLocation.x - blockFrame.minX,
-                            height: value.startLocation.y - blockFrame.minY
-                        )
-                    } else {
-                        touchOffset = .zero
-                    }
-
-                    DebugLog.trace("🧭 Block \(blockIndex): startLocation=\(value.startLocation) blockFrame.origin=\(blockFrame.origin) touchOffset=\(touchOffset)")
-
-                    dragController.startDrag(
-                        blockIndex: blockIndex,
-                        blockPattern: blockPattern,
-                        at: value.startLocation,
-                        touchOffset: touchOffset
-                    )
-
-                } else if !didSendDragBegan {
-                    DebugLog.trace("🚫 Block \(blockIndex): Cannot start drag, controller state: \(dragController.dragState)")
-                }
-
-                if dragController.isBlockDragged(blockIndex) {
-                    dragController.updateDrag(to: value.location)
-                    DebugLog.trace("📍 Block \(blockIndex): updateDrag location=\(value.location) currentDragPosition=\(dragController.currentDragPosition) touch=\(dragController.currentTouchLocation)")
-                }
-            }
-            .onEnded { value in
-                DebugLog.trace("🏁 Block \(blockIndex): Gesture ended, isBlockDragged: \(dragController.isBlockDragged(blockIndex))")
-
-                if dragController.isBlockDragged(blockIndex) {
-                    DebugLog.trace("📍 Block \(blockIndex): Calling endDrag")
-                    dragController.endDrag(at: value.location)
-                } else {
-                    DebugLog.trace("⏭️ Block \(blockIndex): Skipping endDrag - not actively dragged")
-                }
-
-                didSendDragBegan = false
-                dragGestureID = UUID()
-
-                withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.8)) {
-                    isPressed = false
-                }
-            }
     }
 
     private var dragOverlay: some View {
@@ -283,6 +237,140 @@ struct DraggableBlockView: View {
         )
 
         blockFrame = CGRect(origin: origin, size: displaySize)
+    }
+}
+
+// MARK: - Drag Gesture Modifier (Option D: ProMotion-Optimized)
+
+/// ViewModifier that applies the appropriate drag gesture based on iOS version
+struct DragGestureModifier: ViewModifier {
+    let blockIndex: Int
+    let blockPattern: BlockPattern
+    let blockFrame: CGRect
+    let baseBlockSize: CGSize
+    @ObservedObject var dragController: DragController
+    @Binding var didSendDragBegan: Bool
+    @Binding var dragGestureID: UUID
+    @Binding var isPressed: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.gesture(
+                ProMotionDragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onBegan { location, startLocation in
+                        handleDragBegan(location: location, startLocation: startLocation)
+                    }
+                    .onChanged { location, translation, startLocation in
+                        handleDragChanged(location: location)
+                    }
+                    .onEnded { location, translation, startLocation in
+                        handleDragEnded(location: location)
+                    }
+                    .onCancelled {
+                        handleDragCancelled()
+                    }
+            )
+        } else {
+            content.gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { value in
+                        if !didSendDragBegan {
+                            handleDragBegan(location: value.location, startLocation: value.startLocation)
+                        }
+                        handleDragChanged(location: value.location)
+                    }
+                    .onEnded { value in
+                        handleDragEnded(location: value.location)
+                    }
+            )
+        }
+    }
+
+    // MARK: - Gesture Handlers
+
+    private func handleDragBegan(location: CGPoint, startLocation: CGPoint) {
+        guard !didSendDragBegan && dragController.dragState == .idle else {
+            DebugLog.trace("🚫 Block \(blockIndex): Cannot start drag, already began or controller busy")
+            return
+        }
+
+        DebugLog.trace("🎮 Block \(blockIndex): Starting drag, controller state: \(dragController.dragState)")
+        didSendDragBegan = true
+        dragGestureID = UUID()
+
+        let touchOffset: CGSize = resolvedFullScaleOffset(startLocation: startLocation)
+
+        DebugLog.trace("🧭 Block \(blockIndex): startLocation=\(startLocation) blockFrame.origin=\(blockFrame.origin) touchOffset=\(touchOffset)")
+
+        dragController.startDrag(
+            blockIndex: blockIndex,
+            blockPattern: blockPattern,
+            at: startLocation,
+            touchOffset: touchOffset
+        )
+
+        // Prime controller state so the first frame already reflects the correct position
+        dragController.updateDrag(to: startLocation)
+    }
+
+    private func handleDragChanged(location: CGPoint) {
+        guard didSendDragBegan, dragController.isBlockDragged(blockIndex) else {
+            return
+        }
+
+        dragController.updateDrag(to: location)
+        DebugLog.trace("📍 Block \(blockIndex): updateDrag location=\(location) currentDragPosition=\(dragController.currentDragPosition)")
+    }
+
+    private func handleDragEnded(location: CGPoint) {
+        DebugLog.trace("🏁 Block \(blockIndex): Gesture ended, isBlockDragged: \(dragController.isBlockDragged(blockIndex))")
+
+        if dragController.isBlockDragged(blockIndex) {
+            DebugLog.trace("📍 Block \(blockIndex): Calling endDrag")
+            dragController.endDrag(at: location)
+        } else {
+            DebugLog.trace("⏭️ Block \(blockIndex): Skipping endDrag - not actively dragged")
+        }
+
+        didSendDragBegan = false
+        dragGestureID = UUID()
+
+        withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.8)) {
+            isPressed = false
+        }
+    }
+
+    private func handleDragCancelled() {
+        DebugLog.trace("❌ Block \(blockIndex): Gesture cancelled")
+
+        if dragController.isBlockDragged(blockIndex) {
+            dragController.cancelDrag()
+        }
+
+        didSendDragBegan = false
+        dragGestureID = UUID()
+
+        withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.8)) {
+            isPressed = false
+        }
+    }
+
+    private func resolvedFullScaleOffset(startLocation: CGPoint) -> CGSize {
+        guard blockFrame.width > 0, blockFrame.height > 0,
+              baseBlockSize.width > 0, baseBlockSize.height > 0 else {
+            // Fallback: center offset so piece appears under the finger
+            return CGSize(width: baseBlockSize.width / 2, height: baseBlockSize.height / 2)
+        }
+
+        let normalizedX = (startLocation.x - blockFrame.minX) / blockFrame.width
+        let normalizedY = (startLocation.y - blockFrame.minY) / blockFrame.height
+        let relativeX = max(0, min(1, normalizedX))
+        let relativeY = max(0, min(1, normalizedY))
+
+        return CGSize(
+            width: relativeX * baseBlockSize.width,
+            height: relativeY * baseBlockSize.height
+        )
     }
 }
 
