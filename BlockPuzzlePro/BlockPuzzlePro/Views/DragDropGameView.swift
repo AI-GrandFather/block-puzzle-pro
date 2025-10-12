@@ -738,7 +738,11 @@ struct DragDropGameView: View {
         dragController.onDragEnded = { blockIndex, blockPattern, position in
             DebugLog.trace("🛑 onDragEnded blockIndex=\(blockIndex) position=\(position) state=\(self.dragController.dragState)")
             // Refresh preview with final finger location before committing placement
-            self.updatePlacementPreview(blockPattern: blockPattern, blockOrigin: self.dragController.currentDragPosition)
+            self.updatePlacementPreview(
+                blockPattern: blockPattern,
+                blockOrigin: self.dragController.currentDragPosition,
+                skipMarginCheck: true
+            )
             // Commit placement and handle result
             let placementSuccess = self.placementEngine.commitPlacement(blockPattern: blockPattern)
 
@@ -929,7 +933,11 @@ struct DragDropGameView: View {
 
     // MARK: - Placement Engine Integration
     
-    private func updatePlacementPreview(blockPattern: BlockPattern, blockOrigin: CGPoint) {
+    private func updatePlacementPreview(
+        blockPattern: BlockPattern,
+        blockOrigin: CGPoint,
+        skipMarginCheck: Bool = false
+    ) {
         // Use the actual grid frame from GeometryReader
         guard gridFrame != .zero else { return }
 
@@ -942,7 +950,7 @@ struct DragDropGameView: View {
         // Don't show preview if visual piece is below grid (in tray area)
         // Add some margin (50pt) to prevent flickering at grid bottom
         let gridBottomWithMargin = gridFrame.maxY + 50
-        if visualTouchPoint.y > gridBottomWithMargin {
+        if !skipMarginCheck && visualTouchPoint.y > gridBottomWithMargin {
             placementEngine.clearPreview()
             return
         }

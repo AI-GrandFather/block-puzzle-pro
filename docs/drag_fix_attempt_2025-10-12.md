@@ -15,6 +15,7 @@
 
 3. **Refresh preview on drop**  
    - `Views/DragDropGameView.swift` re-runs `updatePlacementPreview` when the drag ends, ensuring the placement engine validates the final location even if the last `.onChanged` fired below the grid margin.
+   - Added a drop-specific path that bypasses the tray margin guard so valid releases close to the board edge don't immediately clear the preview.
 
 ## Expected Outcomes
 - Blocks track the finger smoothly from the very first drag frame on ProMotion devices.
