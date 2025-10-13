@@ -70,6 +70,12 @@ final class PlacementEngine: ObservableObject {
     /// Cached last base grid position calculated from drag
     private var lastBaseGridPosition: GridPosition?
 
+    /// Most recent valid preview base position (used for fallback placement)
+    private var lastValidBaseGridPosition: GridPosition?
+
+    /// Cached preview positions for the most recent valid preview
+    private var lastValidPreviewPositions: [GridPosition] = []
+
     // MARK: - Initialization
 
     init(gameEngine: GameEngine) {
@@ -215,10 +221,6 @@ final class PlacementEngine: ObservableObject {
     ) {
         guard let gameEngine = gameEngine else { return }
 
-        gameEngine.clearPreviews()
-        previewPositions.removeAll()
-        isCurrentPreviewValid = false
-
 #if DEBUG
         logger.debug("updatePreview origin=(x:\(blockOrigin.x, privacy: .public), y:\(blockOrigin.y, privacy: .public)) touch=(x:\(touchPoint.x, privacy: .public), y:\(touchPoint.y, privacy: .public)) offset=(dx:\(touchOffset.width, privacy: .public), dy:\(touchOffset.height, privacy: .public)) grid=(x:\(gridFrame.origin.x, privacy: .public), y:\(gridFrame.origin.y, privacy: .public), w:\(gridFrame.size.width, privacy: .public), h:\(gridFrame.size.height, privacy: .public))")
 #endif
@@ -251,6 +253,14 @@ final class PlacementEngine: ObservableObject {
             return
         }
 
+        if let lastBase = lastBaseGridPosition, lastBase == baseGridPosition {
+            return
+        }
+
+        gameEngine.clearPreviews()
+        previewPositions.removeAll()
+        isCurrentPreviewValid = false
+
         lastBaseGridPosition = baseGridPosition
 
         switch validatePlacement(blockPattern: blockPattern, at: baseGridPosition) {
@@ -258,6 +268,8 @@ final class PlacementEngine: ObservableObject {
             previewPositions = positions
             isCurrentPreviewValid = true
             gameEngine.setPreview(at: positions, color: blockPattern.color)
+            lastValidBaseGridPosition = baseGridPosition
+            lastValidPreviewPositions = positions
 #if DEBUG
             logger.debug("Preview valid: base=\(baseGridPosition) positions=\(positions)")
 #endif
@@ -277,13 +289,22 @@ final class PlacementEngine: ObservableObject {
         previewPositions.removeAll()
         isCurrentPreviewValid = false
         lastBaseGridPosition = nil
+        lastValidBaseGridPosition = nil
+        lastValidPreviewPositions = []
     }
 
     /// Attempt to place a block at the current preview position
     func commitPlacement(blockPattern: BlockPattern) -> Bool {
-        guard let gameEngine = gameEngine,
-              isCurrentPreviewValid,
-              !previewPositions.isEmpty else {
+        guard let gameEngine = gameEngine else { return false }
+
+        var positionsToPlace: [GridPosition] = []
+
+        if isCurrentPreviewValid, !previewPositions.isEmpty {
+            positionsToPlace = previewPositions
+        } else if let fallbackBase = lastValidBaseGridPosition,
+                  case .valid(let fallbackPositions) = validatePlacement(blockPattern: blockPattern, at: fallbackBase) {
+            positionsToPlace = fallbackPositions
+        } else {
             logger.warning("Cannot commit placement: invalid preview state")
             clearPreview()
             return false
@@ -291,7 +312,7 @@ final class PlacementEngine: ObservableObject {
 
         // Double-check that all preview positions are still available
         // This prevents race conditions between preview validation and commit
-        for position in previewPositions {
+        for position in positionsToPlace {
             if !gameEngine.canPlaceAt(position: position) {
                 logger.warning("Cannot commit placement: position \(position) is no longer available")
                 clearPreview()
@@ -299,10 +320,12 @@ final class PlacementEngine: ObservableObject {
             }
         }
 
-        let placedCellCount = previewPositions.count
-        let success = gameEngine.placeBlocks(at: previewPositions, color: blockPattern.color)
+        let placedCellCount = positionsToPlace.count
+        let success = gameEngine.placeBlocks(at: positionsToPlace, color: blockPattern.color)
 
         if success {
+            previewPositions = positionsToPlace
+            isCurrentPreviewValid = true
             logger.info("Successfully placed \(blockPattern.type.displayName) at \(self.previewPositions.count) positions")
             let lineClearResult = gameEngine.processCompletedLines()
             if !lineClearResult.isEmpty {
@@ -313,7 +336,7 @@ final class PlacementEngine: ObservableObject {
             }
 
             let context = PlacementCommitContext(
-                positions: previewPositions,
+                positions: positionsToPlace,
                 lineClearResult: lineClearResult,
                 blockPattern: blockPattern
             )
