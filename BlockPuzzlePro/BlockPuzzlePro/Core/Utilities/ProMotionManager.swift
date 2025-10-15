@@ -13,8 +13,10 @@ struct DisplayCapabilities {
     let supportsProMotion: Bool
     let preferredFramesPerSecond: Int
 
-    static var current: DisplayCapabilities {
-        let maxFPS = UIScreen.main.maximumFramesPerSecond
+    nonisolated(unsafe) static var current: DisplayCapabilities {
+        let maxFPS = MainActor.assumeIsolated {
+            UIScreen.main.maximumFramesPerSecond
+        }
         return DisplayCapabilities(
             maximumFramesPerSecond: maxFPS,
             supportsProMotion: maxFPS > 60,
@@ -308,7 +310,9 @@ struct PerformanceMonitorView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .onAppear {
             updateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
-                proMotion.recordFrame(timestamp: Date().timeIntervalSince1970)
+                MainActor.assumeIsolated {
+                    ProMotionManager.shared.recordFrame(timestamp: Date().timeIntervalSince1970)
+                }
             }
         }
         .onDisappear {

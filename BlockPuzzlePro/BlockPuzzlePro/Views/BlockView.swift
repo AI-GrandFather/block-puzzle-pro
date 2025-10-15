@@ -142,9 +142,9 @@ struct BlockView: View {
     }
     
     private var gridPattern: some View {
-        Grid {
+        SwiftUI.Grid {
             ForEach(0..<Int(cellSize / 6), id: \.self) { _ in
-                GridRow {
+                SwiftUI.GridRow {
                     ForEach(0..<Int(cellSize / 6), id: \.self) { _ in
                         Rectangle()
                             .fill(Color.white.opacity(0.4))

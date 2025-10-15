@@ -85,6 +85,7 @@
 		8FBD84D52E87C8B600225962 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FBD84D42E87C8B600225962 /* SupabaseService.swift */; };
 		8FBD84D72E87C8B600225962 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FBD84D62E87C8B600225962 /* AuthViewModel.swift */; };
 		8FBD84DA2E87C91E00225962 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 8FBD84D92E87C8F400225962 /* Supabase */; };
+		8FBD84E32E87D00000225962 /* CloudSaveStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FBD84E02E87D00000225962 /* CloudSaveStore.swift */; };
 		8FF31A332E830F2800B882EE /* GameMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FF31A322E830F2800B882EE /* GameMode.swift */; };
 		A50001F72C8A1234000123AB /* BlockPuzzleProApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50001F62C8A1234000123AB /* BlockPuzzleProApp.swift */; };
 		A50001F92C8A1234000123AB /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = A50001F82C8A1234000123AB /* GameScene.sks */; };
@@ -196,6 +197,7 @@
 		8FBD84CC2E87C35200225962 /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
 		8FBD84D42E87C8B600225962 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
 		8FBD84D62E87C8B600225962 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		8FBD84E02E87D00000225962 /* CloudSaveStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSaveStore.swift; sourceTree = "<group>"; };
 		8FBD84E12E87D00000225962 /* GameSavePayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSavePayload.swift; sourceTree = "<group>"; };
 		8FBD84E22E87D00000225962 /* GameSavePayload+Conversions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameSavePayload+Conversions.swift"; sourceTree = "<group>"; };
 		8FE754852E7AD76A0067A8D3 /* GameEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngineTests.swift; sourceTree = "<group>"; };
@@ -485,6 +487,7 @@
 			children = (
 				8FBD84E12E87D00000225962 /* GameSavePayload.swift */,
 				8FBD84E22E87D00000225962 /* GameSavePayload+Conversions.swift */,
+				8FBD84E02E87D00000225962 /* CloudSaveStore.swift */,
 			);
 			path = Cloud;
 			sourceTree = "<group>";
@@ -701,6 +704,7 @@
 				8FBD84D72E87C8B600225962 /* AuthViewModel.swift in Sources */,
 				8F7F23E22E9269AD000C0814 /* UnlockableThemeManager.swift in Sources */,
 				8F7F23E42E9269AD000C0814 /* ThemeManager.swift in Sources */,
+				8FBD84E32E87D00000225962 /* CloudSaveStore.swift in Sources */,
 				8F7F243E2E927203000C0814 /* GameTheme.swift in Sources */,
 				8F27CB4C2E75E170004E6A4C /* BlockType.swift in Sources */,
 				B1A4F3022F0A4D1D00A12345 /* ScoreTracker.swift in Sources */,

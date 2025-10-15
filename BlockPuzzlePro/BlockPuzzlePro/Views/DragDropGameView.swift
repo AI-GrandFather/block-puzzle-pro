@@ -625,6 +625,9 @@ struct DragDropGameView: View {
             coordinator.begin()
         }
 
+        // Pre-warm drag system to eliminate first-drag lag
+        prewarmDragSystem()
+
         // Mark as ready respecting Reduce Motion accessibility setting
         if UIAccessibility.isReduceMotionEnabled {
             isGameReady = true
@@ -637,6 +640,46 @@ struct DragDropGameView: View {
     
     private func updateScreenSize(_ newSize: CGSize) {
         screenSize = newSize
+    }
+
+    /// Pre-warm the drag system to eliminate first-drag lag
+    /// This performs a lightweight simulation of the first drag to initialize
+    /// all geometry calculations and preview systems
+    private func prewarmDragSystem() {
+        // Ensure we have a valid grid frame first
+        guard gridFrame != .zero else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.prewarmDragSystem()
+            }
+            return
+        }
+
+        // Get a sample block from the tray - unwrap the optional
+        guard let samplePattern = blockFactory.getTraySlots().compactMap({ $0 }).first else {
+            return
+        }
+
+        // Simulate a lightweight preview update at grid center
+        let centerPoint = CGPoint(
+            x: gridFrame.midX,
+            y: gridFrame.midY
+        )
+
+        // Trigger one preview calculation to warm up the placement engine
+        placementEngine.updatePreview(
+            blockPattern: samplePattern,
+            blockOrigin: centerPoint,
+            touchPoint: centerPoint,
+            touchOffset: .zero,
+            gridFrame: gridFrame,
+            cellSize: gridCellSize,
+            gridSpacing: gridSpacing
+        )
+
+        // Clear the preview immediately
+        placementEngine.clearPreview()
+
+        DebugLog.trace("🔥 Drag system pre-warmed successfully")
     }
 
     // MARK: - Cloud Sync
@@ -947,9 +990,9 @@ struct DragDropGameView: View {
             y: dragController.currentTouchLocation.y + dragController.liftOffsetY
         )
 
-        // Don't show preview if visual piece is below grid (in tray area)
-        // Add some margin (50pt) to prevent flickering at grid bottom
-        let gridBottomWithMargin = gridFrame.maxY + 50
+        // Don't show preview if visual piece is significantly below grid (in tray area)
+        // Reduced margin from 50pt to 20pt to be less aggressive and reduce snapback
+        let gridBottomWithMargin = gridFrame.maxY + 20
         if !skipMarginCheck && visualTouchPoint.y > gridBottomWithMargin {
             placementEngine.clearPreview()
             return
@@ -988,14 +1031,10 @@ struct DragDropGameView: View {
             evaluateGameOver()
         }
 
-        // CRITICAL: Force reset drag controller if gesture doesn't complete properly
-        // This prevents the controller from getting stuck in dragging state
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            if self.dragController.dragState != .idle {
-                DebugLog.trace("🚨 FORCE RESET: Drag controller stuck in \(self.dragController.dragState) state after placement")
-                self.dragController.reset()
-            }
-        }
+        // REMOVED: Force reset mechanism that caused race condition
+        // The drag controller's state machine handles cleanup automatically via
+        // onDragEnded callback. The delayed force reset was interfering with
+        // subsequent drags that started within 0.5s, causing snapback.
     }
     
     private func snappedPreviewOrigin() -> CGPoint? {

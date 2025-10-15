@@ -54,7 +54,7 @@ struct GhostPreviewOverlay: View {
 
     @ViewBuilder
     private func ghostBlockView(pattern: BlockPattern) -> some View {
-        if let position = previewState.position {
+        if previewState.position != nil {
             let ghostColor = getGhostColor(validity: previewState.validity)
             let outlineColor = getOutlineColor(validity: previewState.validity)
 

@@ -357,8 +357,11 @@ struct ParticleLayerView: View {
     private func startUpdateLoop() {
         // Use CADisplayLink frequency for smooth updates
         updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 120.0, repeats: true) { _ in
-            particleManager.update()
-            particles = particleManager.getActiveParticles()
+            MainActor.assumeIsolated {
+                let manager = ParticleSystemManager.shared
+                manager.update()
+                particles = manager.getActiveParticles()
+            }
         }
     }
 

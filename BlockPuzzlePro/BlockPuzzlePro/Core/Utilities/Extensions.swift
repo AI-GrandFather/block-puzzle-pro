@@ -69,31 +69,35 @@ extension UIColor {
 extension SKAction {
     static func spring(to destination: CGPoint, duration: TimeInterval, damping: CGFloat = 0.8) -> SKAction {
         return SKAction.customAction(withDuration: duration) { node, elapsed in
-            let progress = elapsed / duration
-            let springProgress = 1 - pow(damping, progress * 10) * cos(progress * .pi * 6)
-            let currentPos = node.position
-            let startPos = node.value(forKey: "springStartPos") as? CGPoint ?? currentPos
+            MainActor.assumeIsolated {
+                let progress = elapsed / duration
+                let springProgress = 1 - pow(damping, progress * 10) * cos(progress * .pi * 6)
+                let currentPos = node.position
+                let startPos = node.value(forKey: "springStartPos") as? CGPoint ?? currentPos
 
-            if elapsed == 0 {
-                node.setValue(currentPos, forKey: "springStartPos")
+                if elapsed == 0 {
+                    node.setValue(currentPos, forKey: "springStartPos")
+                }
+
+                node.position = startPos.interpolate(to: destination, factor: springProgress)
             }
-
-            node.position = startPos.interpolate(to: destination, factor: springProgress)
         }
     }
 
     static func elasticScale(to scale: CGFloat, duration: TimeInterval) -> SKAction {
         return SKAction.customAction(withDuration: duration) { node, elapsed in
-            let progress = elapsed / duration
-            let elasticProgress = pow(2, -10 * progress) * sin((progress - 0.1) * (2 * .pi) / 0.4) + 1
-            let startScale = node.value(forKey: "elasticStartScale") as? CGFloat ?? node.xScale
+            MainActor.assumeIsolated {
+                let progress = elapsed / duration
+                let elasticProgress = pow(2, -10 * progress) * sin((progress - 0.1) * (2 * .pi) / 0.4) + 1
+                let startScale = node.value(forKey: "elasticStartScale") as? CGFloat ?? node.xScale
 
-            if elapsed == 0 {
-                node.setValue(node.xScale, forKey: "elasticStartScale")
+                if elapsed == 0 {
+                    node.setValue(node.xScale, forKey: "elasticStartScale")
+                }
+
+                let currentScale = CGFloat.lerp(from: startScale, to: scale, progress: elasticProgress)
+                node.setScale(currentScale)
             }
-
-            let currentScale = CGFloat.lerp(from: startScale, to: scale, progress: elasticProgress)
-            node.setScale(currentScale)
         }
     }
 }

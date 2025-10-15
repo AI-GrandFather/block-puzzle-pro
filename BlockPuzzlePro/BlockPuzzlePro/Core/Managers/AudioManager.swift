@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import AVFoundation
+@preconcurrency import AVFoundation
 import Combine
 import os.log
 
@@ -839,7 +839,7 @@ fileprivate struct ProceduralAudioFactory {
         data.append(contentsOf: [0x64, 0x61, 0x74, 0x61]) // "data"
         data.appendLittleEndian(subchunk2Size)
 
-        var littleEndianSamples = samples.map { $0.littleEndian }
+        let littleEndianSamples = samples.map { $0.littleEndian }
         littleEndianSamples.withUnsafeBytes { buffer in
             data.append(contentsOf: buffer)
         }
@@ -996,6 +996,9 @@ final class AudioManager: ObservableObject {
     private var isDucking: Bool = false
     private var originalMusicVolume: Float = 0.0
 
+    // Fade state
+    private var fadeCurrentStep: Int = 0
+
     private let logger = Logger(subsystem: "com.blockpuzzlepro", category: "AudioManager")
 
     // MARK: - Initialization
@@ -1010,7 +1013,15 @@ final class AudioManager: ObservableObject {
 
         setupAudioSession()
         setupInterruptionHandling()
-        preloadSounds()
+
+        // Immediately preload the most critical sound for first drag responsiveness
+        preloadSound(.pickup)
+
+        // Defer remaining sounds to avoid blocking app launch
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s delay (reduced from 0.5s)
+            self?.preloadRemainingPrioritySounds()
+        }
 
         logger.info("AudioManager initialized (Sound: \(self.isSoundEnabled), Music: \(self.isMusicEnabled))")
     }
@@ -1071,10 +1082,10 @@ final class AudioManager: ObservableObject {
 
     // MARK: - Sound Effects Preloading
 
-    private func preloadSounds() {
-        // Preload commonly used sounds for instant playback
+    private func preloadRemainingPrioritySounds() {
+        // Preload remaining commonly used sounds (.pickup already loaded in init)
         let prioritySounds: [SoundEffect] = [
-            .pickup, .placeValid, .placeInvalid,
+            .placeValid, .placeInvalid,
             .lineClear1, .lineClear2,
             .menuTap, .buttonPress
         ]
@@ -1083,7 +1094,7 @@ final class AudioManager: ObservableObject {
             preloadSound(sound)
         }
 
-        logger.info("Preloaded \(prioritySounds.count) priority sound effects")
+        logger.info("Preloaded \(prioritySounds.count) additional priority sound effects")
     }
 
     private func preloadSound(_ sound: SoundEffect) {
@@ -1317,7 +1328,11 @@ final class AudioManager: ObservableObject {
         }
     }
 
-    private func fadeVolume(to targetVolume: Float, duration: TimeInterval, completion: (() -> Void)? = nil) {
+    private func fadeVolume(
+        to targetVolume: Float,
+        duration: TimeInterval,
+        completion: (@MainActor @Sendable () -> Void)? = nil
+    ) {
         guard let player = musicPlayer else {
             completion?()
             return
@@ -1328,16 +1343,20 @@ final class AudioManager: ObservableObject {
         let stepDuration = duration / Double(steps)
         let volumeChange = (targetVolume - startVolume) / Float(steps)
 
-        var currentStep = 0
+        fadeCurrentStep = 0
 
-        Timer.scheduledTimer(withTimeInterval: stepDuration, repeats: true) { timer in
-            currentStep += 1
-            player.volume += volumeChange
+        Timer.scheduledTimer(withTimeInterval: stepDuration, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self = self, let player = self.musicPlayer else { return }
 
-            if currentStep >= steps {
-                timer.invalidate()
-                player.volume = targetVolume
-                completion?()
+                self.fadeCurrentStep += 1
+
+                if self.fadeCurrentStep >= steps {
+                    player.volume = targetVolume
+                    completion?()
+                } else {
+                    player.volume += volumeChange
+                }
             }
         }
     }

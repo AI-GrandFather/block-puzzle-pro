@@ -49,6 +49,7 @@ final class ScoreAnimationManager {
     // Animation state
     private var scoreRollTimer: Timer?
     private let rollDuration: TimeInterval = 0.3
+    private var scoreRollStep: Int = 0
 
     // Persistence
     private let defaults = UserDefaults.standard
@@ -139,21 +140,22 @@ final class ScoreAnimationManager {
 
         let steps = 10
         let increment = (end - start) / steps
-        var currentStep = 0
+        scoreRollStep = 0
 
-        scoreRollTimer = Timer.scheduledTimer(withTimeInterval: rollDuration / Double(steps), repeats: true) { [weak self] timer in
-            guard let self = self else {
-                timer.invalidate()
-                return
-            }
+        scoreRollTimer = Timer.scheduledTimer(withTimeInterval: rollDuration / Double(steps), repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self = self else {
+                    return
+                }
 
-            currentStep += 1
+                self.scoreRollStep += 1
 
-            if currentStep >= steps {
-                self.displayedScore = end
-                timer.invalidate()
-            } else {
-                self.displayedScore = start + (increment * currentStep)
+                if self.scoreRollStep >= steps {
+                    self.displayedScore = end
+                    self.scoreRollTimer?.invalidate()
+                } else {
+                    self.displayedScore = start + (increment * self.scoreRollStep)
+                }
             }
         }
     }
@@ -167,7 +169,9 @@ final class ScoreAnimationManager {
         // Reset streak timer
         streakTimer?.invalidate()
         streakTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
-            self?.resetStreak()
+            MainActor.assumeIsolated {
+                self?.resetStreak()
+            }
         }
     }
 

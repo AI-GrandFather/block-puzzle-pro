@@ -21,17 +21,17 @@ struct LevelValidator {
         var errors: [String] = []
 
         // Check grid dimensions
-        if level.init.prefill.count != 8 {
-            errors.append("Prefill must be 8x8 (got \(level.init.prefill.count) rows)")
+        if level.`init`.prefill.count != 8 {
+            errors.append("Prefill must be 8x8 (got \(level.`init`.prefill.count) rows)")
         }
-        for (i, row) in level.init.prefill.enumerated() {
+        for (i, row) in level.`init`.prefill.enumerated() {
             if row.count != 8 {
                 errors.append("Prefill row \(i) must have 8 columns (got \(row.count))")
             }
         }
 
         // Check obstacles if present
-        if let obstacles = level.init.obstacles {
+        if let obstacles = level.`init`.obstacles {
             if obstacles.count != 8 {
                 errors.append("Obstacles must be 8x8")
             }
@@ -143,12 +143,12 @@ struct LevelValidator {
         var obstacleCount = 0
 
         // Count prefilled cells
-        for row in level.init.prefill {
+        for row in level.`init`.prefill {
             prefillCount += row.filter { $0 == 1 }.count
         }
 
         // Count obstacles
-        if let obstacles = level.init.obstacles {
+        if let obstacles = level.`init`.obstacles {
             for row in obstacles {
                 obstacleCount += row.filter { $0 == 1 }.count
             }

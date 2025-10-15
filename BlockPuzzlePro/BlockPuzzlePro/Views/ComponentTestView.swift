@@ -69,7 +69,8 @@ struct ComponentTestView: View {
         
         // Test 7: Color system
         let redColor = BlockColor.red
-        testResults["Color System"] = redColor.uiColor != nil
+        let redComponents = redColor.uiColor.cgColor.components ?? []
+        testResults["Color System"] = !redComponents.isEmpty
         
         // Test 8: Grid position validation
         let validPos = GridPosition(row: 5, column: 5, gridSize: gameEngine.gridSize)

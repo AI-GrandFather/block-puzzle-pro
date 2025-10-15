@@ -2,6 +2,7 @@
 import Foundation
 import SpriteKit
 
+@MainActor
 final class SpatialIndex {
     private struct GridBucket {
         var nodes: Set<SKNode> = []

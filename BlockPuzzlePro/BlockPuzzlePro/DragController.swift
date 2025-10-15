@@ -6,14 +6,14 @@ import os.log
 // MARK: - Drag State
 
 /// Represents the current state of a drag operation with better determinism
-enum DragState: Equatable {
+enum DragControllerState: Equatable {
     case idle
     case picking(blockIndex: Int, blockPattern: BlockPattern, startPosition: CGPoint, touchOffset: CGSize)
     case dragging(blockIndex: Int, blockPattern: BlockPattern, startPosition: CGPoint, touchOffset: CGSize)
     case settling(blockIndex: Int, blockPattern: BlockPattern, dropPosition: CGPoint, touchOffset: CGSize)
     case snapped(blockIndex: Int, blockPattern: BlockPattern, finalPosition: CGPoint)
 
-    static func == (lhs: DragState, rhs: DragState) -> Bool {
+    static func == (lhs: DragControllerState, rhs: DragControllerState) -> Bool {
         switch (lhs, rhs) {
         case (.idle, .idle):
             return true
@@ -43,7 +43,7 @@ class DragController: ObservableObject {
     private let deviceManager: DeviceManager?
 
     /// Current drag state with deterministic transitions
-    @Published var dragState: DragState = .idle
+    @Published var dragState: DragControllerState = .idle
 
     /// Current drag offset from original position
     @Published var dragOffset: CGSize = .zero
@@ -86,14 +86,14 @@ class DragController: ObservableObject {
 
     // MARK: - Performance Optimization for 120Hz ProMotion
 
-    /// Optimized update interval for 120Hz displays
-    private let minUpdateInterval: TimeInterval
-
-    /// Last update timestamp for throttling
-    private var lastUpdateTime: TimeInterval = 0
+    /// CADisplayLink for synchronized 120Hz visual updates
+    private var displayLink: CADisplayLink?
 
     /// Whether we're running on ProMotion display
     private let isProMotionDisplay: Bool
+
+    /// Pending visual update flag
+    private var needsVisualUpdate: Bool = false
 
     // MARK: - Safety Mechanisms
 
@@ -111,7 +111,7 @@ class DragController: ObservableObject {
 #endif
 
     /// State transition logging
-    private func logStateTransition(from: DragState, to: DragState) {
+    private func logStateTransition(from: DragControllerState, to: DragControllerState) {
         logger.debug("State transition: \(String(describing: from)) -> \(String(describing: to))")
     }
     
@@ -145,22 +145,67 @@ class DragController: ObservableObject {
         let refreshRate = Double(UIScreen.main.maximumFramesPerSecond)
         self.isProMotionDisplay = refreshRate >= 120.0
 
-        // Optimize update interval for 120Hz ProMotion displays
-        if let interval = deviceManager?.idealDragUpdateInterval() {
-            self.minUpdateInterval = interval
-        } else {
-            let resolvedRate = refreshRate > 0 ? refreshRate : 60.0
-            // For ProMotion, use higher frequency updates (every 2-3 frames instead of every frame)
-            self.minUpdateInterval = self.isProMotionDisplay ? (1.0 / 60.0) : (1.0 / resolvedRate)
-        }
+        logger.info("DragController initialized: ProMotion=\(self.isProMotionDisplay), refreshRate=\(refreshRate)")
 
-        logger.info("DragController initialized: ProMotion=\(self.isProMotionDisplay), refreshRate=\(refreshRate), updateInterval=\(self.minUpdateInterval)")
+        // Set up CADisplayLink for 120Hz synchronized updates (Option B)
+        setupDisplayLink()
     }
 
     convenience init() {
         self.init(deviceManager: nil)
     }
-    
+
+    // MARK: - Display Link Setup (Option B: 120Hz Synchronized Updates)
+
+    /// Set up CADisplayLink for synchronized visual updates at native refresh rate
+    private func setupDisplayLink() {
+        // Create display link on main thread
+        displayLink = CADisplayLink(target: self, selector: #selector(displayLinkCallback))
+
+        // For ProMotion displays, use native 120Hz
+        // For standard displays, use native 60Hz
+        // Apple recommendation: minimum 30Hz allows system to optimize power/thermal
+        if #available(iOS 15.0, *) {
+            displayLink?.preferredFrameRateRange = CAFrameRateRange(
+                minimum: 30,  // Allow system to drop to 30fps if needed (power/thermal optimization)
+                maximum: Float(UIScreen.main.maximumFramesPerSecond),
+                preferred: Float(UIScreen.main.maximumFramesPerSecond)
+            )
+        }
+
+        // Add to run loop (paused by default, will activate during drag)
+        displayLink?.isPaused = true
+        displayLink?.add(to: .main, forMode: .common)
+
+        logger.info("📺 CADisplayLink configured for \(UIScreen.main.maximumFramesPerSecond)Hz updates")
+    }
+
+    /// Display link callback - called every frame at 120Hz on ProMotion
+    @objc private func displayLinkCallback() {
+        guard needsVisualUpdate, isDragging else {
+            return
+        }
+
+        // Update visual effects at native refresh rate
+        updateVisualEffects()
+
+        // Clear update flag
+        needsVisualUpdate = false
+    }
+
+    /// Start display link for drag operation
+    private func startDisplayLink() {
+        displayLink?.isPaused = false
+        logger.debug("🎬 Display link started")
+    }
+
+    /// Stop display link after drag completes
+    private func stopDisplayLink() {
+        displayLink?.isPaused = true
+        needsVisualUpdate = false
+        logger.debug("⏸️ Display link paused")
+    }
+
     // MARK: - Drag Management
     
     /// Start a drag operation with deterministic state transitions
@@ -206,6 +251,9 @@ class DragController: ObservableObject {
 
         // Haptic feedback
         deviceManager?.provideHapticFeedback(style: .light)
+
+        // Start CADisplayLink for 120Hz updates (Option B)
+        startDisplayLink()
 
         // Start safety timeout timer
         startDragTimeoutTimer()
@@ -255,12 +303,8 @@ class DragController: ObservableObject {
         // Call onDragChanged immediately for real-time preview - this is critical for first drag
         onDragChanged?(blockIndex, blockPattern, position)
 
-        // Throttle visual effects for performance, but be more responsive on ProMotion
-        let currentTime = CACurrentMediaTime()
-        if currentTime - lastUpdateTime >= minUpdateInterval {
-            updateVisualEffects()
-            lastUpdateTime = currentTime
-        }
+        // Mark that visual update is needed - CADisplayLink will handle it at 120Hz
+        needsVisualUpdate = true
     }
 
     /// Update visual effects with optimized animations for 120Hz ProMotion
@@ -327,6 +371,9 @@ class DragController: ObservableObject {
         // This prevents the green outline from persisting while animations complete
         draggedBlockPattern = nil
         currentBlockIndex = nil
+
+        // Stop CADisplayLink since drag is complete (Option B)
+        stopDisplayLink()
 
         // CRITICAL FIX: Complete state transition immediately instead of waiting for animation
         // The async animation was causing the drag controller to stay in 'settling' state
@@ -469,6 +516,9 @@ class DragController: ObservableObject {
         draggedBlockPattern = nil
         currentBlockIndex = nil
 
+        // Stop CADisplayLink since drag is cancelled (Option B)
+        stopDisplayLink()
+
         // Transition to idle after animation
         let animationDuration = springResponse * 1.5
         DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self] in
@@ -609,6 +659,9 @@ class DragController: ObservableObject {
         dragTimeoutTimer?.invalidate()
         dragTimeoutTimer = nil
 
+        // Stop display link
+        stopDisplayLink()
+
         // Reset state
         dragState = .idle
         isDragging = false
@@ -623,14 +676,14 @@ class DragController: ObservableObject {
         currentBlockIndex = nil
         draggedIndices.removeAll()
 
-        // Reset performance tracking
-        lastUpdateTime = 0
+        // Reset visual update flag
+        needsVisualUpdate = false
     }
     
     // MARK: - Cleanup
-    
+
     deinit {
-        // Timer cleanup handled automatically through reset() called before deallocation
-        // Cannot access @MainActor properties from deinit
+        // CADisplayLink and Timer cleanup handled automatically by Swift
+        // Cannot access @MainActor properties from non-isolated deinit
     }
 }

@@ -231,7 +231,7 @@ class PlacementAnimator: ObservableObject {
         isAnimatingLineComplete = true
         
         // Staggered animation for each cell
-        for (index, position) in positions.enumerated() {
+        for index in positions.indices {
             let delay = Double(index) * 0.05 // 50ms stagger
             
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {

@@ -2,6 +2,7 @@
 import Foundation
 import SpriteKit
 
+@MainActor
 final class ForecastOverlay {
     private let gridBounds: CGRect
     private let cellSize: CGFloat
@@ -96,6 +97,7 @@ final class ForecastOverlay {
 }
 
 // MARK: - Node Pool for Performance
+@MainActor
 final class NodePool {
     private var availableNodes: [SKSpriteNode] = []
     private var allNodes: Set<SKSpriteNode> = []

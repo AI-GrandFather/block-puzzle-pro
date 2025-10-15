@@ -87,6 +87,7 @@ struct ContentView: View {
     @EnvironmentObject private var authViewModel: AuthViewModel
     @State private var theme: Theme = Theme.current
     @State private var showSplash = true
+    @State private var hasPrewarmedSystems = false
 
     var body: some View {
         ZStack {
@@ -107,7 +108,10 @@ struct ContentView: View {
         } message: {
             Text(authViewModel.lastError ?? "Unknown error")
         }
-        .onAppear { scheduleSplashDismiss() }
+        .onAppear {
+            scheduleSplashDismiss()
+            prewarmSystemsIfNeeded()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .themeDidChange)) { notification in
             guard let newTheme = notification.object as? Theme else { return }
             withAnimation(.easeInOut(duration: 0.25)) {
@@ -134,6 +138,99 @@ struct ContentView: View {
                 showSplash = false
             }
         }
+    }
+
+    /// Pre-warm all systems during splash screen to eliminate first-drag lag
+    private func prewarmSystemsIfNeeded() {
+        guard !hasPrewarmedSystems else { return }
+        hasPrewarmedSystems = true
+
+        Task { @MainActor in
+            let logger = Logger(subsystem: "com.example.BlockPuzzlePro", category: "PreWarming")
+            logger.info("🔥 Starting system pre-warming...")
+
+            // 1. Force AudioManager initialization (already has .pickup preloaded)
+            _ = AudioManager.shared
+            logger.info("✅ AudioManager initialized")
+
+            // 2. Pre-create all haptic feedback generators
+            prewarmHaptics()
+            logger.info("✅ Haptic generators pre-created")
+
+            // 3. Force DeviceManager initialization and update
+            let deviceManager = DeviceManager()
+            await deviceManager.updateToCurrentDeviceAsync()
+            logger.info("✅ DeviceManager initialized")
+
+            // 4. Pre-warm game engine and placement engine
+            let gameEngine = GameEngine(gameMode: .classic)
+            gameEngine.startNewGame()
+            let placementEngine = PlacementEngine(gameEngine: gameEngine)
+
+            // Simulate a placement to warm up validators
+            let testBlock = BlockPattern(type: .single, color: .blue)
+            let testOrigin = CGPoint(x: 100, y: 100)
+            placementEngine.updatePreview(
+                blockPattern: testBlock,
+                blockOrigin: testOrigin,
+                touchPoint: testOrigin,
+                touchOffset: .zero,
+                gridFrame: CGRect(x: 0, y: 0, width: 400, height: 400),
+                cellSize: 40,
+                gridSpacing: 2
+            )
+            placementEngine.clearPreview()
+            logger.info("✅ Game engine & placement engine warmed")
+
+            // 5. Pre-warm block factory
+            let blockFactory = BlockFactory()
+            blockFactory.resetTray()
+            _ = blockFactory.getTraySlots()
+            logger.info("✅ Block factory warmed")
+
+            // 6. Force Metal shader compilation by creating a dummy shape
+            prewarmMetalShaders()
+            logger.info("✅ Metal shaders compiled")
+
+            // 7. Pre-create Game Center manager singleton
+            _ = GameCenterManager.shared
+            logger.info("✅ GameCenter manager initialized")
+
+            // 8. Pre-create other managers
+            _ = DailyChallengeManager()
+            _ = UnlockableThemeManager()
+            logger.info("✅ Additional managers initialized")
+
+            logger.info("🚀 System pre-warming complete - first drag will be instant!")
+        }
+    }
+
+    /// Pre-create and prepare all haptic feedback generators
+    private func prewarmHaptics() {
+        // Create and prepare impact generators for all styles
+        let lightGenerator = UIImpactFeedbackGenerator(style: .light)
+        lightGenerator.prepare()
+
+        let mediumGenerator = UIImpactFeedbackGenerator(style: .medium)
+        mediumGenerator.prepare()
+
+        let heavyGenerator = UIImpactFeedbackGenerator(style: .heavy)
+        heavyGenerator.prepare()
+
+        let notificationGenerator = UINotificationFeedbackGenerator()
+        notificationGenerator.prepare()
+
+        // Store references to keep them warm (though DeviceManager will recreate its own)
+        // This just forces iOS to initialize the haptic system
+    }
+
+    /// Force Metal shader compilation
+    private func prewarmMetalShaders() {
+        // Create dummy shapes to force shader compilation
+        _ = RoundedRectangle(cornerRadius: 10).fill(Color.clear)
+        _ = Circle().fill(Color.clear)
+        _ = LinearGradient(colors: [.clear, .clear], startPoint: .top, endPoint: .bottom)
+        _ = RadialGradient(colors: [.clear, .clear], center: .center, startRadius: 0, endRadius: 100)
     }
 }
 

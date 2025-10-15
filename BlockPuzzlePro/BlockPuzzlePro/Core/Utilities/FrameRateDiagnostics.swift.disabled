@@ -1,0 +1,93 @@
+// FrameRateDiagnostics.swift
+// Shared helpers for measuring and visualising runtime frame performance.
+
+import Foundation
+import SwiftUI
+
+/// Rolling accumulator that produces a smoothed FPS measurement from timestamp deltas.
+struct FrameSampleAccumulator {
+    private(set) var lastTimestamp: CFTimeInterval?
+    private(set) var deltas: [CFTimeInterval] = []
+    private let maxSampleCount: Int
+
+    init(maxSampleCount: Int) {
+        self.maxSampleCount = maxSampleCount
+    }
+
+    mutating func reset() {
+        lastTimestamp = nil
+        deltas.removeAll()
+    }
+
+    mutating func record(timestamp: CFTimeInterval) -> Double? {
+        defer { lastTimestamp = timestamp }
+
+        guard let previous = lastTimestamp else {
+            return nil
+        }
+
+        let delta = timestamp - previous
+        guard delta > 0 else { return currentFPS }
+
+        deltas.append(delta)
+        if deltas.count > maxSampleCount {
+            deltas.removeFirst()
+        }
+
+        return currentFPS
+    }
+
+    mutating func record(delta: CFTimeInterval) -> Double? {
+        let timestamp = (lastTimestamp ?? 0) + delta
+        return record(timestamp: timestamp)
+    }
+
+    var currentFPS: Double? {
+        guard !deltas.isEmpty else { return nil }
+        let averageDelta = deltas.reduce(0, +) / Double(deltas.count)
+        return averageDelta > 0 ? 1.0 / averageDelta : nil
+    }
+}
+
+#if DEBUG
+/// Debug HUD that surfaces live frame timing information inside the SwiftUI hierarchy.
+struct FrameRateHUD: View {
+    @State private var proMotion = ProMotionManager.shared
+    @State private var updateTimer: Timer?
+
+    private var frameTimeText: String {
+        guard let stats = proMotion.frameTimeStats else {
+            return "Frame time —"
+        }
+
+        let avgMs = stats.avg * 1000.0
+        let maxMs = stats.max * 1000.0
+        return String(format: "avg %.2fms · max %.2fms", avgMs, maxMs)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("FPS \(Int(round(proMotion.actualFPS))) / \(proMotion.targetFPS)")
+                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+
+            Text(frameTimeText)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 4)
+        .onAppear {
+            updateTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+                proMotion = ProMotionManager.shared
+            }
+        }
+        .onDisappear {
+            updateTimer?.invalidate()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Frame rate \(Int(round(proMotion.actualFPS))) frames per second")
+    }
+}
+#endif

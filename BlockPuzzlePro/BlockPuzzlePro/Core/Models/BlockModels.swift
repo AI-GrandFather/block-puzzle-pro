@@ -90,25 +90,48 @@ enum BlockColor: String, CaseIterable, Codable {
     case pink = "pink"
 
     var uiColor: UIColor {
-        switch Theme.current {
-        case .diablo:
-            return Theme.current.blockColor
-        case .dark, .darkBlue:
-            switch self {
-            case .red: return UIColor(red: 0.9, green: 0.2, blue: 0.2, alpha: 1.0)
-            case .blue: return UIColor(red: 0.2, green: 0.4, blue: 0.9, alpha: 1.0)
-            case .green: return UIColor(red: 0.2, green: 0.8, blue: 0.3, alpha: 1.0)
-            case .yellow: return UIColor(red: 0.9, green: 0.8, blue: 0.2, alpha: 1.0)
-            case .purple: return UIColor(red: 0.7, green: 0.3, blue: 0.9, alpha: 1.0)
-            case .orange: return UIColor(red: 0.9, green: 0.5, blue: 0.1, alpha: 1.0)
-            case .cyan: return UIColor(red: 0.2, green: 0.8, blue: 0.8, alpha: 1.0)
-            case .pink: return UIColor(red: 0.9, green: 0.4, blue: 0.7, alpha: 1.0)
-            }
+        switch self {
+        case .red: return UIColor(red: 0.9, green: 0.2, blue: 0.2, alpha: 1.0)
+        case .blue: return UIColor(red: 0.2, green: 0.4, blue: 0.9, alpha: 1.0)
+        case .green: return UIColor(red: 0.2, green: 0.8, blue: 0.3, alpha: 1.0)
+        case .yellow: return UIColor(red: 0.9, green: 0.8, blue: 0.2, alpha: 1.0)
+        case .purple: return UIColor(red: 0.7, green: 0.3, blue: 0.9, alpha: 1.0)
+        case .orange: return UIColor(red: 0.9, green: 0.5, blue: 0.1, alpha: 1.0)
+        case .cyan: return UIColor(red: 0.2, green: 0.8, blue: 0.8, alpha: 1.0)
+        case .pink: return UIColor(red: 0.9, green: 0.4, blue: 0.7, alpha: 1.0)
         }
     }
 
     var skColor: SKColor {
-        return SKColor(uiColor)
+        return uiColor
+    }
+
+    /// Accessibility description for VoiceOver
+    var accessibilityDescription: String {
+        switch self {
+        case .red: return "Red block"
+        case .blue: return "Blue block"
+        case .green: return "Green block"
+        case .yellow: return "Yellow block"
+        case .purple: return "Purple block"
+        case .orange: return "Orange block"
+        case .cyan: return "Cyan block"
+        case .pink: return "Pink block"
+        }
+    }
+
+    /// Get pattern identifier for colorblind accessibility
+    var accessibilityPattern: String {
+        switch self {
+        case .red: return "solid"
+        case .blue: return "dots"
+        case .green: return "stripes"
+        case .yellow: return "grid"
+        case .purple: return "diagonal"
+        case .orange: return "cross"
+        case .cyan: return "waves"
+        case .pink: return "checker"
+        }
     }
 }
 

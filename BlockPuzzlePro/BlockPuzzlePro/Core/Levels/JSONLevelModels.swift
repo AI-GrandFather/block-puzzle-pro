@@ -164,9 +164,9 @@ extension JSONLevel {
         case .clear_cells:
             return LevelObjective(type: .clearAllBlocks, targetValue: goal.value)
         case .complete_pattern:
-            return LevelObjective(type: .completePattern, targetValue: 1)
+            return LevelObjective(type: .createPattern, targetValue: 1)
         case .survive_moves:
-            return LevelObjective(type: .surviveMoves, targetValue: goal.value)
+            return LevelObjective(type: .clearWithMoves, targetValue: goal.value)
         }
     }
 
@@ -203,7 +203,7 @@ extension JSONLevel {
                         cells.append(LevelPrefill.Cell(
                             row: row,
                             column: col,
-                            color: .gray,
+                            color: .purple,
                             isLocked: true
                         ))
                     }

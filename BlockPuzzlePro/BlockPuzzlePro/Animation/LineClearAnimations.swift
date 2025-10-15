@@ -342,7 +342,7 @@ final class LineClearAnimationManager {
     /// Create ripple effect on block placement
     func createPlacementRipple(at position: CGPoint, color: Color) {
         // Use small particle burst for ripple effect
-        var config = ParticleEmitterConfig(
+        let config = ParticleEmitterConfig(
             particleCount: 20,
             emissionPoint: position,
             emissionRadius: 5,
