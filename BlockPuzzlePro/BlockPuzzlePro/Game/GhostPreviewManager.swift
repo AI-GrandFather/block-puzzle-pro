@@ -124,7 +124,7 @@ struct GhostPreviewSettings {
     var showLineClearPreview: Bool = true
     var showScorePreview: Bool = true
     var snapToGrid: Bool = true
-    var ghostOpacity: Double = 0.3
+    var ghostOpacity: Double = Double(GameConfig.previewAlpha)
     var snapThreshold: CGFloat = 0.5 // cells
 
     static let `default` = GhostPreviewSettings()
@@ -222,10 +222,25 @@ final class GhostPreviewManager {
         }
 
         // Validate placement
-        let validity = validatePlacement(blockPattern: blockPattern, at: finalPosition)
+        var resolvedPosition = finalPosition
+        var validity = validatePlacement(blockPattern: blockPattern, at: resolvedPosition)
+
+        // Attempt to assist by snapping to a nearby valid position if we're almost aligned
+        if !validity.isValid,
+           let snappedPosition = findMagnetSnapPosition(
+                from: finalPosition,
+                blockPattern: blockPattern,
+                blockOrigin: blockOrigin,
+                gridFrame: gridFrame,
+                cellSize: cellSize,
+                gridSpacing: gridSpacing
+           ) {
+            resolvedPosition = snappedPosition
+            validity = validatePlacement(blockPattern: blockPattern, at: snappedPosition)
+        }
 
         // Calculate affected positions
-        let affectedPositions = blockPattern.getGridPositions(placedAt: finalPosition)
+        let affectedPositions = blockPattern.getGridPositions(placedAt: resolvedPosition)
 
         // Calculate line clear preview if valid
         var lineClearPreview: LineClearPreview?
@@ -245,7 +260,7 @@ final class GhostPreviewManager {
 
         // Calculate snap position for smooth animation
         let snapPosition = gridToScreenPosition(
-            gridPosition: finalPosition,
+            gridPosition: resolvedPosition,
             gridFrame: gridFrame,
             cellSize: cellSize,
             gridSpacing: gridSpacing
@@ -254,7 +269,7 @@ final class GhostPreviewManager {
         // Update state
         updatePreviewState(
             blockPattern: blockPattern,
-            position: finalPosition,
+            position: resolvedPosition,
             validity: validity,
             affectedPositions: affectedPositions,
             lineClearPreview: lineClearPreview,
@@ -286,22 +301,12 @@ final class GhostPreviewManager {
 
     /// Get ghost preview color based on validity
     func getGhostColor(for pattern: BlockPattern, validity: PlacementValidity) -> Color {
-        switch validity {
-        case .valid:
-            return Color(red: 0.20, green: 0.78, blue: 0.35).opacity(settings.ghostOpacity) // Green
-        case .invalid:
-            return Color(red: 1.0, green: 0.23, blue: 0.19).opacity(settings.ghostOpacity) // Red
-        }
-    }
+        let baseColor = Color(pattern.color.uiColor)
+        let validOpacity = settings.ghostOpacity
+        let invalidOpacity = min(validOpacity * 0.6, Double(GameConfig.invalidPreviewAlpha))
+        let targetOpacity = validity.isValid ? validOpacity : invalidOpacity
 
-    /// Get outline color for ghost preview
-    func getOutlineColor(validity: PlacementValidity) -> Color {
-        switch validity {
-        case .valid:
-            return Color(red: 0.20, green: 0.78, blue: 0.35) // #34C759
-        case .invalid:
-            return Color(red: 1.0, green: 0.23, blue: 0.19) // #FF3B30
-        }
+        return baseColor.opacity(targetOpacity)
     }
 
     // MARK: - Validation
@@ -478,6 +483,100 @@ final class GhostPreviewManager {
 
         // Otherwise, return nearest valid position
         return currentPosition
+    }
+
+    /// Attempt to locate a nearby valid placement when current alignment slightly overlaps existing blocks.
+    private func findMagnetSnapPosition(
+        from basePosition: GridPosition,
+        blockPattern: BlockPattern,
+        blockOrigin: CGPoint,
+        gridFrame: CGRect,
+        cellSize: CGFloat,
+        gridSpacing: CGFloat
+    ) -> GridPosition? {
+        guard let placementEngine = placementEngine else { return nil }
+
+        let widthCells = blockPattern.size.width
+        let heightCells = blockPattern.size.height
+
+        let horizontalSpacing = max(CGFloat.zero, widthCells - 1) * gridSpacing
+        let verticalSpacing = max(CGFloat.zero, heightCells - 1) * gridSpacing
+
+        let blockWidth = widthCells * cellSize + horizontalSpacing
+        let blockHeight = heightCells * cellSize + verticalSpacing
+
+        guard blockWidth > 0, blockHeight > 0 else { return nil }
+
+        let pointerRect = CGRect(
+            x: blockOrigin.x,
+            y: blockOrigin.y,
+            width: blockWidth,
+            height: blockHeight
+        )
+
+        let totalArea = pointerRect.width * pointerRect.height
+        guard totalArea > 0 else { return nil }
+
+        let pointerCenter = CGPoint(x: pointerRect.midX, y: pointerRect.midY)
+
+        let searchRadius = 1
+        let overlapTolerance: CGFloat = 0.005
+        var bestCandidate: (position: GridPosition, overlap: CGFloat, baseDistance: Int, distance: CGFloat)?
+
+        for rowOffset in -searchRadius...searchRadius {
+            for columnOffset in -searchRadius...searchRadius {
+                let candidate = GridPosition(
+                    unsafeRow: basePosition.row + rowOffset,
+                    unsafeColumn: basePosition.column + columnOffset
+                )
+
+                switch placementEngine.validatePlacement(blockPattern: blockPattern, at: candidate) {
+                case .valid:
+                    let candidateOrigin = gridToScreenPosition(
+                        gridPosition: candidate,
+                        gridFrame: gridFrame,
+                        cellSize: cellSize,
+                        gridSpacing: gridSpacing
+                    )
+
+                    let candidateRect = CGRect(
+                        x: candidateOrigin.x,
+                        y: candidateOrigin.y,
+                        width: blockWidth,
+                        height: blockHeight
+                    )
+
+                    let overlapRect = pointerRect.intersection(candidateRect)
+                    guard !overlapRect.isNull, overlapRect.width > 0, overlapRect.height > 0 else { continue }
+
+                    let overlapArea = overlapRect.width * overlapRect.height
+                    let overlapRatio = overlapArea / totalArea
+                    // Require roughly three quarters overlap before snapping to avoid aggressive grabs.
+                    guard overlapRatio >= 0.75 else { continue }
+
+                    let candidateCenter = CGPoint(x: candidateRect.midX, y: candidateRect.midY)
+                    let distance = hypot(pointerCenter.x - candidateCenter.x, pointerCenter.y - candidateCenter.y)
+                    let baseDistance = abs(rowOffset) + abs(columnOffset)
+
+                    if let currentBest = bestCandidate {
+                        if overlapRatio > currentBest.overlap + overlapTolerance {
+                            bestCandidate = (candidate, overlapRatio, baseDistance, distance)
+                        } else if abs(overlapRatio - currentBest.overlap) <= overlapTolerance {
+                            if baseDistance < currentBest.baseDistance ||
+                                (baseDistance == currentBest.baseDistance && distance < currentBest.distance) {
+                                bestCandidate = (candidate, overlapRatio, baseDistance, distance)
+                            }
+                        }
+                    } else {
+                        bestCandidate = (candidate, overlapRatio, baseDistance, distance)
+                    }
+                case .invalid:
+                    continue
+                }
+            }
+        }
+
+        return bestCandidate?.position
     }
 
     // MARK: - Coordinate Conversions

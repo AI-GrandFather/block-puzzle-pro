@@ -104,6 +104,7 @@ struct DragDropGameView: View {
     private let levelConfiguration: LevelSessionConfiguration?
     private let levelCoordinator: LevelSessionCoordinator?
 
+    private let feedbackCoordinator = FeedbackCoordinator.shared
     private let gridSpacing: CGFloat = 2
     private let timerPublisher = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -123,6 +124,7 @@ struct DragDropGameView: View {
         let deviceManager = DeviceManager()
         let placementEngine = PlacementEngine(gameEngine: gameEngine)
         let blockFactory = BlockFactory()
+        blockFactory.attach(gameEngine: gameEngine)
 
         if let allowedPieces = levelConfiguration?.level.constraints.allowedPieces {
             blockFactory.configureAllowedTypes(allowedPieces)
@@ -179,11 +181,12 @@ struct DragDropGameView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .allowsHitTesting(!isGameOver)
                     
-                    // Floating drag preview overlay
+                    // Floating drag preview overlay - follows finger smoothly without snapping
                     if !isGameOver, let draggedPattern = dragController.draggedBlockPattern {
                         let rootOrigin = geometry.frame(in: .global).origin
 
-                        let previewOriginGlobal = (placementEngine.isCurrentPreviewValid ? snappedPreviewOrigin() : nil) ?? dragController.currentDragPosition
+                        // Always use raw finger position for smooth dragging (no magnetic snapping during drag)
+                        let previewOriginGlobal = dragController.currentDragPosition
 
                         let localDragPosition = CGPoint(
                             x: previewOriginGlobal.x - rootOrigin.x,
@@ -465,6 +468,17 @@ struct DragDropGameView: View {
                 }
             )
 
+            // Ghost preview overlay - shows snapped position during drag
+            if !isGameOver, dragController.draggedBlockPattern != nil {
+                GhostPreviewOverlay(
+                    previewState: ghostPreviewState,
+                    cellSize: gridCellSize,
+                    gridSpacing: gridSpacing,
+                    gridSize: gameEngine.gridSize
+                )
+                .allowsHitTesting(false)
+            }
+
             FragmentOverlayView(effects: fragmentEffects) { effectID in
                 fragmentCleanupQueue.insert(effectID)
             }
@@ -572,7 +586,29 @@ struct DragDropGameView: View {
     private var boardSize: CGFloat {
         gridCellSize * CGFloat(gameEngine.gridSize) + gridSpacing * CGFloat(gameEngine.gridSize + 1)
     }
-    
+
+    /// Computed ghost preview state from PlacementEngine data
+    private var ghostPreviewState: GhostPreviewState {
+        guard let pattern = dragController.draggedBlockPattern,
+              !placementEngine.previewPositions.isEmpty,
+              let minRow = placementEngine.previewPositions.map({ $0.row }).min(),
+              let minCol = placementEngine.previewPositions.map({ $0.column }).min(),
+              let position = GridPosition(row: minRow, column: minCol, gridSize: gameEngine.gridSize) else {
+            return GhostPreviewState(isVisible: false)
+        }
+
+        let validity: PlacementValidity = placementEngine.isCurrentPreviewValid ?
+            .valid : .invalid(reason: .collision)
+
+        return GhostPreviewState(
+            isVisible: true,
+            position: position,
+            validity: validity,
+            blockPattern: pattern,
+            affectedPositions: placementEngine.previewPositions
+        )
+    }
+
     // MARK: - Performance Optimization
 
     private func setupPerformanceOptimizations() {
@@ -1016,13 +1052,18 @@ struct DragDropGameView: View {
     private func handleValidPlacement(blockIndex: Int, blockPattern: BlockPattern, position: CGPoint) {
         DebugLog.trace("✅ PLACEMENT SUCCESS: Block \(blockIndex) placed successfully")
 
-        deviceManager.provideNotificationFeedback(type: .success)
-        UIAccessibility.post(notification: .announcement, argument: "Placed block successfully")
+        let engine = gameEngine
 
+        UIAccessibility.post(notification: .announcement, argument: "Placed block successfully")
         UIAccessibility.post(notification: .announcement, argument: "Lines cleared if any")
 
         // Regenerate the placed block (infinite supply design)
         blockFactory.consumeBlock(at: blockIndex)
+
+        let linesCleared = engine.lastScoreEvent?.linesCleared ?? 0
+        let boardCleared = engine.isBoardCompletelyEmpty()
+        blockFactory.recordPlacement(linesCleared: linesCleared, boardCleared: boardCleared)
+        triggerPlacementHaptics(linesCleared: linesCleared, boardCleared: boardCleared)
 
         // Clear preview (drag controller handles its own cleanup)
         placementEngine.clearPreview()
@@ -1037,6 +1078,16 @@ struct DragDropGameView: View {
         // subsequent drags that started within 0.5s, causing snapback.
     }
     
+    private func triggerPlacementHaptics(linesCleared: Int, boardCleared: Bool) {
+        if boardCleared {
+            feedbackCoordinator.haptics.trigger(.perfectClear)
+        } else if linesCleared > 0 {
+            feedbackCoordinator.haptics.trigger(.lineClear(count: linesCleared))
+        } else {
+            feedbackCoordinator.haptics.trigger(.piecePlacement)
+        }
+    }
+
     private func snappedPreviewOrigin() -> CGPoint? {
         guard placementEngine.isCurrentPreviewValid, !placementEngine.previewPositions.isEmpty, gridFrame != .zero else {
             return nil

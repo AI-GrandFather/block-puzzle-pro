@@ -184,6 +184,7 @@ struct ContentView: View {
 
             // 5. Pre-warm block factory
             let blockFactory = BlockFactory()
+            blockFactory.attach(gameEngine: gameEngine)
             blockFactory.resetTray()
             _ = blockFactory.getTraySlots()
             logger.info("✅ Block factory warmed")

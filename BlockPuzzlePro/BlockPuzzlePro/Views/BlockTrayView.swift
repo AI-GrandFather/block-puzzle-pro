@@ -144,29 +144,27 @@ struct BlockTrayView: View {
     private func blockTypeIndicator(for blockType: BlockType) -> String {
         switch blockType {
         case .single: return "•"
-        case .horizontal: return "═"
-        case .vertical: return "║"
-        case .lineThree: return "≡"
-        case .lineThreeVertical: return "‖"
-        case .lineFourVertical: return "⎮"
-        case .square: return "▣"
-        case .squareThree: return "▦"
-        case .rectangleTwoByThree: return "▨"
-        case .rectangleThreeByTwo: return "▧"
-        case .lShape: return "└"
-        case .tShape: return "┴"
-        case .zigZag: return "≈"
-        case .plus: return "✛"
+        case .domino: return "═"
+        case .triLine: return "≡"
+        case .triCorner: return "└"
+        case .tetLine: return "⎮"
+        case .tetSquare: return "▣"
+        case .tetL: return "┗"
+        case .tetT: return "┴"
+        case .tetSkew: return "≈"
+        case .almostSquare: return "▧"
+        case .pentaLine: return "⎯"
+        case .pentaL: return "┛"
+        case .pentaP: return "▟"
+        case .pentaU: return "∪"
+        case .pentaV: return "∨"
+        case .pentaW: return "W"
         }
     }
     
     private func handleBlockSelection(at index: Int, blockPattern: BlockPattern) {
         // Visual feedback
         selectedBlockIndex = index
-        
-        // Haptic feedback
-        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-        impactFeedback.impactOccurred()
         
         // Callback to parent
         onBlockSelected(index, blockPattern)

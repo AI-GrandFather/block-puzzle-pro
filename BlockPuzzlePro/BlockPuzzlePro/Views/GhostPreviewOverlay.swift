@@ -55,31 +55,20 @@ struct GhostPreviewOverlay: View {
     @ViewBuilder
     private func ghostBlockView(pattern: BlockPattern) -> some View {
         if previewState.position != nil {
-            let ghostColor = getGhostColor(validity: previewState.validity)
-            let outlineColor = getOutlineColor(validity: previewState.validity)
+            let ghostColor = getGhostFillColor(for: pattern, validity: previewState.validity)
 
             ForEach(Array(previewState.affectedPositions.enumerated()), id: \.offset) { _, gridPos in
-                ghostCell(at: gridPos, color: ghostColor, outlineColor: outlineColor)
+                ghostCell(at: gridPos, color: ghostColor)
             }
         }
     }
 
     @ViewBuilder
-    private func ghostCell(at position: GridPosition, color: Color, outlineColor: Color) -> some View {
+    private func ghostCell(at position: GridPosition, color: Color) -> some View {
         let cellPosition = calculateCellPosition(gridPosition: position)
 
         RoundedRectangle(cornerRadius: 4)
             .fill(color)
-            .overlay(
-                RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(
-                        outlineColor,
-                        style: StrokeStyle(
-                            lineWidth: 2,
-                            dash: [5, 3]
-                        )
-                    )
-            )
             .frame(width: cellSize, height: cellSize)
             .position(
                 x: cellPosition.x + cellSize / 2,
@@ -175,30 +164,19 @@ struct GhostPreviewOverlay: View {
         )
     }
 
-    private func getGhostColor(validity: PlacementValidity) -> Color {
-        let baseOpacity = 0.3
-        switch validity {
-        case .valid:
-            return Color(red: 0.20, green: 0.78, blue: 0.35).opacity(baseOpacity) // Green
-        case .invalid:
-            return Color(red: 1.0, green: 0.23, blue: 0.19).opacity(baseOpacity) // Red
-        }
-    }
-
-    private func getOutlineColor(validity: PlacementValidity) -> Color {
-        switch validity {
-        case .valid:
-            return Color(red: 0.20, green: 0.78, blue: 0.35) // #34C759
-        case .invalid:
-            return Color(red: 1.0, green: 0.23, blue: 0.19) // #FF3B30
-        }
+    private func getGhostFillColor(for pattern: BlockPattern, validity: PlacementValidity) -> Color {
+        let baseColor = Color(pattern.color.uiColor)
+        let opacity = validity.isValid
+            ? Double(GameConfig.previewAlpha)
+            : Double(GameConfig.invalidPreviewAlpha)
+        return baseColor.opacity(opacity)
     }
 }
 
 // MARK: - Preview
 
 #Preview {
-    let mockPattern = BlockPattern(type: .lShape, color: .blue)
+    let mockPattern = BlockPattern(type: .tetT, color: .blue)
     let mockPosition = GridPosition(unsafeRow: 2, unsafeColumn: 3)
 
     let mockState = GhostPreviewState(
@@ -211,7 +189,7 @@ struct GhostPreviewOverlay: View {
         scorePreview: ScorePreview(placementScore: 40, lineClearScore: 300, totalScore: 340)
     )
 
-    return GhostPreviewOverlay(
+    GhostPreviewOverlay(
         previewState: mockState,
         cellSize: 35,
         gridSpacing: 2,

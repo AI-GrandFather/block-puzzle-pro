@@ -8,10 +8,9 @@ struct GameViewV2: View {
     // MARK: - State Objects
 
     @StateObject private var gameEngine: GameEngine
-    @StateObject private var blockFactory = BlockFactory()
+    @StateObject private var blockFactory: BlockFactory
     @StateObject private var dragController = DragControllerV2()
     @StateObject private var placementEngine: PlacementEngineV2
-    @StateObject private var deviceManager = DeviceManager()
     @StateObject private var audioManager = AudioManager.shared
     @StateObject private var holdPieceManager = HoldPieceManager()
     @StateObject private var powerUpManager = PowerUpManager()
@@ -41,6 +40,7 @@ struct GameViewV2: View {
     private let pieceSizeRatio: CGFloat = 0.9
 
     // Callbacks
+    private let feedbackCoordinator = FeedbackCoordinator.shared
     private let onReturnHome: () -> Void
     private let onReturnModeSelect: () -> Void
 
@@ -52,7 +52,10 @@ struct GameViewV2: View {
         onReturnModeSelect: @escaping () -> Void = {}
     ) {
         let engine = GameEngine(gameMode: gameMode)
+        let factory = BlockFactory()
+        factory.attach(gameEngine: engine)
         _gameEngine = StateObject(wrappedValue: engine)
+        _blockFactory = StateObject(wrappedValue: factory)
         _placementEngine = StateObject(wrappedValue: PlacementEngineV2(gameEngine: engine))
         self.onReturnHome = onReturnHome
         self.onReturnModeSelect = onReturnModeSelect
@@ -194,7 +197,6 @@ struct GameViewV2: View {
 
             // Settings Button
             Button {
-                deviceManager.provideHapticFeedback(style: .light)
                 audioManager.playSound(.buttonClick)
                 showSettings = true
             } label: {
@@ -301,6 +303,7 @@ struct GameViewV2: View {
         gameCenterManager.authenticatePlayer()
 
         // Start game
+        blockFactory.attach(gameEngine: gameEngine)
         gameEngine.startNewGame()
         blockFactory.resetTray()
 
@@ -343,52 +346,45 @@ struct GameViewV2: View {
             let success = placementEngine.commitPreview(pattern: pattern)
 
             if success {
-                // Consume block from tray
                 blockFactory.consumeBlock(at: blockIndex)
 
-                // Get placement result
-                if let lastEvent = gameEngine.lastScoreEvent {
-                    let linesCleared = lastEvent.linesCleared
+                let linesCleared = gameEngine.lastScoreEvent?.linesCleared ?? 0
+                let boardCleared = gameEngine.isBoardCompletelyEmpty()
 
-                    // Play appropriate sound based on lines cleared
-                    if linesCleared >= 2 {
-                        audioManager.playSound(.lineClearCombo)
-                        deviceManager.provideNotificationFeedback(type: .success)
-                    } else if linesCleared == 1 {
-                        audioManager.playSound(.lineCleSingle)
-                        deviceManager.provideHapticFeedback(style: .medium)
-                    } else {
-                        audioManager.playSound(.piecePlace)
-                        deviceManager.provideHapticFeedback(style: .light)
-                    }
-
-                    // Update challenges
-                    if linesCleared > 0 {
-                        dailyChallengeManager.updateProgress(for: .lineClearCount, value: linesCleared)
-                        powerUpManager.onLineClear(linesCleared: linesCleared)
-                    }
-
-                    // Check for perfect board clear
-                    let boardCleared = gameEngine.isBoardCompletelyEmpty()
-                    if boardCleared {
-                        audioManager.playSound(.achievement)
-                        deviceManager.provideNotificationFeedback(type: .success)
-                    }
-
-                    // Update theme progress
-                    themeManager.recordProgress(
-                        score: gameEngine.score,
-                        linesCleared: linesCleared,
-                        boardCleared: boardCleared
-                    )
-
-                    // Update Game Center achievements
-                    gameCenterManager.checkAndReportAchievements(
-                        score: gameEngine.score,
-                        linesCleared: linesCleared,
-                        boardCleared: boardCleared
-                    )
+                // Play appropriate sound based on lines cleared
+                if linesCleared >= 2 {
+                    audioManager.playSound(.lineClearCombo)
+                } else if linesCleared == 1 {
+                    audioManager.playSound(.lineCleSingle)
+                } else {
+                    audioManager.playSound(.piecePlace)
                 }
+
+                triggerPlacementHaptics(linesCleared: linesCleared, boardCleared: boardCleared)
+
+                // Update challenges and progression
+                if linesCleared > 0 {
+                    dailyChallengeManager.updateProgress(for: .lineClearCount, value: linesCleared)
+                    powerUpManager.onLineClear(linesCleared: linesCleared)
+                }
+
+                if boardCleared {
+                    audioManager.playSound(.achievement)
+                }
+
+                themeManager.recordProgress(
+                    score: gameEngine.score,
+                    linesCleared: linesCleared,
+                    boardCleared: boardCleared
+                )
+
+                gameCenterManager.checkAndReportAchievements(
+                    score: gameEngine.score,
+                    linesCleared: linesCleared,
+                    boardCleared: boardCleared
+                )
+
+                blockFactory.recordPlacement(linesCleared: linesCleared, boardCleared: boardCleared)
 
                 // Submit score to Game Center
                 gameCenterManager.submitScore(gameEngine.score)
@@ -397,11 +393,19 @@ struct GameViewV2: View {
                 evaluateGameOver()
             }
         } else {
-            // Invalid placement
             audioManager.playSound(.invalidPlacement)
-            deviceManager.provideNotificationFeedback(type: .error)
             placementEngine.clearPreview()
             dragController.cancelDrag()
+        }
+    }
+
+    private func triggerPlacementHaptics(linesCleared: Int, boardCleared: Bool) {
+        if boardCleared {
+            feedbackCoordinator.haptics.trigger(.perfectClear)
+        } else if linesCleared > 0 {
+            feedbackCoordinator.haptics.trigger(.lineClear(count: linesCleared))
+        } else {
+            feedbackCoordinator.haptics.trigger(.piecePlacement)
         }
     }
 
@@ -424,7 +428,6 @@ struct GameViewV2: View {
         blockFactory.resetTray()
         placementEngine.clearPreview()
         dragController.reset()
-        deviceManager.provideHapticFeedback(style: .medium)
     }
 
     private func handleHoldPieceSwap(piece: BlockPattern) {

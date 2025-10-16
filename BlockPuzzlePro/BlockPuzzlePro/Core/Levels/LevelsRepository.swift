@@ -203,11 +203,11 @@ private enum LevelDataFactory {
         case 2:
             // Shape Builder: Limit piece types for focused learning
             let pieceSets: [[BlockType]] = [
-                [.square, .horizontal, .vertical],
-                [.lineThree, .lineThreeVertical, .lShape],
-                [.rectangleTwoByThree, .rectangleThreeByTwo, .plus],
-                [.tShape, .zigZag, .square],
-                [.lineFourVertical, .horizontal, .vertical]
+                [.tetSquare, .domino, .triLine],
+                [.triLine, .triCorner, .tetT],
+                [.tetL, .almostSquare, .pentaU],
+                [.tetT, .tetSkew, .tetSquare],
+                [.tetLine, .domino, .triLine]
             ]
             return LevelConstraints(allowedPieces: pieceSets[levelOffset % pieceSets.count])
         case 3:

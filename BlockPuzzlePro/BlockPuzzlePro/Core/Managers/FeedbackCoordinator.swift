@@ -77,13 +77,11 @@ final class FeedbackCoordinator: ObservableObject {
     private func triggerHaptic(for event: GameFeedbackEvent) {
         switch event {
         case .piecePickup:
-            hapticManager.trigger(.piecePickup)
+            break
 
         case .piecePlaced(let valid):
             if valid {
                 hapticManager.trigger(.piecePlacement)
-            } else {
-                hapticManager.trigger(.invalidPlacement)
             }
 
         case .lineClear(let count):

@@ -36,7 +36,11 @@ extension GridCell {
 
 extension BlockPatternPayload {
     init(from pattern: BlockPattern) {
-        self = BlockPatternPayload(type: pattern.type.rawValue, color: pattern.color.rawValue)
+        self = BlockPatternPayload(
+            type: pattern.type.rawValue,
+            color: pattern.color.rawValue,
+            cells: pattern.cells
+        )
     }
 }
 
@@ -48,6 +52,6 @@ extension BlockPattern {
         else {
             return nil
         }
-        self.init(type: type, color: color)
+        self.init(type: type, color: color, cells: payload.cells)
     }
 }

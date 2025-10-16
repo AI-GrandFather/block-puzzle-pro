@@ -230,7 +230,7 @@ final class HapticManager: ObservableObject {
     }
 
     private func piecePlacementHaptic() async {
-        impact(style: .medium, intensity: 0.7)
+        impact(style: .soft, intensity: 0.45)
     }
 
     private func invalidPlacementHaptic() async {

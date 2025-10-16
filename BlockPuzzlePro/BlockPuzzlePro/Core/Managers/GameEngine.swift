@@ -186,6 +186,15 @@ class GameEngine: ObservableObject {
     }
     
     /// Get all empty positions in the grid
+    func isBoardCompletelyEmpty() -> Bool {
+        for row in gameGrid {
+            if row.contains(where: { $0.isOccupied }) {
+                return false
+            }
+        }
+        return true
+    }
+
     func getEmptyPositions() -> [GridPosition] {
         var emptyPositions: [GridPosition] = []
         

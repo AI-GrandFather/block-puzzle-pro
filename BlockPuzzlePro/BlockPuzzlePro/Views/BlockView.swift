@@ -329,13 +329,13 @@ class BlockNode: SKNode {
             .bold()
         
         HStack(spacing: 30) {
-            ForEach(BlockType.allCases) { blockType in
+            ForEach(BlockType.allCases, id: \.self) { blockType in
                 VStack {
                     BlockView(
                         blockPattern: BlockPattern(
-                            type: blockType, 
-                            color: blockType == .lShape ? .orange : 
-                                   blockType == .single ? .blue : .green
+                            type: blockType,
+                            color: .blue,
+                            cells: blockType.variations.first ?? blockType.pattern
                         ),
                         cellSize: 40
                     )

@@ -24,6 +24,8 @@ struct SimplifiedGameView: View {
     @State private var gridFrame: CGRect = .zero
     @State private var isGameOver: Bool = false
 
+    private let feedbackCoordinator = FeedbackCoordinator.shared
+
     // MARK: - Constants
 
     private let gridSize = 10
@@ -226,6 +228,11 @@ struct SimplifiedGameView: View {
                     // Regenerate block in tray
                     blockFactory.consumeBlock(at: blockIndex)
 
+                    let linesCleared = gameEngine.lastScoreEvent?.linesCleared ?? 0
+                    let boardCleared = gameEngine.isBoardCompletelyEmpty()
+                    blockFactory.recordPlacement(linesCleared: linesCleared, boardCleared: boardCleared)
+                    triggerPlacementHaptics(linesCleared: linesCleared, boardCleared: boardCleared)
+
                     // Check game over
                     evaluateGameOver()
                 } else {
@@ -247,9 +254,20 @@ struct SimplifiedGameView: View {
     // MARK: - Game Logic
 
     private func startNewGame() {
+        blockFactory.attach(gameEngine: gameEngine)
         gameEngine.startNewGame()
         blockFactory.resetTray()
         isGameOver = false
+    }
+
+    private func triggerPlacementHaptics(linesCleared: Int, boardCleared: Bool) {
+        if boardCleared {
+            feedbackCoordinator.haptics.trigger(.perfectClear)
+        } else if linesCleared > 0 {
+            feedbackCoordinator.haptics.trigger(.lineClear(count: linesCleared))
+        } else {
+            feedbackCoordinator.haptics.trigger(.piecePlacement)
+        }
     }
 
     private func evaluateGameOver() {

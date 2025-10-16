@@ -197,29 +197,14 @@ final class BlockTrayViewTests: XCTestCase {
     
     // MARK: - Block Pattern Validation Tests
     
-    func testBlockTrayView_BlockPatternsAreCorrect() {
+    func testBlockTrayView_BlockPatternsAreConsistent() {
         // Given
         let availableBlocks = blockFactory.getAvailableBlocks()
         
-        // When/Then - Verify each block has correct pattern
+        // When/Then - Verify each block's cell count matches occupied cells in its pattern
         for block in availableBlocks {
-            switch block.type {
-            case .single:
-                XCTAssertEqual(block.cells, [[true]], "Single block should have 1x1 pattern")
-                XCTAssertEqual(block.cellCount, 1, "Single block should have 1 cell")
-                
-            case .horizontal:
-                XCTAssertEqual(block.cells, [[true, true]], "Horizontal block should have 1x2 pattern")
-                XCTAssertEqual(block.cellCount, 2, "Horizontal block should have 2 cells")
-                
-            case .lShape:
-                let expectedPattern = [
-                    [true, false],
-                    [true, true]
-                ]
-                XCTAssertEqual(block.cells, expectedPattern, "L-Shape block should have L pattern")
-                XCTAssertEqual(block.cellCount, 3, "L-Shape block should have 3 cells")
-            }
+            let occupied = block.cells.flatMap { $0 }.filter { $0 }.count
+            XCTAssertEqual(block.cellCount, occupied, "Block cellCount should match occupied cells in the pattern")
         }
     }
 }

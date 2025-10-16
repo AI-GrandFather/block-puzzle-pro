@@ -347,17 +347,17 @@ private enum PrefillFactory {
     static func pieces(for category: PuzzleCategory) -> [BlockType]? {
         switch category {
         case .clearInOne:
-            return [.lineThree, .rectangleThreeByTwo, .square]
+            return [.triLine, .tetL, .tetSquare]
         case .patternMatch:
-            return [.tShape, .lShape, .plus, .square]
+            return [.tetT, .triCorner, .almostSquare, .tetSquare]
         case .blockBreaker:
-            return [.lineFourVertical, .rectangleTwoByThree, .zigZag]
+            return [.tetLine, .tetL, .tetSkew]
         case .comboBuilder:
-            return [.lineThree, .lineThreeVertical, .square, .horizontal]
+            return [.triLine, .triCorner, .tetSquare, .domino]
         case .survival:
             return nil
         case .constraint:
-            return [.square, .horizontal, .vertical]
+            return [.tetSquare, .domino, .triCorner]
         }
     }
 

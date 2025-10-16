@@ -14,6 +14,7 @@ struct GridCellPayload: Codable {
 struct BlockPatternPayload: Codable {
     let type: String
     let color: String
+    let cells: [[Bool]]?
 }
 
 struct GameSavePayload: Codable {

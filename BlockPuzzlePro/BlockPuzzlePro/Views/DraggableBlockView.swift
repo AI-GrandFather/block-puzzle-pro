@@ -401,7 +401,6 @@ struct FloatingBlockPreview: View {
         )
         .frame(width: blockWidth, height: blockHeight, alignment: .topLeading)
         .opacity(previewOpacity)
-        .overlay(validationOverlay)
         .shadow(color: shadowColor, radius: 8, x: 2, y: 4)
         .position(
             x: position.x + blockWidth / 2,
@@ -417,16 +416,10 @@ struct FloatingBlockPreview: View {
         isValid ? 0.85 : 0.45
     }
 
-    private var validationOverlay: some View {
-        RoundedRectangle(cornerRadius: 10)
-            .stroke(isValid ? Color.green : Color.red, lineWidth: 2)
-            .opacity(isValid ? 0.35 : 0.6)
-            .animation(.easeInOut(duration: 0.1), value: isValid)
-    }
-
     private var shadowColor: Color {
-        let base = isValid ? Color.green : Color.red
-        return base.opacity(colorScheme == .dark ? 0.35 : 0.25)
+        let baseColor = Color(blockPattern.color.uiColor)
+        let opacity = isValid ? 0.35 : 0.25
+        return baseColor.opacity(colorScheme == .dark ? opacity : opacity * 0.9)
     }
 }
 

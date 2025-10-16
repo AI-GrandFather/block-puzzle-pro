@@ -33,8 +33,8 @@ struct GameConfig {
     // Grid rendering
     static let gridLineWidth: CGFloat = 1.0
     static let cellBorderWidth: CGFloat = 0.5
-    static let previewAlpha: CGFloat = 0.2
-    static let invalidPreviewAlpha: CGFloat = 0.12
+    static let previewAlpha: CGFloat = 0.5
+    static let invalidPreviewAlpha: CGFloat = 0.35
 
     // Difficulty progression
     enum Difficulty: Int, CaseIterable {

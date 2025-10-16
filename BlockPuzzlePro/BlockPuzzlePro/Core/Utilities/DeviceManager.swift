@@ -324,44 +324,13 @@ final class DeviceManager: ObservableObject, @unchecked Sendable {
     
     /// Provide haptic feedback if supported, reusing cached generators to avoid jank
     func provideHapticFeedback(style: UIImpactFeedbackGenerator.FeedbackStyle) {
-        guard supportsHapticFeedback else { return }
-
-        Task { @MainActor in
-            let generator: UIImpactFeedbackGenerator
-
-            if let cached = impactGenerators[style] {
-                generator = cached
-            } else {
-                let newGenerator = UIImpactFeedbackGenerator(style: style)
-                newGenerator.prepare()
-                impactGenerators[style] = newGenerator
-                generator = newGenerator
-            }
-
-            generator.impactOccurred()
-            generator.prepare()
-        }
+        // Intentionally left blank – gameplay haptics are coordinated elsewhere
+        // to ensure they trigger only on successful placements.
     }
 
     /// Provide notification haptic feedback
     func provideNotificationFeedback(type: UINotificationFeedbackGenerator.FeedbackType) {
-        guard supportsHapticFeedback else { return }
-        
-        Task { @MainActor in
-            let generator: UINotificationFeedbackGenerator
-
-            if let cached = notificationGenerator {
-                generator = cached
-            } else {
-                let newGenerator = UINotificationFeedbackGenerator()
-                newGenerator.prepare()
-                notificationGenerator = newGenerator
-                generator = newGenerator
-            }
-
-            generator.notificationOccurred(type)
-            generator.prepare()
-        }
+        // No-op: placement-specific haptics are handled by FeedbackCoordinator.
     }
     
     // MARK: - Device Observation
