@@ -4,6 +4,7 @@ struct GridCellPayload: Codable {
     enum State: String, Codable {
         case empty
         case occupied
+        case locked
         case preview
     }
 

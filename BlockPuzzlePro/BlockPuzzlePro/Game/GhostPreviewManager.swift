@@ -521,7 +521,7 @@ final class GhostPreviewManager {
 
         let searchRadius = 1
         let overlapTolerance: CGFloat = 0.005
-        var bestCandidate: (position: GridPosition, overlap: CGFloat, baseDistance: Int, distance: CGFloat)?
+        var bestCandidate: (position: GridPosition, adjacency: Int, overlap: CGFloat, baseDistance: Int, distance: CGFloat)?
 
         for rowOffset in -searchRadius...searchRadius {
             for columnOffset in -searchRadius...searchRadius {
@@ -551,24 +551,35 @@ final class GhostPreviewManager {
 
                     let overlapArea = overlapRect.width * overlapRect.height
                     let overlapRatio = overlapArea / totalArea
-                    // Require roughly three quarters overlap before snapping to avoid aggressive grabs.
-                    guard overlapRatio >= 0.75 else { continue }
+                    // Show ghost preview at any overlap - removed threshold for exact positioning
+                    guard overlapRatio > 0 else { continue }
 
+                    let adjacencyScore = placementAdjacencyScore(for: candidate, blockPattern: blockPattern)
                     let candidateCenter = CGPoint(x: candidateRect.midX, y: candidateRect.midY)
                     let distance = hypot(pointerCenter.x - candidateCenter.x, pointerCenter.y - candidateCenter.y)
                     let baseDistance = abs(rowOffset) + abs(columnOffset)
 
                     if let currentBest = bestCandidate {
-                        if overlapRatio > currentBest.overlap + overlapTolerance {
-                            bestCandidate = (candidate, overlapRatio, baseDistance, distance)
-                        } else if abs(overlapRatio - currentBest.overlap) <= overlapTolerance {
-                            if baseDistance < currentBest.baseDistance ||
-                                (baseDistance == currentBest.baseDistance && distance < currentBest.distance) {
-                                bestCandidate = (candidate, overlapRatio, baseDistance, distance)
+                        if adjacencyScore > currentBest.adjacency {
+                            bestCandidate = (candidate, adjacencyScore, overlapRatio, baseDistance, distance)
+                        } else if adjacencyScore == currentBest.adjacency {
+                            if overlapRatio > currentBest.overlap + overlapTolerance {
+                                bestCandidate = (candidate, adjacencyScore, overlapRatio, baseDistance, distance)
+                            } else if abs(overlapRatio - currentBest.overlap) <= overlapTolerance {
+                                if baseDistance < currentBest.baseDistance ||
+                                    (baseDistance == currentBest.baseDistance && distance < currentBest.distance) {
+                                    bestCandidate = (candidate, adjacencyScore, overlapRatio, baseDistance, distance)
+                                }
                             }
+                        } else if overlapRatio > currentBest.overlap + overlapTolerance {
+                            bestCandidate = (candidate, adjacencyScore, overlapRatio, baseDistance, distance)
+                        } else if abs(overlapRatio - currentBest.overlap) <= overlapTolerance &&
+                                    (baseDistance < currentBest.baseDistance ||
+                                     (baseDistance == currentBest.baseDistance && distance < currentBest.distance)) {
+                            bestCandidate = (candidate, adjacencyScore, overlapRatio, baseDistance, distance)
                         }
                     } else {
-                        bestCandidate = (candidate, overlapRatio, baseDistance, distance)
+                        bestCandidate = (candidate, adjacencyScore, overlapRatio, baseDistance, distance)
                     }
                 case .invalid:
                     continue
@@ -623,6 +634,39 @@ final class GhostPreviewManager {
         let y = originY + CGFloat(gridPosition.row) * cellSpan
 
         return CGPoint(x: x, y: y)
+    }
+
+    /// Compute how many neighboring occupied cells would touch the candidate placement.
+    private func placementAdjacencyScore(
+        for basePosition: GridPosition,
+        blockPattern: BlockPattern
+    ) -> Int {
+        guard let gameEngine else { return 0 }
+
+        let occupiedPositions = blockPattern.getGridPositions(placedAt: basePosition)
+        let occupiedSet = Set(occupiedPositions)
+        let directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        var adjacency = 0
+
+        for position in occupiedPositions {
+            for (dr, dc) in directions {
+                guard let neighbor = GridPosition(
+                    row: position.row + dr,
+                    column: position.column + dc,
+                    gridSize: gameEngine.gridSize
+                ) else {
+                    continue
+                }
+
+                if occupiedSet.contains(neighbor) { continue }
+
+                if gameEngine.cell(at: neighbor)?.isOccupied == true {
+                    adjacency += 1
+                }
+            }
+        }
+
+        return adjacency
     }
 
     // MARK: - State Management

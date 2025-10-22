@@ -92,6 +92,9 @@ struct DragDropGameView: View {
     @State private var didObserveCloudSaves = false
     @State private var timerRemaining: Int = 0
     @State private var timerActive: Bool = false
+    @State private var lineClearStreakLevel: Int = 0
+    @State private var lastLineClearTimestamp: TimeInterval = 0
+    @State private var effectsEngine = EffectsEngine.shared
 
     // Performance optimization properties
     @State private var lastUpdateTime: TimeInterval = 0
@@ -181,12 +184,11 @@ struct DragDropGameView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .allowsHitTesting(!isGameOver)
                     
-                    // Floating drag preview overlay - follows finger smoothly without snapping
+                    // Floating drag preview overlay - snaps visually when a valid preview exists
                     if !isGameOver, let draggedPattern = dragController.draggedBlockPattern {
                         let rootOrigin = geometry.frame(in: .global).origin
 
-                        // Always use raw finger position for smooth dragging (no magnetic snapping during drag)
-                        let previewOriginGlobal = dragController.currentDragPosition
+                        let previewOriginGlobal = (placementEngine.isCurrentPreviewValid ? snappedPreviewOrigin() : nil) ?? dragController.currentDragPosition
 
                         let localDragPosition = CGPoint(
                             x: previewOriginGlobal.x - rootOrigin.x,
@@ -231,7 +233,61 @@ struct DragDropGameView: View {
             .onReceive(gameEngine.$activeLineClears) { clears in
                 guard !clears.isEmpty else { return }
 
+                // Spawn fragment effects
                 spawnFragments(from: clears)
+
+                let timestamp = CACurrentMediaTime()
+                if lastLineClearTimestamp > 0, (timestamp - lastLineClearTimestamp) <= 8.0 {
+                    lineClearStreakLevel = min(lineClearStreakLevel + 1, 5)
+                } else {
+                    lineClearStreakLevel = 0
+                }
+                lastLineClearTimestamp = timestamp
+
+                let isPerfect = gameEngine.isBoardCompletelyEmpty()
+                let reducedMotion = UIAccessibility.isReduceMotionEnabled
+                let rowsCleared = clears.compactMap { line -> Int? in
+                    if case .row(let value) = line.kind { return value }
+                    return nil
+                }
+                let colsCleared = clears.compactMap { line -> Int? in
+                    if case .column(let value) = line.kind { return value }
+                    return nil
+                }
+                let clearedCells: [ClearedCell] = clears.flatMap { lineClear in
+                    lineClear.fragments.map { fragment in
+                        ClearedCell(
+                            row: fragment.position.row,
+                            column: fragment.position.column,
+                            color: fragment.color.uiColor
+                        )
+                    }
+                }
+                let fxContext = FXContext(
+                    reduceMotion: reducedMotion,
+                    comboCount: max(0, clears.count - 1),
+                    streakLevel: lineClearStreakLevel,
+                    boardSize: CGSize(width: boardSize, height: boardSize)
+                )
+                let boardOrigin = CGPoint(x: boardSize / 2, y: boardSize / 2)
+
+                EffectsEngine.shared.trigger(
+                    .lineClear(
+                        rows: rowsCleared,
+                        cols: colsCleared,
+                        clearedCells: clearedCells,
+                        origin: boardOrigin,
+                        timestamp: timestamp
+                    ),
+                    ctx: fxContext
+                )
+
+                if isPerfect {
+                    EffectsEngine.shared.trigger(
+                        .perfectClear(origin: boardOrigin, timestamp: timestamp),
+                        ctx: fxContext
+                    )
+                }
 
                 let token = UUID()
                 lineClearAnimationToken = token
@@ -468,16 +524,16 @@ struct DragDropGameView: View {
                 }
             )
 
-            // Ghost preview overlay - shows snapped position during drag
-            if !isGameOver, dragController.draggedBlockPattern != nil {
-                GhostPreviewOverlay(
-                    previewState: ghostPreviewState,
+            LineClearOverlayView(
+                geometry: BoardGeometry(
+                    gridSize: gameEngine.gridSize,
                     cellSize: gridCellSize,
-                    gridSpacing: gridSpacing,
-                    gridSize: gameEngine.gridSize
+                    spacing: gridSpacing,
+                    boardSize: CGSize(width: boardSize, height: boardSize)
                 )
-                .allowsHitTesting(false)
-            }
+            )
+            .frame(width: boardSize, height: boardSize, alignment: .topLeading)
+            .allowsHitTesting(false)
 
             FragmentOverlayView(effects: fragmentEffects) { effectID in
                 fragmentCleanupQueue.insert(effectID)
@@ -541,7 +597,11 @@ struct DragDropGameView: View {
 
     @ViewBuilder
     private var celebrationOverlay: some View {
-        if let message = celebrationMessage, celebrationVisible {
+        if effectsEngine.isPerfectClearActive {
+            PerfectClearBanner()
+                .transition(.opacity.combined(with: .scale))
+                .allowsHitTesting(false)
+        } else if let message = celebrationMessage, celebrationVisible {
             GridCelebrationPopup(message: message)
             .transition(.scale.combined(with: .opacity))
             .allowsHitTesting(false)
@@ -560,6 +620,44 @@ struct DragDropGameView: View {
                 onOpenSettings: { isSettingsPresented = true }
             )
             .transition(.opacity.combined(with: .scale))
+        }
+    }
+
+    private struct PerfectClearBanner: View {
+        @State private var pulse = false
+
+        var body: some View {
+            Text("PERFECT CLEAR!")
+                .font(.system(size: 48, weight: .black, design: .rounded))
+                .tracking(2)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.white, Color(hex: "FFE599"), .white],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .padding(.horizontal, 36)
+                .padding(.vertical, 20)
+                .background(
+                    RoundedRectangle(cornerRadius: 28)
+                        .fill(Color.white.opacity(0.18))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 28)
+                                .stroke(Color.white.opacity(0.45), lineWidth: 2)
+                        )
+                )
+                .shadow(color: Color.white.opacity(0.4), radius: 18, x: 0, y: 6)
+                .scaleEffect(pulse ? 1.0 : 0.94)
+                .onAppear {
+                    let pulseAnimation = Animation.easeInOut(duration: 0.16).repeatCount(3, autoreverses: true)
+                    withAnimation(pulseAnimation) {
+                        pulse = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        pulse = false
+                    }
+                }
         }
     }
     
@@ -585,28 +683,6 @@ struct DragDropGameView: View {
 
     private var boardSize: CGFloat {
         gridCellSize * CGFloat(gameEngine.gridSize) + gridSpacing * CGFloat(gameEngine.gridSize + 1)
-    }
-
-    /// Computed ghost preview state from PlacementEngine data
-    private var ghostPreviewState: GhostPreviewState {
-        guard let pattern = dragController.draggedBlockPattern,
-              !placementEngine.previewPositions.isEmpty,
-              let minRow = placementEngine.previewPositions.map({ $0.row }).min(),
-              let minCol = placementEngine.previewPositions.map({ $0.column }).min(),
-              let position = GridPosition(row: minRow, column: minCol, gridSize: gameEngine.gridSize) else {
-            return GhostPreviewState(isVisible: false)
-        }
-
-        let validity: PlacementValidity = placementEngine.isCurrentPreviewValid ?
-            .valid : .invalid(reason: .collision)
-
-        return GhostPreviewState(
-            isVisible: true,
-            position: position,
-            validity: validity,
-            blockPattern: pattern,
-            affectedPositions: placementEngine.previewPositions
-        )
     }
 
     // MARK: - Performance Optimization
@@ -894,19 +970,22 @@ struct DragDropGameView: View {
 
         withAnimation(.easeInOut(duration: 0.3)) {
             isGameOver = false
-            gameEngine.startNewGame()
         }
 
         lastGameOverScore = 0
 
         if levelConfiguration == nil {
+            // Endless mode: reset game engine directly
+            gameEngine.startNewGame()
             initializeTimer()
         } else {
+            // Level mode: let coordinator handle reset and prefill application
             levelBridge.cancel()
             if let coordinator = levelCoordinator {
                 hasDispatchedLevelOutcome = false
+                gameEngine.startNewGame()  // Reset grid first
                 levelBridge.bind(to: coordinator)
-                coordinator.begin()
+                coordinator.begin()  // Will apply prefill on clean grid
             }
         }
 
@@ -1034,16 +1113,18 @@ struct DragDropGameView: View {
             return
         }
 
+        let snappedOrigin = snappedPlacementOrigin(from: blockOrigin)
+
         placementEngine.updatePreview(
             blockPattern: blockPattern,
-            blockOrigin: blockOrigin,
+            blockOrigin: snappedOrigin,
             touchPoint: visualTouchPoint,  // Use visual position, not raw finger
             touchOffset: dragController.dragTouchOffset,
             gridFrame: gridFrame,
             cellSize: gridCellSize,
             gridSpacing: gridSpacing
         )
-        DebugLog.trace("🧮 updatePlacementPreview blockIndex=\(dragController.currentBlockIndex ?? -1) origin=\(blockOrigin) visualTouch=\(visualTouchPoint) rawTouch=\(dragController.currentTouchLocation) liftOffset=\(dragController.liftOffsetY) gridFrame=\(gridFrame)")
+        DebugLog.trace("🧮 updatePlacementPreview blockIndex=\(dragController.currentBlockIndex ?? -1) rawOrigin=\(blockOrigin) snappedOrigin=\(snappedOrigin) visualTouch=\(visualTouchPoint) rawTouch=\(dragController.currentTouchLocation) liftOffset=\(dragController.liftOffsetY) gridFrame=\(gridFrame)")
 
         // Removed the following line as per instructions:
         // dragController.setDropValidity(placementEngine.isCurrentPreviewValid)
@@ -1111,7 +1192,36 @@ struct DragDropGameView: View {
             y: centre.y - (gridCellSize / 2)
         )
     }
+
     
+
+    private func snappedPlacementOrigin(from rawOrigin: CGPoint) -> CGPoint {
+        guard gridFrame != .zero else { return rawOrigin }
+
+        let cellSpan = gridCellSize + gridSpacing
+        let originX = gridFrame.minX + gridSpacing
+        let originY = gridFrame.minY + gridSpacing
+        let maxOffsetX = cellSpan * CGFloat(gameEngine.gridSize - 1)
+        let maxOffsetY = cellSpan * CGFloat(gameEngine.gridSize - 1)
+
+        let relativeX = rawOrigin.x - originX
+        let relativeY = rawOrigin.y - originY
+
+        guard relativeX >= -cellSpan,
+              relativeY >= -cellSpan,
+              relativeX <= maxOffsetX + cellSpan,
+              relativeY <= maxOffsetY + cellSpan else {
+            return rawOrigin
+        }
+
+        let snappedX = originX + round(relativeX / cellSpan) * cellSpan
+        let snappedY = originY + round(relativeY / cellSpan) * cellSpan
+
+        let clampedX = min(max(snappedX, originX), originX + maxOffsetX)
+        let clampedY = min(max(snappedY, originY), originY + maxOffsetY)
+
+        return CGPoint(x: clampedX, y: clampedY)
+    }
     private func handleInvalidPlacement(blockIndex: Int, blockPattern: BlockPattern, position: CGPoint) {
         deviceManager.provideNotificationFeedback(type: .error)
         UIAccessibility.post(notification: .announcement, argument: "Invalid placement")
@@ -1260,28 +1370,9 @@ struct DragDropGameView: View {
     }
 
     private func makeCelebrationMessage(from event: ScoreEvent) -> CelebrationMessage? {
-        guard event.linesCleared >= 2 else { return nil }
-
-        let title: String
-        let subtitle: String
-        let icon: String
-
-        switch event.linesCleared {
-        case 2:
-            title = "Twin Streak!"
-            subtitle = "Double clear, double cheers!"
-            icon = "sparkles"
-        case 3:
-            title = "Triple Cascade!"
-            subtitle = "Three rows swept in one swoop."
-            icon = "flame.fill"
-        default:
-            title = "Combo Overdrive!"
-            subtitle = "\(event.linesCleared) lines evaporated in style."
-            icon = "burst.fill"
-        }
-
-        return CelebrationMessage(title: title, subtitle: subtitle, icon: icon, points: event.totalDelta)
+        // Line clear celebrations are handled by the SpriteKit effects overlay to avoid duplication.
+        // All visual and combo feedback is orchestrated through EffectsEngine.
+        return nil
     }
 
     private func announceGameState() {

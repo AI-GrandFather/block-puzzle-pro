@@ -283,7 +283,9 @@ class GameEngine: ObservableObject {
         for cell in prefill.cells {
             guard cell.row < clampedGridSize, cell.column < clampedGridSize else { continue }
             let position = GridPosition(unsafeRow: cell.row, unsafeColumn: cell.column)
-            setCell(at: position, to: .occupied(color: cell.color))
+            // Use locked state for locked cells, occupied for regular cells
+            let cellState: GridCell = cell.isLocked ? .locked(color: cell.color) : .occupied(color: cell.color)
+            setCell(at: position, to: cellState)
         }
     }
 
@@ -393,13 +395,17 @@ class GameEngine: ObservableObject {
         // Clear completed lines
         for row in completedRows {
             var rowFragments: [LineClear.Fragment] = []
-            
+
             for column in 0..<self.gridSize {
                 let position = GridPosition(unsafeRow: row, unsafeColumn: column)
-                if let cell = self.cell(at: position), case .occupied(let color) = cell {
-                    rowFragments.append(LineClear.Fragment(position: position, color: color))
+                if let cell = self.cell(at: position) {
+                    // Only clear non-locked cells
+                    if case .occupied(let color) = cell {
+                        rowFragments.append(LineClear.Fragment(position: position, color: color))
+                        self.setCell(at: position, to: .empty)
+                    }
+                    // Locked cells remain in place
                 }
-                self.setCell(at: position, to: .empty)
             }
             let positions = (0..<self.gridSize).map { GridPosition(unsafeRow: row, unsafeColumn: $0) }
             lineClears.append(LineClear(kind: .row(row), positions: positions, fragments: rowFragments))
@@ -409,10 +415,14 @@ class GameEngine: ObservableObject {
             var columnFragments: [LineClear.Fragment] = []
             for row in 0..<self.gridSize {
                 let position = GridPosition(unsafeRow: row, unsafeColumn: column)
-                if let cell = self.cell(at: position), case .occupied(let color) = cell {
-                    columnFragments.append(LineClear.Fragment(position: position, color: color))
+                if let cell = self.cell(at: position) {
+                    // Only clear non-locked cells
+                    if case .occupied(let color) = cell {
+                        columnFragments.append(LineClear.Fragment(position: position, color: color))
+                        self.setCell(at: position, to: .empty)
+                    }
+                    // Locked cells remain in place
                 }
-                self.setCell(at: position, to: .empty)
             }
             let positions = (0..<self.gridSize).map { GridPosition(unsafeRow: $0, unsafeColumn: column) }
             lineClears.append(LineClear(kind: .column(column), positions: positions, fragments: columnFragments))
@@ -493,6 +503,8 @@ class GameEngine: ObservableObject {
                         rowString += "."
                     case .occupied(_):
                         rowString += "X"
+                    case .locked(_):
+                        rowString += "#"  // Locked cells shown as #
                     case .preview(_):
                         rowString += "?"
                     }

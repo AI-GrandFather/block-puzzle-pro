@@ -7,6 +7,8 @@ extension GridCellPayload {
             self = GridCellPayload(state: .empty, color: nil)
         case .occupied(let color):
             self = GridCellPayload(state: .occupied, color: color.rawValue)
+        case .locked(let color):
+            self = GridCellPayload(state: .locked, color: color.rawValue)
         case .preview(let color):
             self = GridCellPayload(state: .preview, color: color.rawValue)
         }
@@ -21,6 +23,12 @@ extension GridCell {
         case .occupied:
             if let colorRaw = payload.color, let color = BlockColor(rawValue: colorRaw) {
                 self = .occupied(color: color)
+            } else {
+                self = .empty
+            }
+        case .locked:
+            if let colorRaw = payload.color, let color = BlockColor(rawValue: colorRaw) {
+                self = .locked(color: color)
             } else {
                 self = .empty
             }

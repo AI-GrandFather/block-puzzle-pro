@@ -60,6 +60,8 @@ struct SimpleGridCellView: View {
             return Color(UIColor.systemBackground)
         case .occupied(let blockColor):
             return Color(blockColor.uiColor)
+        case .locked(let blockColor):
+            return Color(blockColor.uiColor).opacity(0.8)  // Slightly dimmed to show it's locked
         case .preview(let blockColor):
             return Color(blockColor.uiColor).opacity(0.5)
         }

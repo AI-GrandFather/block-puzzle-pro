@@ -80,6 +80,8 @@ private struct GridCellRenderView: View {
 
     private var cellFill: Color {
         switch cell {
+        case .locked(let blockColor):
+            return Color(blockColor.uiColor).opacity(0.8)
         case .empty, .preview:
             // Use theme-aware empty cell color (treat preview as empty)
             if theme.isDarkTheme {

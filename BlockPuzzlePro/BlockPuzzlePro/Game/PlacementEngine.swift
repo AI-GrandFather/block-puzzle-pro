@@ -370,13 +370,15 @@ final class PlacementEngine: ObservableObject {
         let blockOriginX = blockOrigin.x
         let blockOriginY = blockOrigin.y
 
-        let adjustedX = blockOriginX - originX + (cellSpan / 2)
-        let adjustedY = blockOriginY - originY + (cellSpan / 2)
+        // Calculate position relative to grid origin (top-left corner mapping)
+        // Removed half-cell offset that was causing incorrect positioning
+        let relativeX = blockOriginX - originX
+        let relativeY = blockOriginY - originY
 
-        guard adjustedX >= 0, adjustedY >= 0 else { return nil }
+        guard relativeX >= 0, relativeY >= 0 else { return nil }
 
-        let column = Int(floor(adjustedX / cellSpan))
-        let row = Int(floor(adjustedY / cellSpan))
+        let column = Int(floor(relativeX / cellSpan))
+        let row = Int(floor(relativeY / cellSpan))
 
         guard column >= 0, row >= 0, column < gridSize, row < gridSize else { return nil }
 

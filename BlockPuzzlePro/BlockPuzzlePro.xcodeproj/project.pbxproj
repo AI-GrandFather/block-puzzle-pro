@@ -38,6 +38,8 @@
 		8F5DCA732E9BD160005EB22E /* GhostPreviewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F5DCA722E9BD160005EB22E /* GhostPreviewManager.swift */; };
 		8F5DCA782E9BD17F005EB22E /* GhostPreviewOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F5DCA752E9BD17F005EB22E /* GhostPreviewOverlay.swift */; };
 		8F5DCA7A2E9BD19E005EB22E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F5DCA792E9BD19E005EB22E /* AppDelegate.swift */; };
+		8F7187D32EA8142E0048696B /* ComprehensiveLevelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7187D12EA8142E0048696B /* ComprehensiveLevelManager.swift */; };
+		8F7187D42EA8142E0048696B /* LevelPatternGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7187D22EA8142E0048696B /* LevelPatternGenerator.swift */; };
 		8F7F23E22E9269AD000C0814 /* UnlockableThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7F23DF2E9269AD000C0814 /* UnlockableThemeManager.swift */; };
 		8F7F23E42E9269AD000C0814 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7F23DE2E9269AD000C0814 /* ThemeManager.swift */; };
 		8F7F23EC2E9269D4000C0814 /* ParticleEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7F23E72E9269D4000C0814 /* ParticleEffects.swift */; };
@@ -141,6 +143,8 @@
 		8F5DCA722E9BD160005EB22E /* GhostPreviewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostPreviewManager.swift; sourceTree = "<group>"; };
 		8F5DCA752E9BD17F005EB22E /* GhostPreviewOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostPreviewOverlay.swift; sourceTree = "<group>"; };
 		8F5DCA792E9BD19E005EB22E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		8F7187D12EA8142E0048696B /* ComprehensiveLevelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComprehensiveLevelManager.swift; sourceTree = "<group>"; };
+		8F7187D22EA8142E0048696B /* LevelPatternGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LevelPatternGenerator.swift; sourceTree = "<group>"; };
 		8F7F23DE2E9269AD000C0814 /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
 		8F7F23DF2E9269AD000C0814 /* UnlockableThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockableThemeManager.swift; sourceTree = "<group>"; };
 		8F7F23E72E9269D4000C0814 /* ParticleEffects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticleEffects.swift; sourceTree = "<group>"; };
@@ -257,6 +261,8 @@
 		53BA040A4545430DAC4FCA70E39759F0 /* Levels */ = {
 			isa = PBXGroup;
 			children = (
+				8F7187D12EA8142E0048696B /* ComprehensiveLevelManager.swift */,
+				8F7187D22EA8142E0048696B /* LevelPatternGenerator.swift */,
 				8CA37B450C6D4A1A99AD586EFFB1050B /* LevelModels.swift */,
 				CA055A71A8EE4619A71CC18F497DEB06 /* LevelsRepository.swift */,
 				73EB626E27A04D3B8D3747271A3FF25D /* LevelProgressStore.swift */,
@@ -656,6 +662,8 @@
 				8F5DCA672E9BD136005EB22E /* LevelsRepository.swift in Sources */,
 				8F5DCA682E9BD136005EB22E /* JSONLevelModels.swift in Sources */,
 				8F5DCA692E9BD136005EB22E /* LevelProgressStore.swift in Sources */,
+				8F7187D32EA8142E0048696B /* ComprehensiveLevelManager.swift in Sources */,
+				8F7187D42EA8142E0048696B /* LevelPatternGenerator.swift in Sources */,
 				8F7F24482E927260000C0814 /* ProMotionManager.swift in Sources */,
 				8F7F24342E926A00000C0814 /* SimpleDragTestView.swift in Sources */,
 				8F27CB5D2E769512004E6A4C /* DragController.swift in Sources */,

@@ -8,8 +8,9 @@ import UIKit
 enum GridCell: Equatable {
     case empty
     case occupied(color: BlockColor)
+    case locked(color: BlockColor)  // Pre-placed obstacles that cannot be cleared
     case preview(color: BlockColor)
-    
+
     /// Whether this cell is empty and can be filled
     var isEmpty: Bool {
         if case .empty = self {
@@ -17,10 +18,20 @@ enum GridCell: Equatable {
         }
         return false
     }
-    
-    /// Whether this cell is currently occupied
+
+    /// Whether this cell is currently occupied (by player or locked obstacle)
     var isOccupied: Bool {
-        if case .occupied = self {
+        switch self {
+        case .occupied, .locked:
+            return true
+        case .empty, .preview:
+            return false
+        }
+    }
+
+    /// Whether this cell is locked (cannot be cleared by line completion)
+    var isLocked: Bool {
+        if case .locked = self {
             return true
         }
         return false
@@ -33,13 +44,13 @@ enum GridCell: Equatable {
         }
         return false
     }
-    
+
     /// Get the color associated with this cell if any
     var color: BlockColor? {
         switch self {
         case .empty:
             return nil
-        case .occupied(let color), .preview(let color):
+        case .occupied(let color), .locked(let color), .preview(let color):
             return color
         }
     }

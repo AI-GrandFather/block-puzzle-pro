@@ -292,15 +292,17 @@ struct EnhancedScoreDisplay: View {
 // MARK: - Combo Counter View
 
 struct ComboCounterView: View {
-    @State private var animationManager = LineClearAnimationManager.shared
+    @State private var effectsEngine = EffectsEngine.shared
     @State private var themeManager = AdvancedThemeManager.shared
 
     var body: some View {
-        if animationManager.currentCombo > 1 {
+        let comboLevel = effectsEngine.comboLevel
+        if comboLevel >= 1 {
+            let multiplier = comboLevel + 1
             HStack(spacing: 8) {
                 // Multiplier
-                Text("\(animationManager.currentCombo)x")
-                    .font(.system(size: 36 + CGFloat(min(animationManager.currentCombo, 20)) * 2, weight: .black))
+                Text("\(multiplier)x")
+                    .font(.system(size: 36 + CGFloat(min(multiplier, 20)) * 2, weight: .black))
                     .foregroundStyle(
                         LinearGradient(
                             colors: comboColors,
@@ -330,7 +332,7 @@ struct ComboCounterView: View {
     }
 
     private var comboColors: [Color] {
-        switch animationManager.currentCombo {
+        switch effectsEngine.comboLevel + 1 {
         case 2...4:
             return [.yellow, .orange]
         case 5...9:
@@ -341,7 +343,7 @@ struct ComboCounterView: View {
     }
 
     private var comboGlowColor: Color {
-        switch animationManager.currentCombo {
+        switch effectsEngine.comboLevel + 1 {
         case 2...4:
             return .yellow
         case 5...9:

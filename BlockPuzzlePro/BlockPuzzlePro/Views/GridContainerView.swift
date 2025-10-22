@@ -94,6 +94,8 @@ struct GridCellView: View {
     
     private var cellColor: Color {
         switch cell {
+        case .locked(let blockColor):
+            return Color(blockColor.uiColor).opacity(0.8)
         case .empty:
             return Color(UIColor.systemBackground)
         case .occupied(let blockColor):

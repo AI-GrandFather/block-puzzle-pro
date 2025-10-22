@@ -3,7 +3,37 @@ import Foundation
 import UIKit
 
 struct GameConfig {
-    static let gridSize = 10
+    // Grid size options
+    enum GridSize: Int, CaseIterable, Codable {
+        case compact = 8    // 8×8 for faster, focused gameplay
+        case standard = 10  // 10×10 classic
+
+        var dimension: Int { rawValue }
+
+        var displayName: String {
+            switch self {
+            case .compact: return "8×8 Compact"
+            case .standard: return "10×10 Standard"
+            }
+        }
+    }
+
+    /// Current grid size setting
+    static var currentGridSize: GridSize {
+        get {
+            let rawValue = UserDefaults.standard.integer(forKey: "gridSize")
+            return GridSize(rawValue: rawValue) ?? .standard
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: "gridSize")
+        }
+    }
+
+    /// Active grid dimension (8 or 10)
+    static var gridSize: Int {
+        return currentGridSize.dimension
+    }
+
     static let trayBlockCount = 3
     static let maxFrameTime: TimeInterval = 8.3 / 1000.0 // 120fps budget
     static let fallbackFrameTime: TimeInterval = 16.7 / 1000.0 // 60fps budget
