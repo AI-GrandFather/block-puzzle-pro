@@ -143,22 +143,46 @@ struct BlockTrayView: View {
     
     private func blockTypeIndicator(for blockType: BlockType) -> String {
         switch blockType {
+        // Monomino & Domino
         case .single: return "•"
         case .domino: return "═"
+
+        // Triominoes
         case .triLine: return "≡"
         case .triCorner: return "└"
+
+        // Tetrominoes
         case .tetLine: return "⎮"
         case .tetSquare: return "▣"
         case .tetL: return "┗"
+        case .tetJ: return "┛"
         case .tetT: return "┴"
+        case .tetS: return "⊏"
+        case .tetZ: return "⊐"
         case .tetSkew: return "≈"
-        case .almostSquare: return "▧"
+
+        // Pentominoes
+        case .pentaF: return "F"
+        case .pentaI: return "I"
         case .pentaLine: return "⎯"
-        case .pentaL: return "┛"
+        case .pentaL: return "L"
+        case .pentaN: return "N"
         case .pentaP: return "▟"
+        case .pentaT: return "T"
         case .pentaU: return "∪"
         case .pentaV: return "∨"
         case .pentaW: return "W"
+        case .pentaX: return "✚"
+        case .pentaY: return "Y"
+        case .pentaZ: return "Z"
+
+        // Large pieces
+        case .rect2x3: return "▭"
+        case .rect3x2: return "▯"
+        case .square3x3: return "■"
+        case .largeL3x3: return "⌐"
+        case .plusShape: return "✛"
+        case .almostSquare: return "▧"
         }
     }
     

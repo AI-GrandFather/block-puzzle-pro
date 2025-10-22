@@ -8,9 +8,12 @@ final class LevelsRepository: ObservableObject {
 
     private let packs: [LevelPack]
     private let levelsByID: [Int: Level]
+    private let levelManager: ComprehensiveLevelManager
 
     private init() {
-        let generatedPacks = LevelDataFactory.buildPacks()
+        // Use new comprehensive level manager with research-backed progression
+        self.levelManager = ComprehensiveLevelManager()
+        let generatedPacks = levelManager.getAllWorlds()
         self.packs = generatedPacks
         var lookup: [Int: Level] = [:]
         for pack in generatedPacks {
