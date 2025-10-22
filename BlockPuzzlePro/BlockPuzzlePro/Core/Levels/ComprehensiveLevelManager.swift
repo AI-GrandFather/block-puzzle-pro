@@ -128,9 +128,9 @@ class ComprehensiveLevelManager {
 
     private func createLevel_1_1() -> Level {
         return Level(
-            id: 101,
+            id: 1,
             packID: 1,
-            indexInPack: 1,
+            indexInPack: 0,
             title: "First Steps",
             description: "Clear 2 rows to begin your journey!",
             objective: LevelObjective(type: .clearLines, targetValue: 2),
@@ -151,9 +151,9 @@ class ComprehensiveLevelManager {
         let corners = patternGenerator.generatePattern(difficulty: 1, patternType: .corners)
 
         return Level(
-            id: 102,
+            id: 2,
             packID: 1,
-            indexInPack: 2,
+            indexInPack: 1,
             title: "Corner Challenge",
             description: "Navigate around corner obstacles",
             objective: LevelObjective(type: .clearLines, targetValue: 2),
@@ -174,9 +174,9 @@ class ComprehensiveLevelManager {
         let scattered = patternGenerator.generatePattern(difficulty: 2, patternType: .scattered)
 
         return Level(
-            id: 103,
+            id: 3,
             packID: 1,
-            indexInPack: 3,
+            indexInPack: 2,
             title: "Scattered Blocks",
             description: "Clear 3 rows with obstacles in the way",
             objective: LevelObjective(type: .clearLines, targetValue: 3),
@@ -197,9 +197,9 @@ class ComprehensiveLevelManager {
         let borders = patternGenerator.generatePattern(difficulty: 2, patternType: .borders)
 
         return Level(
-            id: 104,
+            id: 4,
             packID: 1,
-            indexInPack: 4,
+            indexInPack: 3,
             title: "Border Patrol",
             description: "Work within the borders",
             objective: LevelObjective(type: .clearLines, targetValue: 2),
@@ -220,9 +220,9 @@ class ComprehensiveLevelManager {
         let cross = patternGenerator.generatePattern(difficulty: 2, patternType: .cross)
 
         return Level(
-            id: 105,
+            id: 5,
             packID: 1,
-            indexInPack: 5,
+            indexInPack: 4,
             title: "Cross Roads",
             description: "Navigate the cross pattern",
             objective: LevelObjective(type: .clearLines, targetValue: 3),
@@ -243,9 +243,9 @@ class ComprehensiveLevelManager {
         let checkerboard = patternGenerator.generatePattern(difficulty: 3, patternType: .checkerboard)
 
         return Level(
-            id: 106,
+            id: 6,
             packID: 1,
-            indexInPack: 6,
+            indexInPack: 5,
             title: "Checker Pattern",
             description: "Clear 4 rows around the checkerboard",
             objective: LevelObjective(type: .clearLines, targetValue: 4),
@@ -266,9 +266,9 @@ class ComprehensiveLevelManager {
         let lShape = patternGenerator.generatePattern(difficulty: 3, patternType: .lShape)
 
         return Level(
-            id: 107,
+            id: 7,
             packID: 1,
-            indexInPack: 7,
+            indexInPack: 6,
             title: "L-Shaped Barriers",
             description: "Clear rows and columns together",
             objective: LevelObjective(type: .clearLines, targetValue: 5),  // Mix of rows and columns
@@ -289,9 +289,9 @@ class ComprehensiveLevelManager {
         let clusters = patternGenerator.generatePattern(difficulty: 3, patternType: .clusters)
 
         return Level(
-            id: 108,
+            id: 8,
             packID: 1,
-            indexInPack: 8,
+            indexInPack: 7,
             title: "Clustered Chaos",
             description: "Clear 5 rows amid the clusters",
             objective: LevelObjective(type: .clearLines, targetValue: 5),
@@ -312,9 +312,9 @@ class ComprehensiveLevelManager {
         let scattered = patternGenerator.generatePattern(difficulty: 3, patternType: .scattered)
 
         return Level(
-            id: 109,
+            id: 9,
             packID: 1,
-            indexInPack: 9,
+            indexInPack: 8,
             title: "Race Against Time",
             description: "Clear 3 rows in 60 seconds!",
             objective: LevelObjective(type: .surviveTime, targetValue: 60),  // Must clear objective within time
@@ -335,9 +335,9 @@ class ComprehensiveLevelManager {
         let diagonal = patternGenerator.generatePattern(difficulty: 4, patternType: .diagonal)
 
         return Level(
-            id: 110,
+            id: 10,
             packID: 1,
-            indexInPack: 10,
+            indexInPack: 9,
             title: "Diagonal Divide",
             description: "Clear 4 rows across the diagonal",
             objective: LevelObjective(type: .clearLines, targetValue: 4),
@@ -358,9 +358,9 @@ class ComprehensiveLevelManager {
         let cross = patternGenerator.generatePattern(difficulty: 5, patternType: .cross)
 
         return Level(
-            id: 111,
+            id: 11,
             packID: 1,
-            indexInPack: 11,
+            indexInPack: 10,
             title: "Double Cross",
             description: "Clear 5 rows through complex obstacles",
             objective: LevelObjective(type: .clearLines, targetValue: 5),
@@ -382,9 +382,9 @@ class ComprehensiveLevelManager {
         let scattered = patternGenerator.generatePattern(difficulty: 4, patternType: .scattered)
 
         return Level(
-            id: 112,
+            id: 12,
             packID: 1,
-            indexInPack: 12,
+            indexInPack: 11,
             title: "Tetromino Only",
             description: "Clear 4 rows using only tetromino pieces",
             objective: LevelObjective(type: .clearLines, targetValue: 4),
@@ -409,9 +409,9 @@ class ComprehensiveLevelManager {
         let frame = patternGenerator.generatePattern(difficulty: 5, patternType: .frame)
 
         return Level(
-            id: 113,
+            id: 13,
             packID: 1,
-            indexInPack: 13,
+            indexInPack: 12,
             title: "Framed",
             description: "Clear 6 rows within the frame",
             objective: LevelObjective(type: .clearLines, targetValue: 6),
@@ -432,9 +432,9 @@ class ComprehensiveLevelManager {
         let clusters = patternGenerator.generatePattern(difficulty: 6, patternType: .clusters)
 
         return Level(
-            id: 114,
+            id: 14,
             packID: 1,
-            indexInPack: 14,
+            indexInPack: 13,
             title: "Complex Scatter",
             description: "Clear 5 rows and 4 columns",
             objective: LevelObjective(type: .clearLines, targetValue: 9),  // Combined target
@@ -455,9 +455,9 @@ class ComprehensiveLevelManager {
         let spiral = patternGenerator.generatePattern(difficulty: 7, patternType: .spiral)
 
         return Level(
-            id: 115,
+            id: 15,
             packID: 1,
-            indexInPack: 15,
+            indexInPack: 14,
             title: "BOSS: Spiral Summit",
             description: "Conquer the spiral to reach the peak!",
             objective: LevelObjective(type: .clearLines, targetValue: 8),
@@ -480,7 +480,7 @@ class ComprehensiveLevelManager {
         // World 2 focuses on planning ahead and strategic thinking
         let levels = createWorldLevels(
             worldID: 2,
-            startLevelID: 201,
+            startLevelID: 16,
             worldName: "Strategy Valley",
             baseDifficulty: 3,
             unlockRequirement: UnlockRequirement(type: .stars, value: 30)
@@ -508,7 +508,7 @@ class ComprehensiveLevelManager {
     private func createWorld3_PuzzlePlains() -> LevelPack {
         let levels = createWorldLevels(
             worldID: 3,
-            startLevelID: 301,
+            startLevelID: 31,
             worldName: "Puzzle Plains",
             baseDifficulty: 4,
             unlockRequirement: UnlockRequirement(type: .stars, value: 55)
@@ -529,7 +529,7 @@ class ComprehensiveLevelManager {
     private func createWorld4_ChallengeCanyons() -> LevelPack {
         let levels = createWorldLevels(
             worldID: 4,
-            startLevelID: 401,
+            startLevelID: 46,
             worldName: "Challenge Canyons",
             baseDifficulty: 5,
             unlockRequirement: UnlockRequirement(type: .stars, value: 80)
@@ -550,7 +550,7 @@ class ComprehensiveLevelManager {
     private func createWorld5_MasterMountains() -> LevelPack {
         let levels = createWorldLevels(
             worldID: 5,
-            startLevelID: 501,
+            startLevelID: 61,
             worldName: "Master Mountains",
             baseDifficulty: 6,
             unlockRequirement: UnlockRequirement(type: .stars, value: 105)
@@ -571,7 +571,7 @@ class ComprehensiveLevelManager {
     private func createWorld6_ExpertExpanse() -> LevelPack {
         let levels = createWorldLevels(
             worldID: 6,
-            startLevelID: 601,
+            startLevelID: 76,
             worldName: "Expert Expanse",
             baseDifficulty: 7,
             unlockRequirement: UnlockRequirement(type: .stars, value: 130)
@@ -592,7 +592,7 @@ class ComprehensiveLevelManager {
     private func createWorld7_LegendLands() -> LevelPack {
         let levels = createWorldLevels(
             worldID: 7,
-            startLevelID: 701,
+            startLevelID: 91,
             worldName: "Legend Lands",
             baseDifficulty: 8,
             unlockRequirement: UnlockRequirement(type: .stars, value: 155)
@@ -613,7 +613,7 @@ class ComprehensiveLevelManager {
     private func createWorld8_InfiniteIsles() -> LevelPack {
         let levels = createWorldLevels(
             worldID: 8,
-            startLevelID: 801,
+            startLevelID: 106,
             worldName: "Infinite Isles",
             baseDifficulty: 9,
             unlockRequirement: UnlockRequirement(type: .stars, value: 180)
@@ -634,7 +634,7 @@ class ComprehensiveLevelManager {
     private func createWorld9_UltimatePlateau() -> LevelPack {
         let levels = createWorldLevels(
             worldID: 9,
-            startLevelID: 901,
+            startLevelID: 121,
             worldName: "Ultimate Plateau",
             baseDifficulty: 10,
             unlockRequirement: UnlockRequirement(type: .stars, value: 205)
@@ -655,7 +655,7 @@ class ComprehensiveLevelManager {
     private func createWorld10_GrandmasterGlacier() -> LevelPack {
         let levels = createWorldLevels(
             worldID: 10,
-            startLevelID: 1001,
+            startLevelID: 136,
             worldName: "Grandmaster Glacier",
             baseDifficulty: 11,
             unlockRequirement: UnlockRequirement(type: .stars, value: 230)
@@ -727,7 +727,7 @@ class ComprehensiveLevelManager {
             let level = createTemplateLevel(
                 id: levelID,
                 packID: worldID,
-                indexInPack: levelIndex,
+                indexInPack: levelIndex - 1,  // 0-based indexing for array access
                 title: "\(worldName) \(levelIndex)",
                 description: generateLevelDescription(type: levelType, difficulty: difficulty),
                 pattern: pattern,
